@@ -3,6 +3,7 @@ ITEM_NAME_MAP = {
     "工作台": "crafting_table",
     "工具台": "crafting_table", 
     "合成台": "crafting_table",
+    "模板": "crafting_table",
     "craft_table": "crafting_table",
     "craftingtable": "crafting_table",
     

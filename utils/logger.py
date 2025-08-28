@@ -1,7 +1,6 @@
-from __future__ import annotations
-
 from loguru import logger as _logger
 import sys
+from typing import Optional
 
 
 def get_logger(name: str):
@@ -9,7 +8,7 @@ def get_logger(name: str):
     return _logger.bind(module=name)
 
 
-def setup_logging(level: str | None = None) -> None:
+def setup_logging(level: Optional[str] = None) -> None:
     """根据配置设置全局日志级别。
 
     Args:

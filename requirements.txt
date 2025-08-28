@@ -24,3 +24,5 @@ maim-message
 customtkinter
 fastmcp
 json-repair
+pytest
+pytest-asyncio

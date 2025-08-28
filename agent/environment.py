@@ -19,10 +19,20 @@ class EnvironmentInfo:
     def __init__(self):
         # 玩家信息
         self.player_name: str = ""
+        self.gamemode: str = ""  # 新增：游戏模式
         
         # 位置信息(脚)
         self.position: Optional[Position] = None
         self.block_position: Optional[BlockPosition] = None
+        
+        # 速度信息
+        self.velocity: Optional[Position] = None  # 新增：速度向量
+        
+        # 光标信息
+        self.block_at_cursor: Optional[Dict[str, Any]] = None  # 新增：光标指向的方块
+        self.entity_at_cursor: Optional[Dict[str, Any]] = None  # 新增：光标指向的实体
+        self.held_item: Optional[Dict[str, Any]] = None  # 新增：手持物品
+        self.using_held_item: bool = False  # 新增：是否正在使用手持物品
         
         # 状态信息
         self.health: int = 0
@@ -35,6 +45,16 @@ class EnvironmentInfo:
         self.experience: int = 0
         self.level: int = 0
         self.oxygen: int = 0
+        self.armor: int = 0  # 新增：护甲值
+        self.is_sleeping: bool = False  # 新增：是否在睡觉
+        self.on_ground: bool = True  # 新增：是否在地面上
+        
+        # 视角信息
+        self.yaw: float = 0.0  # 新增：水平视角
+        self.pitch: float = 0.0  # 新增：垂直视角
+        
+        # 装备信息
+        self.equipment: Dict[str, Optional[Dict[str, Any]]] = {}  # 新增：装备信息
 
         self.overview_base64 = ""
         self.overview_str = ""
@@ -51,6 +71,7 @@ class EnvironmentInfo:
         self.weather: str = ""
         self.time_of_day: int = 0
         self.dimension: str = ""
+        self.biome: str = ""  # 新增：生物群系
         
         # 附近玩家
         self.nearby_players: List[Player] = []
@@ -101,8 +122,10 @@ class EnvironmentInfo:
         self.weather = data.get("weather", "")
         self.time_of_day = data.get("timeOfDay", 0)
         self.dimension = data.get("dimension", "")
+        self.biome = data.get("biome", "") # 更新生物群系
         
         self.player_name = data.get("username", "")
+        self.gamemode = data.get("gamemode", "") # 更新游戏模式
         
         # 更新在线玩家信息 (来自 query_game_state)
         online_players = data.get("onlinePlayers", [])
@@ -134,6 +157,17 @@ class EnvironmentInfo:
             
         self.block_position = BlockPosition(self.position)
         
+        # 更新速度信息
+        velocity_data = data.get("velocity")
+        if velocity_data and isinstance(velocity_data, dict):
+            self.velocity = Position(
+                x=velocity_data.get("x", 0.0),
+                y=velocity_data.get("y", 0.0),
+                z=velocity_data.get("z", 0.0)
+            )
+        else:
+            self.velocity = None
+        
         # 更新状态信息
         health_data = data.get("health", {})
         self.health = health_data.get("current", 0)
@@ -151,6 +185,24 @@ class EnvironmentInfo:
         self.level = experience_data.get("level", 0)
         
         self.oxygen = data.get("oxygen", 0)
+        self.armor = data.get("armor", 0) # 更新护甲值
+        self.is_sleeping = data.get("isSleeping", False) # 更新睡眠状态
+        self.on_ground = data.get("onGround", True) # 更新是否在地面上
+        
+        # 更新视角信息
+        self.yaw = data.get("yaw", 0.0)
+        self.pitch = data.get("pitch", 0.0)
+        
+        # 更新装备信息
+        self.equipment = data.get("equipment", {})
+        
+        # 更新手持物品信息
+        self.held_item = data.get("heldItem")
+        self.using_held_item = data.get("usingHeldItem", False)
+        
+        # 更新光标指向的方块和实体
+        self.block_at_cursor = data.get("blockAtCursor") or data.get("blockAtEntityCursor")
+        self.entity_at_cursor = data.get("entityAtCursor")
         
         
         # 更新物品栏
@@ -471,6 +523,7 @@ class EnvironmentInfo:
         if self.player_name:
             lines.append("【自身信息】")
             lines.append(f"  用户名: {self.player_name}")
+            lines.append(f"  游戏模式: {self.gamemode}")
             # lines.append(f"  显示名: {self.player.display_name}")
             # lines.append(f"  游戏模式: {self._get_gamemode_name(self.player.gamemode)}")
             lines.append("")
@@ -483,6 +536,59 @@ class EnvironmentInfo:
             lines.append(f"  饥饿饱和度: {self.food_saturation}")
         # lines.append(f"  经验值: {self.experience}")
         lines.append(f"  等级: {self.level}")
+        lines.append(f"  护甲值: {self.armor}")
+        lines.append(f"  是否在地面上: {self.on_ground}")
+        lines.append(f"  是否在睡觉: {self.is_sleeping}")
+        lines.append(f"  氧气: {self.oxygen}")
+        
+        # 视角信息
+        if self.yaw != 0.0 or self.pitch != 0.0:
+            lines.append(f"  视角: Yaw={self.yaw:.2f}°, Pitch={self.pitch:.2f}°")
+        
+        # 速度信息
+        if self.velocity:
+            lines.append(f"  速度: X={self.velocity.x:.2f}, Y={self.velocity.y:.2f}, Z={self.velocity.z:.2f}")
+        
+        # 手持物品信息
+        if self.held_item:
+            item_name = self.held_item.get("displayName", self.held_item.get("name", "未知物品"))
+            item_count = self.held_item.get("count", 1)
+            durability = self.held_item.get("maxDurability", 0)
+            current_damage = 0
+            if self.held_item.get("components"):
+                for component in self.held_item["components"]:
+                    if component.get("type") == "damage":
+                        current_damage = component.get("data", 0)
+                        break
+            
+            lines.append(f"  手持物品: {item_name} x{item_count}")
+            if durability > 1:
+                remaining_durability = durability - current_damage
+                lines.append(f"    耐久度: {remaining_durability}/{durability}")
+            if self.using_held_item:
+                lines.append("    正在使用中")
+        
+        # 光标信息
+        if self.block_at_cursor:
+            block_name = self.block_at_cursor.get("displayName", self.block_at_cursor.get("name", "未知方块"))
+            block_pos = self.block_at_cursor.get("position", {})
+            if block_pos:
+                lines.append(f"  光标指向: {block_name} 在 ({block_pos.get('x', 0)}, {block_pos.get('y', 0)}, {block_pos.get('z', 0)})")
+        
+        if self.entity_at_cursor:
+            entity_name = self.entity_at_cursor.get("displayName", self.entity_at_cursor.get("name", "未知实体"))
+            lines.append(f"  光标指向实体: {entity_name}")
+        
+        # 装备信息
+        if self.equipment:
+            equipped_items = []
+            for slot, item in self.equipment.items():
+                if item:
+                    item_name = item.get("displayName", item.get("name", "未知物品"))
+                    equipped_items.append(f"{slot}: {item_name}")
+            if equipped_items:
+                lines.append(f"  装备: {', '.join(equipped_items)}")
+        
         lines.append("")
         
         # 物品栏
@@ -921,6 +1027,105 @@ class EnvironmentInfo:
             lines.append("物品栏没有变化")
         
         return "\n".join(lines)
+
+    def get_held_item_info(self) -> str:
+        """获取手持物品的详细信息"""
+        if not self.held_item:
+            return "没有手持物品"
+        
+        item_name = self.held_item.get("displayName", self.held_item.get("name", "未知物品"))
+        item_count = self.held_item.get("count", 1)
+        durability = self.held_item.get("maxDurability", 0)
+        
+        info_lines = [f"手持物品: {item_name} x{item_count}"]
+        
+        # 添加耐久度信息
+        if durability > 1:
+            current_damage = 0
+            if self.held_item.get("components"):
+                for component in self.held_item["components"]:
+                    if component.get("type") == "damage":
+                        current_damage = component.get("data", 0)
+                        break
+            
+            remaining_durability = durability - current_damage
+            info_lines.append(f"耐久度: {remaining_durability}/{durability}")
+            
+            # 添加耐久度百分比
+            if durability > 0:
+                durability_percent = (remaining_durability / durability) * 100
+                info_lines.append(f"耐久度百分比: {durability_percent:.1f}%")
+        
+        # 添加物品类型信息
+        if self.held_item.get("material"):
+            info_lines.append(f"挖掘工具: {self.held_item['material']}")
+        
+        # 添加是否正在使用的状态
+        if self.using_held_item:
+            info_lines.append("状态: 正在使用中")
+        
+        return "\n".join(info_lines)
+
+    def get_cursor_info(self) -> str:
+        """获取光标指向的信息"""
+        info_lines = ["【光标信息】"]
+        
+        if self.block_at_cursor:
+            block_name = self.block_at_cursor.get("displayName", self.block_at_cursor.get("name", "未知方块"))
+            block_pos = self.block_at_cursor.get("position", {})
+            
+            info_lines.append(f"指向方块: {block_name}")
+            if block_pos:
+                info_lines.append(f"位置: ({block_pos.get('x', 0)}, {block_pos.get('y', 0)}, {block_pos.get('z', 0)})")
+            
+            # 添加方块属性信息
+            if self.block_at_cursor.get("hardness") is not None:
+                info_lines.append(f"硬度: {self.block_at_cursor['hardness']}")
+            
+            if self.block_at_cursor.get("material"):
+                info_lines.append(f"挖掘工具: {self.block_at_cursor['material']}")
+            
+            if self.block_at_cursor.get("transparent") is not None:
+                info_lines.append(f"透明: {'是' if self.block_at_cursor['transparent'] else '否'}")
+            
+            if self.block_at_cursor.get("diggable") is not None:
+                info_lines.append(f"可挖掘: {'是' if self.block_at_cursor['diggable'] else '否'}")
+        
+        if self.entity_at_cursor:
+            entity_name = self.entity_at_cursor.get("displayName", self.entity_at_cursor.get("name", "未知实体"))
+            info_lines.append(f"指向实体: {entity_name}")
+            
+            # 添加实体属性信息
+            if self.entity_at_cursor.get("health") is not None:
+                max_health = self.entity_at_cursor.get("maxHealth", 0)
+                if max_health > 0:
+                    info_lines.append(f"生命值: {self.entity_at_cursor['health']}/{max_health}")
+                else:
+                    info_lines.append(f"生命值: {self.entity_at_cursor['health']}")
+        
+        if not self.block_at_cursor and not self.entity_at_cursor:
+            info_lines.append("光标没有指向任何方块或实体")
+        
+        return "\n".join(info_lines)
+
+    def get_movement_info(self) -> str:
+        """获取移动相关信息"""
+        info_lines = ["【移动信息】"]
+        
+        if self.velocity:
+            speed = (self.velocity.x**2 + self.velocity.y**2 + self.velocity.z**2)**0.5
+            info_lines.append(f"当前速度: {speed:.2f} 方块/秒")
+            info_lines.append(f"速度向量: X={self.velocity.x:.2f}, Y={self.velocity.y:.2f}, Z={self.velocity.z:.2f}")
+        else:
+            info_lines.append("当前速度: 静止")
+        
+        info_lines.append(f"是否在地面上: {'是' if self.on_ground else '否'}")
+        info_lines.append(f"是否在睡觉: {'是' if self.is_sleeping else '否'}")
+        
+        if self.position:
+            info_lines.append(f"当前位置: X={self.position.x:.2f}, Y={self.position.y:.2f}, Z={self.position.z:.2f}")
+        
+        return "\n".join(info_lines)
 
 
 # 全局环境信息实例

@@ -20,9 +20,9 @@ from agent.action.recipe_action import recipe_finder
 import traceback
 from agent.nearby_block import NearbyBlockManager
 # global_block_cache 在当前文件未直接使用，避免未使用告警
-from agent.block_cache.block_cache_viewer import BlockCacheViewer
-from agent.place_action import PlaceAction
-from agent.move_action import MoveAction
+from view_render.block_cache_viewer import BlockCacheViewer
+from agent.action.place_action import PlaceAction
+from agent.action.move_action import MoveAction
 from .utils_tool_translation import (
     translate_move_tool_result, 
     translate_mine_nearby_tool_result, 
@@ -164,6 +164,7 @@ class MaiAgent:
             else:
                 self.logger.error("[MaiAgent] 环境更新器启动失败")
 
+            await asyncio.sleep(1)
             
             self.mode = "main_action"
             
@@ -193,9 +194,7 @@ class MaiAgent:
         """
         while True:            
             try:
-                self.logger.info("[MaiAgent] 准备调用 propose_all_task …")
                 await self.propose_all_task(to_do_list=self.to_do_list, environment_info=global_environment.get_summary())
-                self.logger.info("[MaiAgent] propose_all_task 调用完成")
             except Exception:
                 import traceback
                 self.logger.error(f"[MaiAgent] propose_all_task 调用异常: {traceback.format_exc()}")
@@ -281,7 +280,6 @@ class MaiAgent:
     
     async def propose_all_task(self, to_do_list: ToDoList, environment_info: str) -> bool:
         self.logger.info("[MaiAgent] 开始提议任务")
-        print("propose_all_task")
         # 使用原有的提示词模板，但通过call_tool传入工具
         await self.environment_updater.perform_update()
         nearby_block_info = await self.nearby_block_manager.get_block_details_mix_str(global_environment.block_position)
@@ -406,7 +404,7 @@ class MaiAgent:
                 if self.mode == "main_action":
                     input_data["goal"] = self.goal
                     prompt = prompt_manager.generate_prompt("minecraft_excute_task_thinking", **input_data)
-                    self.logger.info(f"[MaiAgent] 执行任务提示词: {prompt}")
+                    # self.logger.info(f"[MaiAgent] 执行任务提示词: {prompt}")
                 elif self.mode == "task_action":
                     input_data["to_do_list"] = self.to_do_list.__str__()
                     input_data["task_done_list"] = self._format_task_done_list()
@@ -418,7 +416,7 @@ class MaiAgent:
                     # self.logger.info(f"\033[38;5;208m[MaiAgent] 执行任务提示词: {prompt}\033[0m")
                 elif self.mode == "container_action":
                     prompt = prompt_manager.generate_prompt("minecraft_excute_container_action", **input_data)
-                    self.logger.info(f"\033[38;5;208m[MaiAgent] 执行任务提示词: {prompt}\033[0m")
+                    # self.logger.info(f"\033[38;5;208m[MaiAgent] 执行任务提示词: {prompt}\033[0m")
                     
                 
                 

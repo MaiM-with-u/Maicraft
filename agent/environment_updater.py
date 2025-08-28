@@ -12,7 +12,7 @@ from utils.logger import get_logger
 from agent.environment import global_environment
 import json
 from agent.block_cache.block_cache import global_block_cache
-from agent.block_cache.block_cache_viewer import BlockCacheViewer
+from view_render.block_cache_viewer import BlockCacheViewer
 
 class EnvironmentUpdater:
     """环境信息定期更新器"""
@@ -210,11 +210,40 @@ class EnvironmentUpdater:
             if isinstance(results[1], dict) and results[1].get("ok"):
                 try:
                     player_status = results[1].get("data", {})
+                    
+                    # 新格式的玩家状态包含了更多信息，直接更新
                     combined_data["data"].update(player_status)
+                    
+                    # 处理物品栏信息（新格式中物品栏在player_status中）
+                    if "inventory" in player_status:
+                        combined_data["data"]["inventory"] = player_status["inventory"]
+                    
+                    # 处理光标信息
+                    if "blockAtEntityCursor" in player_status:
+                        combined_data["data"]["blockAtCursor"] = player_status["blockAtEntityCursor"]
+                    if "entityAtCursor" in player_status:
+                        combined_data["data"]["entityAtCursor"] = player_status["entityAtCursor"]
+                    
+                    # 处理手持物品信息
+                    if "heldItem" in player_status:
+                        combined_data["data"]["heldItem"] = player_status["heldItem"]
+                    if "usingHeldItem" in player_status:
+                        combined_data["data"]["usingHeldItem"] = player_status["usingHeldItem"]
+                    
+                    # 处理装备信息
+                    if "equipment" in player_status:
+                        combined_data["data"]["equipment"] = player_status["equipment"]
+                    
+                    # 处理其他新字段
+                    for field in ["gamemode", "velocity", "armor", "isSleeping", "onGround", "yaw", "pitch", "biome"]:
+                        if field in player_status:
+                            combined_data["data"][field] = player_status[field]
+                    
                     combined_data["elapsed_ms"] = max(combined_data["elapsed_ms"], results[1].get("elapsed_ms", 0))
                     self.logger.debug("[EnvironmentUpdater] 玩家状态数据更新成功")
                 except Exception as e:
                     self.logger.warning(f"[EnvironmentUpdater] 处理玩家状态数据时出错: {e}")
+                    self.logger.warning(traceback.format_exc())
             
             # 处理最近事件
             if isinstance(results[2], dict) and results[2].get("ok"):
@@ -319,7 +348,8 @@ class EnvironmentUpdater:
 
     async def _call_query_player_status(self, include_inventory: bool = False) -> Optional[Dict[str, Any]]:
         """调用query_player_status工具"""
-        return await self._call_tool("query_player_status", {"includeInventory": include_inventory})
+        # 新的格式已经包含了物品栏信息，所以不需要额外参数
+        return await self._call_tool("query_player_status", {})
 
     async def _call_query_recent_events(self) -> Optional[Dict[str, Any]]:
         """调用query_recent_events工具"""
