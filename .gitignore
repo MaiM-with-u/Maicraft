@@ -6,6 +6,8 @@ __pycache__/
 # C extensions
 *.so
 
+config.toml
+mcp_servers.json
 # Distribution / packaging
 .Python
 build/

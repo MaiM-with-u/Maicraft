@@ -1,0 +1,2 @@
+# maicraft plugin package
+

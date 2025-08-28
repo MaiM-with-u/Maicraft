@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "minecraft": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "/path/to/minecraft-mcp-server",
+        "--host",
+        "localhost",
+        "--port",
+        "25565",
+        "--username",
+        "MaiBot"
+      ]
+    }
+  }
+}

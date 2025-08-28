@@ -1,0 +1,33 @@
+# Maicraft插件配置模板
+
+[logging]
+# level 可选: TRACE, DEBUG, INFO, SUCCESS, WARNING, ERROR, CRITICAL
+level = "INFO"
+
+[llm]
+model = "gpt-4o"
+temperature = 0.2
+api_key = "your-api-key"  # 可选，如果不设置将使用环境变量
+base_url = "https://api.openai.com/v1"  # 可选，用于自定义API端点
+max_tokens = 1024
+
+[llm_fast]
+model = "gpt-4o-mini"
+temperature = 0.2
+api_key = "your-api-key"  # 可选，如果不设置将使用环境变量
+base_url = "https://api.openai.com/v1"  # 可选，用于自定义API端点
+max_tokens = 1024
+
+[vlm]
+model = "gpt-4o"
+temperature = 0.3
+api_key = "your-api-key"
+base_url = "https://api.openai.com/v1"
+max_tokens = 1024
+
+[agent]
+enabled = true
+session_id = "maicraft_default"
+max_steps = 50
+tick_seconds = 8.0
+report_each_step = true

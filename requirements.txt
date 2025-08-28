@@ -1,0 +1,26 @@
+aiohttp
+fastapi
+loguru
+pydantic
+pyvts
+setuptools
+uvicorn
+ruff
+requests
+websockets
+python-logging-loki
+typer
+aiohttp
+mss
+numpy
+openai
+Pillow
+pyvts
+obsws-python
+pygame  # Optional: For more reliable audio playback in TTS plugin
+tomli
+torchaudio
+maim-message
+customtkinter
+fastmcp
+json-repair
