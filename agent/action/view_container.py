@@ -1,6 +1,6 @@
 from config import global_config
 from agent.block_cache.block_cache import global_block_cache
-from agent.utils import parse_tool_result
+from agent.utils.utils import parse_tool_result
 
 class ViewContainer:
     def __init__(self, mcp_client):

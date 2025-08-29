@@ -7,7 +7,7 @@ from dataclasses import field
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from utils.logger import get_logger
-from .basic_info import Player, Position, Entity, Event, BlockPosition
+from agent.environment.basic_info import Player, Position, Entity, Event, BlockPosition
 from agent.block_cache.block_cache import global_block_cache
 from openai_client.llm_request import LLMClient
 

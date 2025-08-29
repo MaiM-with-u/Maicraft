@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Tuple, Set, Any
 from datetime import datetime
 from collections import defaultdict
 from utils.logger import get_logger
-from ..basic_info import BlockPosition, Position
+from agent.environment.basic_info import BlockPosition, Position
 
 logger = get_logger("BlockCache")
 

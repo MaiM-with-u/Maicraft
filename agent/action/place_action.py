@@ -1,11 +1,9 @@
 from agent.block_cache.block_cache import global_block_cache
-from agent.nearby_block import NearbyBlockManager
-from agent.environment import global_environment
-from agent.prompt_manager.prompt_manager import prompt_manager
+from agent.environment.environment import global_environment
 from config import global_config
 from openai_client.llm_request import LLMClient
 from openai_client.modelconfig import ModelConfig
-from agent.utils import parse_json
+from agent.utils.utils import parse_json
 from utils.logger import get_logger
 
 class PlaceAction:
@@ -18,8 +16,6 @@ class PlaceAction:
             max_tokens=global_config.llm_fast.max_tokens,
             temperature=global_config.llm_fast.temperature
         )
-        
-        self.nearby_block_manager = NearbyBlockManager(global_config)
         
         self.llm_client = LLMClient(model_config)
         self.logger.info("[PlaceAction] LLM客户端初始化成功")

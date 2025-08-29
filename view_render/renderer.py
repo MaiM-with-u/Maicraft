@@ -14,7 +14,7 @@ import colorsys
 import math
 
 from agent.block_cache.block_cache import BlockCache, CachedBlock, global_block_cache
-from agent.environment import global_environment
+from agent.environment.environment import global_environment
 
 
 @dataclass

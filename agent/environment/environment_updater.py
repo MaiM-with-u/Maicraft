@@ -9,10 +9,9 @@ import traceback
 from typing import Callable, Optional, Dict, Any
 from datetime import datetime
 from utils.logger import get_logger
-from agent.environment import global_environment
+from agent.environment.environment import global_environment
 import json
 from agent.block_cache.block_cache import global_block_cache
-from view_render.block_cache_viewer import BlockCacheViewer
 
 class EnvironmentUpdater:
     """环境信息定期更新器"""
