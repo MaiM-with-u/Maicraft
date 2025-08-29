@@ -483,6 +483,9 @@ class MaiAgent:
                 y = math.floor(float(json_obj.get("y")))
                 z = math.floor(float(json_obj.get("z")))
                 block_cache = global_block_cache.get_block(x, y, z)
+                if not block_cache:
+                    result.result_str += f"位置{x},{y},{z}不存在方块，无法挖掘\n"
+                    return result
                 if block_cache.block_type == "air":
                     result.result_str += f"位置{x},{y},{z}不存在方块，无法挖掘\n"
                     return result
