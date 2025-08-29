@@ -1,25 +1,25 @@
 import asyncio
 import time
+import math
 from typing import List, Any, Optional
 from langchain_core.tools import BaseTool
 from utils.logger import get_logger
-from config import MaicraftConfig
+from config import global_config
 from openai_client.llm_request import LLMClient
 from openai_client.modelconfig import ModelConfig
 from agent.environment_updater import EnvironmentUpdater
 from agent.environment import global_environment
 from agent.prompt_manager.prompt_manager import prompt_manager
+from agent.block_cache.block_cache import global_block_cache
 from agent.prompt_manager.template import init_templates
-from agent.prompt_manager.template_place import init_templates_place
 from agent.utils import (
     parse_json, convert_mcp_tools_to_openai_format, parse_tool_result, filter_action_tools,
     parse_thinking,
 )
 from agent.to_do_list import ToDoList
-from agent.action.recipe_action import recipe_finder
+from agent.action.craft_action.craft_action import recipe_finder
 import traceback
 from agent.nearby_block import NearbyBlockManager
-# global_block_cache 在当前文件未直接使用，避免未使用告警
 from view_render.block_cache_viewer import BlockCacheViewer
 from agent.action.place_action import PlaceAction
 from agent.action.move_action import MoveAction
@@ -31,7 +31,9 @@ from .utils_tool_translation import (
     translate_chat_tool_result,
     translate_start_smelting_tool_result,
     translate_collect_smelted_items_tool_result,
+    translate_view_chest_result,
 )
+from agent.action.view_container import ViewContainer
 
 class ThinkingJsonResult:
     def __init__(self):
@@ -55,8 +57,7 @@ class TaskResult:
         self.rewrite = ""
 
 class MaiAgent:
-    def __init__(self, config: MaicraftConfig, mcp_client):
-        self.config = config
+    def __init__(self, mcp_client):
         self.mcp_client = mcp_client
         self.logger = get_logger("MaiAgent")
 
@@ -81,7 +82,7 @@ class MaiAgent:
 
         self.place_action: Optional[PlaceAction] = None
         self.move_action: Optional[MoveAction] = None
-
+        self.view_container: Optional[ViewContainer] = None
         # 初始化状态
         self.initialized = False
         
@@ -114,25 +115,25 @@ class MaiAgent:
             self.logger.info("[MaiAgent] 开始初始化")
             
             init_templates()
-            init_templates_place()
+            
             # 初始化LLM客户端
             model_config = ModelConfig(
-                model_name=self.config.llm.model,
-                api_key=self.config.llm.api_key,
-                base_url=self.config.llm.base_url,
-                max_tokens=self.config.llm.max_tokens,
-                temperature=self.config.llm.temperature
+                model_name=global_config.llm.model,
+                api_key=global_config.llm.api_key,
+                base_url=global_config.llm.base_url,
+                max_tokens=global_config.llm.max_tokens,
+                temperature=global_config.llm.temperature
             )
             
             
             self.llm_client = LLMClient(model_config)
             
             model_config = ModelConfig(
-                model_name=self.config.vlm.model,
-                api_key=self.config.vlm.api_key,
-                base_url=self.config.vlm.base_url,
-                max_tokens=self.config.vlm.max_tokens,
-                temperature=self.config.vlm.temperature
+                model_name=global_config.vlm.model,
+                api_key=global_config.vlm.api_key,
+                base_url=global_config.vlm.base_url,
+                max_tokens=global_config.vlm.max_tokens,
+                temperature=global_config.vlm.temperature
             )
             
             self.vlm = LLMClient(model_config)
@@ -147,17 +148,17 @@ class MaiAgent:
             self.logger.info(f"[MaiAgent] 获取到 {len(self.action_tools)} 个可用工具")
             self.openai_tools = convert_mcp_tools_to_openai_format(self.action_tools)
 
-            await self._start_block_cache_viewer()
+            # await self._start_block_cache_viewer()
             
             # 创建并启动环境更新器
             self.environment_updater = EnvironmentUpdater(
                 mcp_client = self.mcp_client,
-                block_cache_viewer = self.block_cache_viewer,
                 update_interval=0.1,  # 默认5秒更新间隔
             )
             
-            self.place_action = PlaceAction(self.config)
-            self.move_action = MoveAction(self.config)
+            self.place_action = PlaceAction()
+            self.move_action = MoveAction()
+            self.view_container = ViewContainer(self.mcp_client)
             # 启动环境更新器
             if self.environment_updater.start():
                 self.logger.info("[MaiAgent] 环境更新器启动成功")
@@ -169,15 +170,13 @@ class MaiAgent:
             self.mode = "main_action"
             
             # 初始化NearbyBlockManager
-            self.nearby_block_manager = NearbyBlockManager(self.config)
+            self.nearby_block_manager = NearbyBlockManager(global_config)
             self.logger.info("[MaiAgent] NearbyBlockManager初始化成功")
 
             self.initialized = True
             self.logger.info("[MaiAgent] 初始化完成")
 
             # 启动方块缓存预览窗口（后台，不阻塞事件循环）
-            
-            
             
             self.inventory_old:List[Any] = []
             
@@ -230,52 +229,6 @@ class MaiAgent:
             elif result.status == "change":
                 self.logger.info(f"[MaiAgent] 更换任务: {result.message}")
                 self.task_done_list.append((True,self.on_going_task_id,f"任务未完成，更换到任务{result.new_task_id}"))
-            elif result.status == "rewrite":
-                self.logger.info(f"[MaiAgent] 任务列表修改: {result.message}")
-                self.task_done_list.append((True,self.on_going_task_id,"修改了任务列表"))
-                await self.rewrite_all_task(
-                    suggestion=result.rewrite
-                )
-            
-                
-            
-    async def rewrite_all_task(self, suggestion: str):
-        self.logger.info("[MaiAgent] 开始修改任务")
-        # 使用原有的提示词模板，但通过call_tool传入工具
-        await self.environment_updater.perform_update()
-        nearby_block_info = await self.nearby_block_manager.get_block_details_mix_str(global_environment.block_position)
-        input_data = {
-            "goal": self.goal,
-            "environment": global_environment.get_summary(),
-            "to_do_list": self.to_do_list.__str__(),
-            "suggestion": suggestion,
-            "position": global_environment.get_position_str(),
-            "nearby_block_info": nearby_block_info,
-            "chat_str": global_environment.get_chat_str(),
-        }
-        prompt = prompt_manager.generate_prompt("minecraft_rewrite_task", **input_data)
-        self.logger.info(f"[MaiAgent] 任务修改提示词: {prompt}")
-        
-        response = await self.llm_client.simple_chat(prompt)
-        self.logger.info(f"[MaiAgent] 任务修改响应: {response}")
-        
-        tasks_list = parse_json(response)
-        if tasks_list.get("tasks",""):
-            tasks_list = tasks_list.get("tasks",[])
-        
-        self.to_do_list.clear()
-
-        for task in tasks_list:
-            try:
-                details = str(task.get("details", "")).strip()
-                done_criteria = str(task.get("done_criteria", "")).strip()
-                self.to_do_list.add_task(details=details, done_criteria=done_criteria)
-            except Exception as e:
-                self.logger.error(f"[MaiAgent] 处理任务时异常: {e}，任务内容: {task}")
-                continue
-            
-
-        
 
     
     async def propose_all_task(self, to_do_list: ToDoList, environment_info: str) -> bool:
@@ -378,9 +331,9 @@ class MaiAgent:
                     self.thinking_list = self.thinking_list[-20:]
                     
                 if task:
-                    self.logger.info(f"[MaiAgent]\n执行任务:\n {task} \n尝试")
+                    self.logger.info(f"[MaiAgent]执行任务:\n {task}")
                 else:
-                    self.logger.info(f"[MaiAgent] 没有任务，开始选择任务")
+                    self.logger.info("[MaiAgent] 没有任务，开始选择任务")
                 
                 # 获取当前环境信息
                 await self.environment_updater.perform_update()
@@ -417,7 +370,11 @@ class MaiAgent:
                 elif self.mode == "container_action":
                     prompt = prompt_manager.generate_prompt("minecraft_excute_container_action", **input_data)
                     # self.logger.info(f"\033[38;5;208m[MaiAgent] 执行任务提示词: {prompt}\033[0m")
-                    
+                elif self.mode == "mining_mode":
+                    input_data["goal"] = self.goal
+                    nearby_block_info = await self.nearby_block_manager.get_block_details_mix_str(global_environment.block_position,6)
+                    prompt = prompt_manager.generate_prompt("minecraft_mining_nearby", **input_data)
+                    # self.logger.info(f"\033[38;5;208m[MaiAgent] 执行任务提示词: {prompt}\033[0m")
                 
                 
                 
@@ -429,13 +386,23 @@ class MaiAgent:
                 time_str = time.strftime("%H:%M:%S", time.localtime())
                 
                 if json_obj:
-                    self.logger.info(f"\033[32m[MaiAgent] 想法: {json_before}\033[0m")
-                    self.logger.info(f"\033[32m[MaiAgent] 动作: {json_obj}\033[0m")
+                    color_map = {
+                        "main_action": "\033[32m",        # 绿色
+                        "task_action": "\033[38;5;39m",   # 蓝色
+                        "move_action": "\033[38;5;208m",  # 橙色
+                        "container_action": "\033[38;5;141m", # 紫色
+                        "mining_mode": "\033[38;5;226m",  # 黄色
+                    }
+                    color_prefix = color_map.get(self.mode, "\033[0m")
+                    self.logger.info(f"{color_prefix}[MaiAgent] 想法{self.mode}: {json_before}\033[0m")
+                    self.logger.info(f"{color_prefix}[MaiAgent] 动作: {json_obj}\033[0m")
                     
                     if json_before:
                         self.thinking_list.append(f"时间：{time_str} 思考结果：{json_before}")
                     
                     result = await self.excute_json(json_obj)
+                    
+                    self.logger.info(f"[MaiAgent] 执行结果: {result.result_str}")
                     
                     self.thinking_list.append(f"时间：{time_str} 执行结果：{result.result_str}")
                     if result.done:
@@ -499,6 +466,62 @@ class MaiAgent:
 
             self.mode = "main_action"
             return result
+        elif self.mode == "mining_mode":
+            if action_type == "mine_nearby":
+                name = json_obj.get("name")
+                count = json_obj.get("count")
+                result.result_str = f"想要批量挖掘: {name} 数量: {count}\n"
+                args = {"name": name, "count": count}
+                call_result = await self.mcp_client.call_tool_directly("mine_block", args)
+                is_success, result_content = parse_tool_result(call_result)
+                if is_success:
+                    result.result_str += translate_mine_nearby_tool_result(result_content)
+                else:
+                    result.result_str += f"批量挖掘失败: {result_content}"
+            elif action_type == "mine_block":
+                x = math.floor(float(json_obj.get("x")))
+                y = math.floor(float(json_obj.get("y")))
+                z = math.floor(float(json_obj.get("z")))
+                block_cache = global_block_cache.get_block(x, y, z)
+                if block_cache.block_type == "air":
+                    result.result_str += f"位置{x},{y},{z}不存在方块，无法挖掘\n"
+                    return result
+                if block_cache.block_type == "water" or block_cache.block_type == "lava" or block_cache.block_type == "bedrock":
+                    result.result_str += f"位置{x},{y},{z}是{block_cache.block_type}，无法挖掘\n"
+                    return result
+                
+                args = {"x": x, "y": y, "z": z,"digOnly": True}
+                result.result_str = f"尝试挖掘位置：{x},{y},{z}\n"
+                call_result = await self.mcp_client.call_tool_directly("mine_block", args)
+                is_success, result_content = parse_tool_result(call_result)
+                if is_success:
+                    result.result_str += translate_mine_block_tool_result(result_content)
+                else:
+                    result.result_str += f"挖掘失败: {result_content}"
+            elif action_type == "place_block":
+                block = json_obj.get("block")
+                x = json_obj.get("x")
+                y = json_obj.get("y")
+                z = json_obj.get("z")
+                
+                result_str, args = await self.place_action.place_action(block, x, y, z)            
+                result.result_str = result_str
+
+                if not args:
+                    return result
+                
+                call_result = await self.mcp_client.call_tool_directly("place_block", args)
+                is_success, result_content = parse_tool_result(call_result)
+                result.result_str += translate_place_block_tool_result(result_content,args)
+            elif action_type == "move":
+                self.mode = "move_action"
+                reason = json_obj.get("reason")
+                result.result_str = f"选择进行移动动作: \n原因: {reason}\n"            
+                return result
+            elif action_type == "exit_mining_mode":
+                self.mode = "main_action"
+                result.result_str = "退出采矿/采掘模式\n"
+                return result
         elif self.mode == "container_action":
             if action_type == "collect_smelted_items":
                 item = json_obj.get("item")
@@ -516,7 +539,6 @@ class MaiAgent:
                     result.result_str += translate_collect_smelted_items_tool_result(result_content)
                 else:
                     result.result_str += f"收集熔炼物品失败: {result_content}"
-                self.mode = "main_action"
             elif action_type == "start_smelting":
                 item = json_obj.get("item")
                 fuel = json_obj.get("fuel")
@@ -529,8 +551,14 @@ class MaiAgent:
                     result.result_str += translate_start_smelting_tool_result(result_content)
                 else:
                     result.result_str += f"开始熔炼失败: {result_content}"
-                self.mode = "main_action"
-
+            elif action_type == "view_chest":
+                x = math.floor(float(json_obj.get("x")))
+                y = math.floor(float(json_obj.get("y")))
+                z = math.floor(float(json_obj.get("z")))
+                args = {"x": x, "y": y, "z": z}
+                result.result_str = f"想要查看: {x},{y},{z}\n"
+                result_content = await self.view_container.view_chest(x, y, z)
+                result.result_str += translate_view_chest_result(result_content)
             elif action_type == "craft":
                 item = json_obj.get("item")
                 count = json_obj.get("count")
@@ -542,8 +570,6 @@ class MaiAgent:
                     result.result_str = f"合成成功：{item} x{count}\n{summary}\n"
                 else:
                     result.result_str = f"合成未完成：{item} x{count}\n{summary}\n"
-                self.mode = "main_action"
-
             elif action_type == "use_chest":
                 item = json_obj.get("item")
                 type = json_obj.get("type")
@@ -555,6 +581,7 @@ class MaiAgent:
                 call_result = await self.mcp_client.call_tool_directly("use_chest", args)
                 is_success, result_content = parse_tool_result(call_result)
                 result.result_str += result_content
+            elif action_type == "finish_using":
                 self.mode = "main_action"
             else:
                 self.logger.warning(f"在合成模式，{self.mode} 不支持的action_type: {action_type}")
@@ -567,12 +594,12 @@ class MaiAgent:
                 result.result_str = f"选择更换任务: {new_task_id},原因是: {reason}\n"
                 self.on_going_task_id = new_task_id
                 return result
-            elif action_type == "rewrite_task_list":
+            elif action_type == "delete_task":
+                task_id = json_obj.get("task_id")
                 reason = json_obj.get("reason")
-                result.rewrite = reason
-                result.result_str = f"选择修改任务列表: \n原因: {reason}\n"
+                self.to_do_list.del_task_by_id(task_id)
+                result.result_str = f"删除任务: {task_id},原因是: {reason}\n"
                 self.mode = "task_action"
-                self.on_going_task_id = ""
                 return result
             elif action_type == "update_task_progress":
                 progress = json_obj.get("progress")
@@ -604,29 +631,34 @@ class MaiAgent:
                 reason = json_obj.get("reason")
                 result.result_str = f"选择进行移动动作: \n原因: {reason}\n"            
                 return result
-            elif action_type == "mine_block":
-                x = json_obj.get("x")
-                y = json_obj.get("y")
-                z = json_obj.get("z")
+            elif action_type == "break_block":
+                x = math.floor(float(json_obj.get("x")))
+                y = math.floor(float(json_obj.get("y")))
+                z = math.floor(float(json_obj.get("z")))
+                
+                block_cache = global_block_cache.get_block(x, y, z)
+                if not block_cache:
+                    result.result_str += f"位置{x},{y},{z}太远，无法挖掘\n"
+                    return result
+                if block_cache.block_type == "air":
+                    result.result_str += f"位置{x},{y},{z}不存在方块，无法破坏\n"
+                    return result
+                if block_cache.block_type == "water" or block_cache.block_type == "lava" or block_cache.block_type == "bedrock":
+                    result.result_str += f"位置{x},{y},{z}是{block_cache.block_type}，无法破坏\n"
+                    return result
+                
                 args = {"x": x, "y": y, "z": z,"digOnly": True}
-                result.result_str = f"尝试挖掘位置：{x},{y},{z}\n"
+                result.result_str = f"尝试破坏位置：{x},{y},{z}\n"
                 call_result = await self.mcp_client.call_tool_directly("mine_block", args)
                 is_success, result_content = parse_tool_result(call_result)
                 if is_success:
                     result.result_str += translate_mine_block_tool_result(result_content)
                 else:
                     result.result_str += f"挖掘失败: {result_content}"
-            elif action_type == "mine_nearby":
-                name = json_obj.get("name")
-                count = json_obj.get("count")
-                args = {"name": name, "count": count}
-                result.result_str = f"尝试采集：{name} 数量：{count}\n"
-                call_result = await self.mcp_client.call_tool_directly("mine_block", args)
-                is_success, result_content = parse_tool_result(call_result)
-                if is_success:
-                    result.result_str += translate_mine_nearby_tool_result(result_content)
-                else:
-                    result.result_str += f"采集失败: {result_content}"
+            elif action_type == "enter_mining_mode":
+                self.mode = "mining_mode"
+                result.result_str = "进入采矿/采掘模式\n"
+                return result
             elif action_type == "place_block":
                 block = json_obj.get("block")
                 x = json_obj.get("x")
@@ -661,6 +693,10 @@ class MaiAgent:
                 memo = json_obj.get("memo")
                 result.result_str = f"添加备忘录: {memo}\n"
                 self.memo_list.append(memo)
+            elif action_type == "remove_memo":
+                memo = json_obj.get("memo")
+                result.result_str = f"移除备忘录: {memo}\n"
+                self.memo_list.remove(memo)
             # 任务动作
             elif action_type == "update_task_list":
                 self.mode = "task_action"

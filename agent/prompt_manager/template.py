@@ -1,7 +1,13 @@
 from agent.prompt_manager.prompt_manager import PromptTemplate, prompt_manager
+from agent.prompt_manager.template_place import init_templates_place
+from agent.prompt_manager.template_mining import init_templates_mining
+from agent.prompt_manager.template_container import init_templates_container
 
 def init_templates() -> None:
     """初始化提示词模板"""
+    init_templates_place()
+    init_templates_mining()
+    init_templates_container()
     
     prompt_manager.register_template(
         PromptTemplate(
@@ -40,19 +46,19 @@ def init_templates() -> None:
  }}
  
 **挖掘/破坏动作**
-挖掘某个位置指定的方块，不主动移动搜集
+挖掘某个位置指定的方块
 {{
-    "action_type":"mine_block",
+    "action_type":"break_block",
     "x":"挖掘x位置",
     "y":"挖掘y位置",
     "z":"挖掘z位置",
 }}
 
-挖掘一片附近的某种方块，并移动搜集，适合采集资源
+**进入采矿/采掘模式**
+当你要进行采矿，进行大量挖掘，或进行大批量的采集，请进入采矿/采掘模式
+这个模式能够加快效率，减少思考时间
 {{
-    "action_type":"mine_nearby",
-    "name":"需要采集的方块名称",
-    "count":"挖掘数量",
+    "action_type":"enter_mining_mode",
 }}
 
 **放置动作**
@@ -80,13 +86,19 @@ def init_templates() -> None:
     "reason":"使用容器的原因"
 }}
 
-**添加备忘录**
-添加备忘录到记忆，可以在后续回顾，用于记录重要信息，用于后续的思考和执行
+**添加备忘录/移除备忘录**
+添加备忘录到记忆，可以在后续回顾
 你的记忆是有限的，因此请将重要信息记录下来，用于后续的思考和执行
 请在每次思考之后，如果有内容需要添加，请使用备忘录添加，不要重复添加
 {{
     "action_type":"add_memo",
     "memo":"要添加的内容",
+}}
+
+移除备忘录
+{{
+    "action_type":"remove_memo",
+    "memo":"要移除的内容",
 }}
 
 **任务动作**
@@ -102,8 +114,13 @@ def init_templates() -> None:
 之前的思考和执行的记录：
 {thinking_list}
 
+**模式**
+1.请你灵活使用采矿模式，帮助你更高效的完成任务
+
+
 **注意事项**
 1.先总结之前的思考和执行的记录，对执行结果进行分析，是否达成目的，是否需要调整任务或动作
+2.你可以根据任务选择合适的动作模式，也可以选择单独的动作
 2.想法要求简短，精准，如果要描述坐标，完整的描述，不要有多余信息
 3.你的想法长度最多保留10条，如果有重要信息，请使用备忘录进行保留
 4.你可以通过事件知道别的玩家的位置，或者别的玩家正在做什么，请你与玩家保持积极互动。
@@ -117,82 +134,6 @@ def init_templates() -> None:
         parameters=["goal", "task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
     ))
     
-    prompt_manager.register_template(
-        PromptTemplate(
-        name="minecraft_excute_container_action",
-        template="""
-你是麦麦，游戏名叫Mai,你正在游玩Minecraft，是一名Minecraft玩家。请你选择合适的动作来完成当前任务：
-
-**当前需要执行的任务**：
-{task}
-
-**环境信息**：{environment}
-
-**位置信息**：
-{position}
-
-**周围方块的信息**：
-{nearby_block_info}
-
-**玩家聊天记录**：
-{chat_str}
-
-**备忘录**：
-{memo_list}
-
-**你可以做的动作**
-**craft**
-能够进行工作台3x3合成
-能够进行直接2x2合成
-{{
-    "action_type":"craft",
-    "item":"物品名称",
-    "count":"数量"
-}}
-
-**collect_smelted_items**
-从熔炉中收集已熔炼完成的物品，不指定就寻找最近的熔炉
-{{
-    "action_type":"collect_smelted_items",
-    "item":"物品名称",
-    "x":"熔炉位置，可选",
-    "y":"熔炉位置，可选",
-    "z":"熔炉位置，可选",
-}}
-
-**start_smelting**
-打开熔炉，将物品放入熔炉并添加燃料，进行熔炼
-{{
-    "action_type":"start_smelting",
-    "item":"物品名称",
-    "fuel":"燃料名称",
-    "count":"数量",
-}}
-
-**use_chest**
-打开箱子，将物品放入箱子或从箱子中取出物品
-{{
-    "action_type":"use_chest",
-    "item":"某样物品名称",
-    "type":"in/out", //in表示放入，out表示取出
-}}
-
-
-之前的思考和执行的记录：
-{thinking_list}
-
-**注意事项**
-1.你现在的目的是使用容器，请你参考上述原因，选择合适的容器使用动作
-2.先总结之前的思考和执行的记录，输出一段想法
-3.想法要求简短，精准，如果要描述坐标，完整的描述，不要有多余信息
-4.然后根据现有的**动作**，**任务**,**情景**，**物品栏**和**周围环境**，选择合适的动作，推进任务进度
-规划内容是一段平文本，不要分点
-规划后请使用动作，动作用json格式输出
-""",
-        description="容器-动作选择",
-        parameters=["task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
-    ))
-
     
     prompt_manager.register_template(
         PromptTemplate(
@@ -290,11 +231,14 @@ def init_templates() -> None:
      "new_task_id":"任务id",
  }}
  
- 4. 如果你认为任务列表有问题，无法通过任务列表达成目标，请修改任务列表：
+ 4. 如果某个任务是无法完成，不合理的，请删除该任务
  {{
-     "action_type":"rewrite_task_list",
-     "reason":"修改任务列表的原因",
+     "action_type":"delete_task",
+     "task_id":"任务id",
+     "reason":"删除任务的原因",
  }}
+ 
+
  
  之前的思考和执行的记录：
 {thinking_list}
@@ -310,19 +254,6 @@ def init_templates() -> None:
     ))
     
     
-
-
-
-
-
-
-
-
-
-
-
-
-
     
     
     prompt_manager.register_template(
@@ -388,77 +319,5 @@ def init_templates() -> None:
 """,
         description="任务规划",
         parameters=["goal", "environment", "nearby_block_info", "position", "chat_str"],
-    ))
-    
-    
-    
-    prompt_manager.register_template(
-        PromptTemplate(
-        name="minecraft_rewrite_task",
-        template="""
-你是麦麦，游戏名叫Mai,你正在游玩Minecraft，是一名Minecraft玩家。请根据当前的目标，和对应建议，修改现有的任务列表：
-
-**当前目标**：{goal}
-
-**任务列表**：
-{to_do_list}
-
-**建议**：{suggestion}
-
-**位置信息**：
-{position}
-
-**环境信息**：
-{environment}
-
-**周围方块的信息**：
-{nearby_block_info}
-
-**玩家聊天记录**：
-{chat_str}
-
-请根据建议，修改任务列表，并输出修改后的任务列表，并以json格式输出：
-
-注意，任务的格式如下，请你参考以下格式：
-
-{{
-    "tasks": {{
-    {{
-        "details":"挖掘十个石头,用于合成石稿",
-        "done_criteria":"物品栏中包含十个及以上石头"
-    }},
-    {{
-        "type": "craft",
-        "details":"使用工作台合成一把石稿,用于挖掘铁矿",
-        "done_criteria":"物品栏中包含一把石稿"
-    }},
-    {{
-        "type": "move",
-        "details":"移动到草地,用于挖掘铁矿",
-        "done_criteria":"脚下方块为grass_block"
-    }},
-    {{
-        "type": "place",
-        "details":"在面前放置一个熔炉,用于熔炼铁锭",
-        "done_criteria":"物品栏中包含一个熔炉"
-    }},
-    {{
-        "type": "get",
-        "details":"从箱子里获取三个铁锭,用于合成铁桶",
-        "done_criteria":"物品栏中包含三个铁锭"
-    }}
-    }}
-}}
-
-*请你根据当前的物品栏，环境信息，位置信息，来决定要如何安排任务*
-
-你可以：
-1. 任务需要明确，并且可以检验是否完成
-2. 在原来的任务列表中，根据建议进行修改，可以增加，删减或修改内容，并输出修改后的任务列表
-
-请用json格式输出任务列表。
-""",
-        description="Minecraft游戏任务规划模板",
-        parameters=["goal", "environment", "to_do_list", "suggestion", "nearby_block_info", "position", "chat_str"],
     ))
     

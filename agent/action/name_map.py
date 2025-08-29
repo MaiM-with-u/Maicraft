@@ -147,36 +147,26 @@ ITEM_NAME_MAP = {
     # 工具相关
     "镐子": "pickaxe",
     "镐": "pickaxe",
-    "铁镐": "iron_pickaxe",
-    "钻石镐": "diamond_pickaxe",
     "iron_pickaxe": "iron_pickaxe",
     "diamond_pickaxe": "diamond_pickaxe",
     
     "斧子": "axe",
     "斧": "axe",
-    "铁斧": "iron_axe",
-    "钻石斧": "diamond_axe",
     "iron_axe": "iron_axe",
     "diamond_axe": "diamond_axe",
     
     "铲子": "shovel",
     "铲": "shovel",
-    "铁铲": "iron_shovel",
-    "钻石铲": "diamond_shovel",
     "iron_shovel": "iron_shovel",
     "diamond_shovel": "diamond_shovel",
     
     "锄头": "hoe",
     "锄": "hoe",
-    "铁锄": "iron_hoe",
-    "钻石锄": "diamond_hoe",
     "iron_hoe": "iron_hoe",
     "diamond_hoe": "diamond_hoe",
     
     # 武器相关
     "剑": "sword",
-    "铁剑": "iron_sword",
-    "钻石剑": "diamond_sword",
     "iron_sword": "iron_sword",
     "diamond_sword": "diamond_sword",
     

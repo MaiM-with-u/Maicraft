@@ -1,7 +1,12 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any
 from utils.logger import get_logger
+import os
+import tomli
 
+class LoggingConfig(BaseModel):
+    """Logging配置模型"""
+    level: str = Field(default="INFO", description="日志级别")
 
 class LLMConfig(BaseModel):
     """LLM配置模型"""
@@ -68,6 +73,7 @@ class AgentConfig(BaseModel):
 class MaicraftConfig(BaseModel):
     """Maicraft插件配置模型"""
 
+    logging: LoggingConfig = Field(default_factory=LoggingConfig, description="Logging配置")
     llm: LLMConfig = Field(default_factory=LLMConfig, description="LLM配置")
     llm_fast: LLMConfigFast = Field(default_factory=LLMConfigFast, description="LLM快速配置")
     vlm: VLMConfig = Field(default_factory=VLMConfig, description="VLM配置")
@@ -136,3 +142,19 @@ def load_config_from_dict(config_data: Dict[str, Any]) -> MaicraftConfig:
 def create_default_config() -> MaicraftConfig:
     """创建默认配置"""
     return MaicraftConfig()
+
+
+def _load_config_from_toml(toml_path: str) -> Dict[str, Any]:
+    with open(toml_path, "rb") as f:
+        data = tomli.load(f)
+    return data
+
+base_dir = os.path.dirname(os.path.abspath(__file__))
+config_path = os.path.join(base_dir, "config.toml")
+if not os.path.exists(config_path):
+    # 兼容从项目根目录执行
+    config_path = os.path.join(os.getcwd(), "config.toml")
+
+config_dict = _load_config_from_toml(config_path)
+
+global_config = load_config_from_dict(config_dict)

@@ -19,8 +19,7 @@ class EnvironmentUpdater:
     
     def __init__(self, 
                  mcp_client,
-                 block_cache_viewer,
-                 update_interval: int = 3,
+                 update_interval: int = 0.2,
                  ):
         """
         初始化环境更新器
@@ -33,7 +32,6 @@ class EnvironmentUpdater:
         self.mcp_client = mcp_client
         self.update_interval = update_interval
         self.logger = get_logger("EnvironmentUpdater")
-        self.block_cache_viewer:BlockCacheViewer = block_cache_viewer
         
         # 更新状态
         self.is_running = False
@@ -168,7 +166,7 @@ class EnvironmentUpdater:
             # 并行调用所有查询工具
             tasks = [
                 self._call_query_game_state(),
-                self._call_query_player_status(include_inventory=True),  # 默认包含物品栏信息
+                self._call_query_player_status(),
                 self._call_query_recent_events(),
                 self._call_query_surroundings("players"),
                 self._call_query_surroundings("entities"),
@@ -182,10 +180,6 @@ class EnvironmentUpdater:
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
                     self.logger.warning(f"[EnvironmentUpdater] 查询工具 {i} 返回异常: {result}")
-                elif isinstance(result, dict):
-                    self.logger.debug(f"[EnvironmentUpdater] 查询工具 {i} 返回字典，ok={result.get('ok')}")
-                else:
-                    self.logger.warning(f"[EnvironmentUpdater] 查询工具 {i} 返回未知类型: {type(result)}")
             
             # 合并结果
             combined_data = {
@@ -195,6 +189,7 @@ class EnvironmentUpdater:
                 "elapsed_ms": 0
             }
             
+            
             # 处理游戏状态
             if isinstance(results[0], dict) and results[0].get("ok"):
                 try:
@@ -202,7 +197,6 @@ class EnvironmentUpdater:
                     combined_data["data"].update(game_state)
                     combined_data["request_id"] = results[0].get("request_id", "")
                     combined_data["elapsed_ms"] = max(combined_data["elapsed_ms"], results[0].get("elapsed_ms", 0))
-                    self.logger.debug("[EnvironmentUpdater] 游戏状态数据更新成功")
                 except Exception as e:
                     self.logger.warning(f"[EnvironmentUpdater] 处理游戏状态数据时出错: {e}")
             
@@ -260,13 +254,7 @@ class EnvironmentUpdater:
                         # 每次获取后都更新 last_processed_tick 为最新事件的 gameTick
                         self.last_processed_tick = max_tick + 5
                         # self.logger.info(f"[EnvironmentUpdater] 更新 last_processed_tick: {old_tick} -> {self.last_processed_tick}")
-                    
-                    # 记录事件数量信息，用于调试
-                    # if old_tick == 0:
-                    #     self.logger.info(f"[EnvironmentUpdater] 首次获取事件，获取到 {len(new_events)} 个事件")
-                    # else:
-                    #     self.logger.info(f"[EnvironmentUpdater] 增量获取事件，获取到 {len(new_events)} 个新事件 (sinceTick: {old_tick})")
-                    
+                
                     # 将新事件添加到现有事件列表中，而不是替换
                     combined_data["data"]["recentEvents"] = new_events
                     # 同时保存统计信息
@@ -309,8 +297,7 @@ class EnvironmentUpdater:
                 except Exception as e:
                     self.logger.warning(f"[EnvironmentUpdater] 处理周围实体数据时出错: {e}")
                     combined_data["data"]["nearbyEntities"] = []
-            
-            
+                    
             
             # 处理周围方块缓存器
             if isinstance(results[5], dict) and results[5].get("ok"):
@@ -349,7 +336,7 @@ class EnvironmentUpdater:
     async def _call_query_player_status(self, include_inventory: bool = False) -> Optional[Dict[str, Any]]:
         """调用query_player_status工具"""
         # 新的格式已经包含了物品栏信息，所以不需要额外参数
-        return await self._call_tool("query_player_status", {})
+        return await self._call_tool("query_player_status", {"includeInventory":True})
 
     async def _call_query_recent_events(self) -> Optional[Dict[str, Any]]:
         """调用query_recent_events工具"""

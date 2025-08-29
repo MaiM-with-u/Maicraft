@@ -1,4 +1,5 @@
 from typing import List
+import re
 
 class ToDoItem:
     def __init__(self, details: str, done_criteria: str, progress: str):
@@ -27,6 +28,21 @@ class ToDoList:
         self.items.append(to_do_item)
         
         return to_do_item
+    
+    def del_task_by_id(self, id: str):
+        for item in self.items:
+            if item.id == id:
+                self.items.remove(item)
+                return
+            
+        match = re.search(r'\d+', str(id))
+        if match:
+            new_id = match.group(0)
+            
+        for item in self.items:
+            if item.id == new_id:
+                self.items.remove(item)
+                return
         
     def __str__(self):
         summary = ""

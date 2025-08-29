@@ -538,16 +538,16 @@ class EnvironmentInfo:
         lines.append(f"  等级: {self.level}")
         lines.append(f"  护甲值: {self.armor}")
         lines.append(f"  是否在地面上: {self.on_ground}")
-        lines.append(f"  是否在睡觉: {self.is_sleeping}")
+        # lines.append(f"  是否在睡觉: {self.is_sleeping}")
         lines.append(f"  氧气: {self.oxygen}")
         
         # 视角信息
-        if self.yaw != 0.0 or self.pitch != 0.0:
-            lines.append(f"  视角: Yaw={self.yaw:.2f}°, Pitch={self.pitch:.2f}°")
+        # if self.yaw != 0.0 or self.pitch != 0.0:
+        #     lines.append(f"  视角: Yaw={self.yaw:.2f}°, Pitch={self.pitch:.2f}°")
         
         # 速度信息
-        if self.velocity:
-            lines.append(f"  速度: X={self.velocity.x:.2f}, Y={self.velocity.y:.2f}, Z={self.velocity.z:.2f}")
+        # if self.velocity:
+        #     lines.append(f"  速度: X={self.velocity.x:.2f}, Y={self.velocity.y:.2f}, Z={self.velocity.z:.2f}")
         
         # 手持物品信息
         if self.held_item:
@@ -569,15 +569,15 @@ class EnvironmentInfo:
                 lines.append("    正在使用中")
         
         # 光标信息
-        if self.block_at_cursor:
-            block_name = self.block_at_cursor.get("displayName", self.block_at_cursor.get("name", "未知方块"))
-            block_pos = self.block_at_cursor.get("position", {})
-            if block_pos:
-                lines.append(f"  光标指向: {block_name} 在 ({block_pos.get('x', 0)}, {block_pos.get('y', 0)}, {block_pos.get('z', 0)})")
+        # if self.block_at_cursor:
+        #     block_name = self.block_at_cursor.get("displayName", self.block_at_cursor.get("name", "未知方块"))
+        #     block_pos = self.block_at_cursor.get("position", {})
+        #     if block_pos:
+        #         lines.append(f"  光标指向: {block_name} 在 ({block_pos.get('x', 0)}, {block_pos.get('y', 0)}, {block_pos.get('z', 0)})")
         
-        if self.entity_at_cursor:
-            entity_name = self.entity_at_cursor.get("displayName", self.entity_at_cursor.get("name", "未知实体"))
-            lines.append(f"  光标指向实体: {entity_name}")
+        # if self.entity_at_cursor:
+        #     entity_name = self.entity_at_cursor.get("displayName", self.entity_at_cursor.get("name", "未知实体"))
+        #     lines.append(f"  光标指向实体: {entity_name}")
         
         # 装备信息
         if self.equipment:

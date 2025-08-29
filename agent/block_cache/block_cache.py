@@ -135,8 +135,25 @@ class BlockCache:
         """从文件加载缓存"""
         try:
             if self._cache_file.exists():
-                with open(self._cache_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
+                # 尝试加载缓存文件
+                try:
+                    with open(self._cache_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                except json.JSONDecodeError as json_error:
+                    logger.error(f"JSON解析错误: {json_error}")
+                    # 尝试修复损坏的缓存文件
+                    if self._try_repair_cache():
+                        # 重新尝试加载
+                        with open(self._cache_file, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                    else:
+                        # 如果修复失败，创建新的缓存文件
+                        logger.warning("缓存文件损坏且无法修复，将创建新的缓存文件")
+                        self._create_new_cache_file()
+                        return
+                except Exception as e:
+                    logger.error(f"读取缓存文件失败: {e}")
+                    return
                 
                 # 加载方块数据
                 blocks_data = data.get("blocks", {})
@@ -178,6 +195,72 @@ class BlockCache:
                 logger.info("缓存文件不存在，将创建新的缓存")
         except Exception as e:
             logger.error(f"加载缓存文件失败: {e}")
+            # 如果加载失败，创建新的缓存文件
+            self._create_new_cache_file()
+    
+    def _try_repair_cache(self) -> bool:
+        """尝试修复损坏的缓存文件"""
+        try:
+            import shutil
+            from pathlib import Path
+            
+            # 备份原文件
+            backup_path = self._cache_file.with_suffix('.json.backup')
+            shutil.copy2(self._cache_file, backup_path)
+            logger.info(f"已备份损坏的缓存文件到: {backup_path}")
+            
+            # 尝试修复
+            with open(self._cache_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # 查找最后一个完整的JSON对象
+            last_brace_pos = content.rfind('}')
+            if last_brace_pos != -1:
+                try:
+                    # 尝试解析到最后一个完整对象
+                    partial_content = content[:last_brace_pos + 1]
+                    json.loads(partial_content)
+                    
+                    # 写入修复后的内容
+                    with open(self._cache_file, 'w', encoding='utf-8') as f:
+                        f.write(partial_content)
+                    
+                    logger.info("缓存文件修复成功")
+                    return True
+                except:
+                    pass
+            
+            # 如果修复失败，恢复备份文件
+            shutil.copy2(backup_path, self._cache_file)
+            logger.warning("缓存文件修复失败，已恢复原文件")
+            return False
+            
+        except Exception as e:
+            logger.error(f"修复缓存文件时出错: {e}")
+            return False
+    
+    def _create_new_cache_file(self):
+        """创建新的空缓存文件"""
+        try:
+            new_cache_data = {
+                "blocks": {},
+                "stats": {
+                    "total_blocks_cached": 0,
+                    "total_updates": 0,
+                    "cache_hits": 0,
+                    "cache_misses": 0,
+                    "last_cleanup": datetime.now().isoformat()
+                },
+                "last_save": datetime.now().isoformat(),
+                "cache_version": "1.0"
+            }
+            
+            with open(self._cache_file, 'w', encoding='utf-8') as f:
+                json.dump(new_cache_data, f, ensure_ascii=False, indent=2)
+            
+            logger.info("已创建新的缓存文件")
+        except Exception as e:
+            logger.error(f"创建新缓存文件失败: {e}")
     
     def _save_cache(self):
         """保存缓存到文件"""

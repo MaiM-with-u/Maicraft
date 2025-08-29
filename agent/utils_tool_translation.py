@@ -149,7 +149,7 @@ def translate_mine_block_tool_result(result: Any) -> str:
         # 检查是否有挖掘数据
         if "minedCount" in data:
             mined_count = data["minedCount"]
-            block_name = data.get("blockName", "未知方块")
+            block_name = data.get("blockName", "方块")
 
             
             # 构建可读文本
@@ -278,6 +278,94 @@ def translate_start_smelting_tool_result(result: Any) -> str:
             readable_text = f"成功开始熔炼1个{item_name}，熔炉位置：({x}, {y}, {z})"
         else:
             readable_text = f"成功开始熔炼{count}个{item_name}，熔炉位置：({x}, {y}, {z})"
+        
+        return readable_text
+        
+    except Exception:
+        # 如果解析失败，返回原始结果
+        return str(result)
+    
+def translate_view_chest_result(result: Any) -> str:
+    """
+    翻译view_chest工具的执行结果，使其更可读
+    
+    Args:
+        result: view_chest工具的执行结果，来自parse_tool_result的result_content
+        
+    Returns:
+        翻译后的可读文本
+    """
+    try:
+        # result应该是来自parse_tool_result的result_content字符串
+        if not isinstance(result, str):
+            return str(result)
+        
+        # 解析JSON字符串
+        try:
+            result_data = json.loads(result)
+        except json.JSONDecodeError:
+            return str(result)
+        
+        # 检查是否是view_chest工具的结果
+        if not isinstance(result_data, dict):
+            return str(result)
+        
+        # 提取关键信息
+        ok = result_data.get("ok", False)
+        data = result_data.get("data", {})
+        
+        if not ok:
+            return "查看箱子失败，可能是箱子不存在或无法访问"
+        
+        # 提取箱子信息
+        block = data.get("block", {})
+        container_info = data.get("containerInfo", {})
+        
+        # 获取箱子位置
+        position = block.get("position", {})
+        x = position.get("x", 0)
+        y = position.get("y", 0)
+        z = position.get("z", 0)
+        
+        # 获取箱子类型和朝向
+        block_name = block.get("displayName", "箱子")
+        properties = block.get("_properties", {})
+        facing = properties.get("facing", "未知")
+        
+        # 获取容器统计信息
+        stats = container_info.get("stats", {})
+        total_slots = stats.get("totalSlots", 0)
+        occupied_slots = stats.get("occupiedSlots", 0)
+        empty_slots = stats.get("emptySlots", 0)
+        occupancy_rate = stats.get("occupancyRate", "0%")
+        
+        # 获取物品列表
+        slots = container_info.get("slots", [])
+        items = []
+        
+        for slot in slots:
+            if slot.get("name") != "air" and slot.get("count", 0) > 0:
+                item_name = slot.get("displayName", slot.get("name", "未知物品"))
+                count = slot.get("count", 1)
+                slot_num = slot.get("slot", 0)
+                
+                if count == 1:
+                    items.append(f"1个{item_name}")
+                else:
+                    items.append(f"{count}个{item_name}")
+        
+        # 构建可读文本
+        readable_text = f"✅ 成功查看箱子\n"
+        readable_text += f"位置: ({x}, {y}, {z})\n"
+        readable_text += f"类型: {block_name} (朝向: {facing})\n"
+        readable_text += f"容量: {total_slots}格，已占用: {occupied_slots}格，空闲: {empty_slots}格 ({occupancy_rate})\n"
+        
+        if items:
+            readable_text += f"物品列表:\n"
+            for item in items:
+                readable_text += f"  {item}\n"
+        else:
+            readable_text += "箱子为空"
         
         return readable_text
         

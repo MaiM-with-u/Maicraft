@@ -12,9 +12,8 @@ from utils.logger import get_logger
 class MCPClient:
     """基于 fastmcp 的 MCP 客户端"""
 
-    def __init__(self, config: Dict[str, Any]) -> None:
+    def __init__(self) -> None:
         self.logger = get_logger("MCPClient")
-        self.config = config
         self.connected = False
         self._client: Optional[FastMCPClient] = None
 

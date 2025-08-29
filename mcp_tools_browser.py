@@ -39,28 +39,8 @@ class MCPToolsBrowser:
     async def connect(self) -> bool:
         """连接到MCP服务器"""
         try:
-            # 创建默认配置
-            config = {
-                "mcpServers": {
-                    "maicraft": {
-                        "command": "npx",
-                        "args": [
-                            "-y",
-                            "maicraft@latest",
-                            "--host",
-                            "127.0.0.1",
-                            "--port",
-                            "25565",
-                            "--username",
-                            "Mai",
-                            "--auth",
-                            "offline"
-                        ]
-                    }
-                }
-            }
             
-            self.mcp_client = MCPClient(config)
+            self.mcp_client = MCPClient()
             self.connected = await self.mcp_client.connect()
             
             if self.connected:
@@ -785,7 +765,7 @@ class MCPToolsBrowser:
                         print(f"错误信息: {content.text}")
         else:
             print("✅ 执行成功")
-            print(result)
+            print(json.dumps(result, ensure_ascii=False, indent=2, default=lambda o: getattr(o, '__dict__', str(o))))
         
         # 询问是否继续执行
         try:

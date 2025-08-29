@@ -1,0 +1,124 @@
+{
+  "conversion_pairs": [
+    {
+      "items": ["coal", "coal_block"],
+      "priority": "coal",
+      "ratio": {
+        "coal_to_coal_block": 0.111111111,
+        "coal_block_to_coal": 9
+      }
+    },
+    {
+      "items": ["iron_ingot", "iron_block"],
+      "priority": "iron_ingot",
+      "ratio": {
+        "iron_ingot_to_iron_block": 0.111111111,
+        "iron_block_to_iron_ingot": 9
+      }
+    },
+    {
+      "items": ["gold_ingot", "gold_block"],
+      "priority": "gold_ingot",
+      "ratio": {
+        "gold_ingot_to_gold_block": 0.111111111,
+        "gold_block_to_gold_ingot": 9
+      }
+    },
+    {
+      "items": ["diamond", "diamond_block"],
+      "priority": "diamond",
+      "ratio": {
+        "diamond_to_diamond_block": 0.111111111,
+        "diamond_block_to_diamond": 9
+      }
+    },
+    {
+      "items": ["emerald", "emerald_block"],
+      "priority": "emerald",
+      "ratio": {
+        "emerald_to_emerald_block": 0.111111111,
+        "emerald_block_to_emerald": 9
+      }
+    },
+    {
+      "items": ["lapis_lazuli", "lapis_block"],
+      "priority": "lapis_lazuli",
+      "ratio": {
+        "lapis_lazuli_to_lapis_block": 0.111111111,
+        "lapis_block_to_lapis_lazuli": 9
+      }
+    },
+    {
+      "items": ["redstone", "redstone_block"],
+      "priority": "redstone",
+      "ratio": {
+        "redstone_to_redstone_block": 0.111111111,
+        "redstone_block_to_redstone": 9
+      }
+    },
+    {
+      "items": ["quartz", "quartz_block"],
+      "priority": "quartz",
+      "ratio": {
+        "quartz_to_quartz_block": 0.111111111,
+        "quartz_block_to_quartz": 9
+      }
+    },
+    {
+      "items": ["copper_ingot", "copper_block"],
+      "priority": "copper_ingot",
+      "ratio": {
+        "copper_ingot_to_copper_block": 0.111111111,
+        "copper_block_to_copper_ingot": 9
+      }
+    },
+    {
+      "items": ["netherite_ingot", "netherite_block"],
+      "priority": "netherite_ingot",
+      "ratio": {
+        "netherite_ingot_to_netherite_block": 0.111111111,
+        "netherite_block_to_netherite_ingot": 9
+      }
+    },
+    {
+      "items": ["wheat", "hay_bale"],
+      "priority": "wheat",
+      "ratio": {
+        "wheat_to_hay_bale": 0.111111111,
+        "hay_bale_to_wheat": 9
+      }
+    },
+    {
+      "items": ["melon_slice", "melon"],
+      "priority": "melon_slice",
+      "ratio": {
+        "melon_slice_to_melon": 0.111111111,
+        "melon_to_melon_slice": 9
+      }
+    },
+    {
+      "items": ["snowball", "snow_block"],
+      "priority": "snowball",
+      "ratio": {
+        "snowball_to_snow_block": 0.25,
+        "snow_block_to_snowball": 4
+      }
+    },
+    {
+      "items": ["clay_ball", "clay"],
+      "priority": "clay_ball",
+      "ratio": {
+        "clay_ball_to_clay": 0.111111111,
+        "clay_to_clay_ball": 9
+      }
+    },
+    {
+      "items": ["glowstone_dust", "glowstone"],
+      "priority": "glowstone_dust",
+      "ratio": {
+        "glowstone_dust_to_glowstone": 0.25,
+        "glowstone_to_glowstone_dust": 4
+      }
+    }
+  ]
+}
