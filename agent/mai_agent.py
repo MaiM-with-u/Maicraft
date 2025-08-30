@@ -31,6 +31,7 @@ from agent.utils.utils_tool_translation import (
     translate_chat_tool_result,
     translate_start_smelting_tool_result,
     translate_collect_smelted_items_tool_result,
+    translate_use_chest_tool_result
 )
 from agent.action.view_container import ViewContainer
 
@@ -576,15 +577,22 @@ class MaiAgent:
                     result.result_str = f"合成未完成：{item} x{count}\n{summary}\n"
             elif action_type == "use_chest":
                 item = json_obj.get("item")
+                count = json_obj.get("count", 1)
                 type = json_obj.get("type")
                 result.result_str = f"想要使用箱子: {item} 类型: {type}\n"
+                
+                # 构建符合MCP工具期望的items格式
+                items = [{"name": item, "count": count}]
+
                 if type == "in":
-                    args = {"item": item, "action": "store"}
+                    args = {"items": items, "action": "store"}
                 elif type == "out":
-                    args = {"item": item, "action": "withdraw"}
+                    args = {"items": items, "action": "withdraw"}
+                
                 call_result = await self.mcp_client.call_tool_directly("use_chest", args)
-                is_success, result_content = parse_tool_result(call_result)
-                result.result_str += result_content
+                is_success, result_content = parse_tool_result(call_result) 
+                translated_result = translate_use_chest_tool_result(result_content)
+                result.result_str += translated_result
             elif action_type == "finish_using":
                 self.mode = "main_action"
             else:

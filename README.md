@@ -11,7 +11,6 @@ Maicraft-Mai 是一个智能的Minecraft游戏代理系统，它结合了：
 - **大语言模型 (LLM)** - 提供智能决策和任务规划
 - **MCP (Model Context Protocol)** - 与Minecraft游戏进行通信
 - **智能代理系统** - 自主执行复杂的游戏任务
-- **模块化架构** - 易于扩展和维护
 
 该系统能够理解游戏环境，制定策略，并执行从简单挖矿到复杂建造的各种任务。
 
@@ -21,29 +20,7 @@ Maicraft-Mai 是一个智能的Minecraft游戏代理系统，它结合了：
 - 🎮 **游戏集成**: 通过MCP协议与Minecraft无缝集成
 - 🛠️ **任务执行**: 支持挖矿、制作、建造、移动等操作
 - 🔄 **环境感知**: 实时监控游戏世界状态
-- 📊 **配方系统**: 智能识别和使用游戏配方
 - 🎨 **可视化**: 提供游戏世界的可视化界面
-- ⚡ **异步架构**: 高性能的异步执行引擎
-
-## 🏗️ 系统架构
-
-```
-Maicraft-Mai/
-├── agent/                    # 智能代理核心
-│   ├── mai_agent.py         # 主代理类
-│   ├── environment.py       # 环境管理
-│   ├── action/              # 动作执行模块
-│   │   ├── craft_action/    # 制作系统
-│   │   ├── move_action.py   # 移动系统
-│   │   ├── place_action.py  # 放置系统
-│   │   └── view_container.py # 容器查看
-│   ├── prompt_manager/      # 提示词管理
-│   └── block_cache/         # 方块缓存
-├── mcp_server/              # MCP服务器
-├── openai_client/           # LLM客户端
-├── view_render/             # 可视化渲染
-├── utils/                   # 工具函数
-└── config.py                # 配置管理
 ```
 
 ## 🚀 快速开始
@@ -51,14 +28,14 @@ Maicraft-Mai/
 ### 环境要求
 
 - Python 3.11+
-- Minecraft Java Edition
+- Minecraft 服务器
 
 ### 安装步骤
 
 1. **克隆仓库**
 ```bash
-git clone https://github.com/MaiToTheGate/Maicraft-Mai.git
-cd Maicraft-Mai
+git clone https://github.com/MaiM-with-u/Maicraft
+cd Maicraft
 ```
 
 2. **安装依赖**
@@ -67,20 +44,13 @@ pip install -r requirements.txt
 ```
 
 3. **配置设置**
-```bash
 # 复制配置模板
-cp config-template.toml config.toml
-
-# 编辑配置文件，设置你的API密钥等
-```
+将`config-template.toml`复制并更名为`config.toml`
 
 4. **配置MCP服务器**
-```bash
-# 复制MCP服务器配置模板
-cp mcp_server/mcp_servers_template.json mcp_server/mcp_servers.json
+将`mcp_server/mcp_servers_template.json`复制并更名为`mcp_server/mcp_servers.json`
 
-# 编辑MCP服务器配置，设置你的Minecraft服务器信息
-```
+编辑MCP服务器配置，设置你的Minecraft服务器信息
 
 **重要**: 要连接到Minecraft服务器，需要编辑 `mcp_server/mcp_servers.json` 文件中的以下参数：
 
@@ -123,31 +93,6 @@ python main.py
 ### MCP服务器配置
 
 要连接到Minecraft服务器，必须正确配置 `mcp_server/mcp_servers.json` 文件：
-
-#### 连接本地服务器
-```json
-{
-  "mcpServers": {
-    "maicraft": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "maicraft@latest",
-        "--host",
-        "localhost",
-        "--port",
-        "25565",
-        "--username",
-        "MaiBot",
-        "--auth",
-        "offline"
-      ]
-    }
-  }
-}
-```
-
-#### 连接在线服务器
 ```json
 {
   "mcpServers": {
@@ -199,14 +144,6 @@ report_each_step = true
 level = "INFO"
 ```
 
-### 环境变量
-
-你也可以通过环境变量设置：
-
-```bash
-export OPENAI_API_KEY="your-api-key"
-export OPENAI_BASE_URL="https://api.openai.com/v1"
-```
 
 ## 🎮 使用方法
 
@@ -221,20 +158,7 @@ export OPENAI_BASE_URL="https://api.openai.com/v1"
    - "寻找并收集铁矿石"
 
 
-## 🔧 开发指南
 
-### 项目结构
-
-- **`agent/`**: 核心代理逻辑
-- **`mcp_server/`**: MCP协议实现
-- **`openai_client/`**: LLM客户端
-- **`view_render/`**: 可视化组件
-- **`utils/`**: 通用工具函数
-
-
-### 日志查看
-
-系统会生成详细的日志文件，位于 `logs/` 目录中。
 
 ## 🤝 贡献指南
 

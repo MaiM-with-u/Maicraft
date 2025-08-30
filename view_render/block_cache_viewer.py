@@ -46,7 +46,7 @@ class BlockCacheViewer:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self._running = False
-                elif event.type == pygame.KEYDOWN and event.key in (pygame.K_ESCAPE, pygame.K_q):
+                elif event.type == pygame.KEYDOWN and event.key in (pygame.K_q):
                     self._running = False
 
             now = time.time()

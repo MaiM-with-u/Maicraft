@@ -69,6 +69,7 @@ def init_templates_container() -> None:
 {{
     "action_type":"use_chest",
     "item":"某样物品名称",
+    "count":"数量",
     "type":"in/out", //in表示放入，out表示取出
 }}
 

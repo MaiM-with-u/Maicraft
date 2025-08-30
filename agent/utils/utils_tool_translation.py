@@ -557,3 +557,117 @@ def translate_view_furnace_result(result: Any) -> str:
     except Exception:
         # 如果解析失败，返回原始结果
         return str(result)
+
+def translate_use_chest_tool_result(result: Any) -> str:
+    """
+    翻译use_chest工具的执行结果，使其更可读
+    
+    Args:
+        result: use_chest工具的执行结果
+        
+    Returns:
+        翻译后的可读文本
+    """
+    try:
+        # 如果结果是字符串，尝试解析JSON
+        if isinstance(result, str):
+            try:
+                result_data = json.loads(result)
+            except json.JSONDecodeError:
+                return str(result)
+        else:
+            result_data = result
+        
+        # 检查是否是use_chest工具的结果
+        if not isinstance(result_data, dict):
+            return str(result)
+        
+        # 提取关键信息
+        ok = result_data.get("ok", False)
+        data = result_data.get("data", {})
+        
+        if not ok:
+            # 处理操作失败的情况
+            error_code = result_data.get("error_code", "")
+            error_message = result_data.get("error_message", "")
+            
+            if "ALL_OPERATIONS_FAILED" in error_code:
+                # 处理复杂的失败情况
+                if "访问了" in error_message and "箱子" in error_message:
+                    # 解析箱子访问统计信息
+                    import re
+                    
+                    # 提取访问的箱子数量
+                    chest_match = re.search(r'访问了\s*(\d+)\s*个箱子', error_message)
+                    chest_count = chest_match.group(1) if chest_match else "未知"
+                    
+                    # 提取成功和失败操作次数
+                    success_match = re.search(r'成功操作:\s*(\d+)\s*次', error_message)
+                    success_count = success_match.group(1) if success_match else "0"
+                    
+                    failure_match = re.search(r'失败操作:\s*(\d+)\s*次', error_message)
+                    failure_count = failure_match.group(1) if failure_match else "0"
+                    
+                    # 提取未能完全取出的物品信息
+                    withdraw_match = re.search(r'未能完全取出:\s*(\w+)\((\d+)\)', error_message)
+                    if withdraw_match:
+                        item_name = withdraw_match.group(1)
+                        needed_count = withdraw_match.group(2)
+                        readable_text = f"❌ 附近箱子物品不足\n"
+                        readable_text += f"需要取出: {item_name} ({needed_count}个)\n"
+                        readable_text += f"访问了 {chest_count} 个箱子，但都没有足够的{item_name}"
+                        return readable_text
+                    else:
+                        return f"❌ 箱子操作失败: {error_message}"
+                elif "背包没有" in error_message:
+                    # 提取物品名称
+                    match = re.search(r'背包没有\s*(\w+)', error_message)
+                    if match:
+                        item_name = match.group(1)
+                        return f"❌ 操作失败: 背包中没有{item_name}"
+                    else:
+                        return f"❌ 操作失败: {error_message}"
+                else:
+                    return f"❌ 操作失败: {error_message}"
+            else:
+                return f"❌ 操作失败: {error_message}"
+        
+        # 提取操作结果信息
+        operation_results = data.get("operationResults", [])
+        chest_contents = data.get("chestContents", [])
+        chest_location = data.get("chestLocation", {})
+        
+        # 构建可读文本
+        readable_text = "✅ 箱子操作成功\n"
+        
+        # 添加操作结果
+        if operation_results:
+            readable_text += "操作结果:\n"
+            for operation in operation_results:
+                readable_text += f"  {operation}\n"
+        
+        # 添加箱子位置信息
+        if chest_location:
+            x = chest_location.get("x", 0)
+            y = chest_location.get("y", 0)
+            z = chest_location.get("z", 0)
+            readable_text += f"箱子位置: ({x}, {y}, {z})\n"
+        
+        # 添加箱子内容信息
+        if chest_contents:
+            readable_text += "箱子内容:\n"
+            for item in chest_contents:
+                item_name = item.get("name", "未知物品")
+                count = item.get("count", 1)
+                if count == 1:
+                    readable_text += f"  {item_name}: 1个\n"
+                else:
+                    readable_text += f"  {item_name}: {count}个\n"
+        else:
+            readable_text += "箱子为空\n"
+        
+        return readable_text
+        
+    except Exception:
+        # 如果解析失败，返回原始结果
+        return str(result)
