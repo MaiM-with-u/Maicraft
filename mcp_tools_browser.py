@@ -17,9 +17,7 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 try:
-    from mcp_server.client import MCPClient
-    from mcp_server.mcp_tool_adapter import MCPToolAdapter
-    from config import MaicraftConfig
+    from mcp_server.client import  global_mcp_client
     from utils.logger import get_logger
 except ImportError as e:
     print(f"导入错误: {e}")
@@ -32,20 +30,19 @@ class MCPToolsBrowser:
     
     def __init__(self):
         self.logger = get_logger("MCPToolsBrowser")
-        self.mcp_client: Optional[MCPClient] = None
-        self.tool_adapter: Optional[MCPToolAdapter] = None
+
         self.connected = False
         
     async def connect(self) -> bool:
         """连接到MCP服务器"""
         try:
             
-            self.mcp_client = MCPClient()
-            self.connected = await self.mcp_client.connect()
+
+            self.connected = await global_mcp_client.connect()
             
             if self.connected:
                 # 创建工具适配器
-                self.tool_adapter = MCPToolAdapter(self.mcp_client)
+
                 self.logger.info("成功连接到MCP服务器")
                 return True
             else:
@@ -58,19 +55,19 @@ class MCPToolsBrowser:
     
     async def disconnect(self):
         """断开MCP连接"""
-        if self.mcp_client and self.connected:
-            await self.mcp_client.disconnect()
+        if global_mcp_client and self.connected:
+            await global_mcp_client.disconnect()
             self.connected = False
             self.logger.info("已断开MCP连接")
     
     async def get_tools_info(self) -> List[Dict[str, Any]]:
         """获取所有MCP工具的详细信息"""
-        if not self.connected or not self.mcp_client:
+        if not self.connected or not global_mcp_client:
             return []
         
         try:
             # 获取工具元数据
-            tools_metadata = await self.mcp_client.get_tools_metadata()
+            tools_metadata = await global_mcp_client.get_tools_metadata()
             if not tools_metadata:
                 return []
             
@@ -736,12 +733,10 @@ class MCPToolsBrowser:
         print(f"{'='*40}")
         
         try:
-            if not self.tool_adapter:
-                print("❌ 工具适配器未初始化")
-                return
+
             
             # 使用工具适配器执行工具
-            result = await self.tool_adapter.mcp_client.call_tool_directly(tool_info['name'], parsed_params)
+            result = await global_mcp_client.call_tool_directly(tool_info['name'], parsed_params)
             
             # 展示执行结果
             await self._display_tool_result(tool_info['name'], result)

@@ -32,6 +32,10 @@ class LLMConfigFast(BaseModel):
     base_url: Optional[str] = Field(default=None, description="API基础URL")
     temperature: float = Field(default=0.2, ge=0.0, le=2.0, description="温度参数") 
     max_tokens: int = Field(default=1024, ge=100, le=8000, description="最大token数")
+    
+class Visual(BaseModel):
+    """视觉模型配置模型"""
+    enable: bool = Field(default=False, description="是否启用视觉模型")
 
 class VLMConfig(BaseModel):
     """VLM配置模型"""
@@ -76,6 +80,7 @@ class MaicraftConfig(BaseModel):
     logging: LoggingConfig = Field(default_factory=LoggingConfig, description="Logging配置")
     llm: LLMConfig = Field(default_factory=LLMConfig, description="LLM配置")
     llm_fast: LLMConfigFast = Field(default_factory=LLMConfigFast, description="LLM快速配置")
+    visual: Visual = Field(default_factory=Visual, description="视觉模型配置")
     vlm: VLMConfig = Field(default_factory=VLMConfig, description="VLM配置")
     agent: AgentConfig = Field(default_factory=AgentConfig, description="Agent配置")
 

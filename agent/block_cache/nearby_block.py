@@ -17,8 +17,12 @@ class NearbyBlockManager:
         grouped_positions = {}
         
         for block in around_blocks:
+            # 跳过空气方块，不加入显示
+            if block.block_type == "air":
+                continue
+                
             block_num += 1
-            key = "无方块" if block.block_type == "air" else block.block_type
+            key = block.block_type
             if key not in grouped_positions:
                 grouped_positions[key] = []
             grouped_positions[key].append((block.position.x, block.position.y, block.position.z))
@@ -34,11 +38,3 @@ class NearbyBlockManager:
         around_blocks_str += f"玩家头部位置: x={position.x}, y={position.y+1}, z={position.z}\n"
         
         return around_blocks_str
-
-        
-        
-        
-        
-        
-        
-        

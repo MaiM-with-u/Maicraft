@@ -118,3 +118,5 @@ class MCPClient:
 
     async def list_available_tools(self) -> List[str]:
         return [tool.name for tool in await self.get_tools_metadata() if tool.name]
+
+global_mcp_client = MCPClient()

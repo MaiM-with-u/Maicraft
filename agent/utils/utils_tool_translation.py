@@ -135,6 +135,9 @@ def translate_mine_block_tool_result(result: Any) -> str:
             try:
                 result_data = json.loads(result)
             except json.JSONDecodeError:
+                # 检查是否是特定的错误信息
+                if "Bot does not have a harvestable tool" in result:
+                    return "没有合适的挖掘工具"
                 return str(result)
         else:
             result_data = result
@@ -144,6 +147,10 @@ def translate_mine_block_tool_result(result: Any) -> str:
         data = result_data.get("data", {})
         
         if not ok:
+            # 检查错误信息
+            error_msg = result_data.get("error", "")
+            if "Bot does not have a harvestable tool" in error_msg:
+                return "没有合适的挖掘工具"
             return "挖掘方块失败"
         
         # 检查是否有挖掘数据

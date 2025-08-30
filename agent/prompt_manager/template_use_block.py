@@ -1,10 +1,10 @@
 from agent.prompt_manager.prompt_manager import PromptTemplate, prompt_manager
 
-def init_templates_container() -> None:
+def init_templates_use_block() -> None:
     """初始化提示词模板"""
     prompt_manager.register_template(
         PromptTemplate(
-        name="minecraft_excute_container_action",
+        name="use_block_mode",
         template="""
 你是麦麦，游戏名叫Mai,你正在游玩Minecraft，是一名Minecraft玩家。请你选择合适的动作来完成当前任务：
 
@@ -27,6 +27,7 @@ def init_templates_container() -> None:
 
 **你可以做的动作**
 **craft**
+使用工作台或者背包进行合成物品
 能够进行工作台3x3合成
 能够进行直接2x2合成
 {{
@@ -40,9 +41,7 @@ def init_templates_container() -> None:
 {{
     "action_type":"collect_smelted_items",
     "item":"物品名称，必填",
-    "x":"熔炉位置，可选",
-    "y":"熔炉位置，可选",
-    "z":"熔炉位置，可选",
+    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
 }}
 
 **start_smelting**
@@ -55,19 +54,18 @@ def init_templates_container() -> None:
 }}
 
 **view_container**
-查看容器（箱子/熔炼/其他）的内容物，查看里面有什么物品
+查看容器（chest/furnace）的内容物，查看里面有什么物品
 {{
     "action_type":"view_container",
-    "type":"容器类型，可选chest/furnace/其他方块名",
-    "x":"容器位置",
-    "y":"容器位置",
-    "z":"容器位置",
+    "type":"容器类型，可选chest/furnace",
+    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
 }}
 
 **use_chest**
 打开箱子，将物品放入箱子或从箱子中取出物品
 {{
     "action_type":"use_chest",
+    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
     "item":"某样物品名称",
     "count":"数量",
     "type":"in/out", //in表示放入，out表示取出
@@ -75,17 +73,18 @@ def init_templates_container() -> None:
 
 **finish_using**
 在上述动作中已无需使用，
-容器动作已经使用完毕，可以结束使用上述动作
+方块动作已经使用完毕，可以结束使用上述动作
 选择使用其他动作
 {{
     "action_type":"finish_using",
+    "reason":"选择结束使用方块模式的原因",
 }}
 
 之前的思考和执行的记录：
 {thinking_list}
 
 **注意事项**
-1.你现在的目的是使用容器，请你参考上述原因，选择合适的容器使用动作
+1.你现在的目的是使用方块，请你参考上述原因，选择合适的方块使用动作
 2.你必须先查看容器的内容物，才能与容器交互
 3.如果使用完毕，请使用finish_using动作
 4.先总结之前的思考和执行的记录，输出一段想法
@@ -94,9 +93,10 @@ def init_templates_container() -> None:
 规划内容是一段平文本，不要分点
 规划后请使用动作，动作用json格式输出
 """,
-        description="容器-动作选择",
+        description="方块-动作选择",
         parameters=["task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
     ))
+    
 
 
 

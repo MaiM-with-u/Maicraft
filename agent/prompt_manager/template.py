@@ -1,14 +1,18 @@
 from agent.prompt_manager.prompt_manager import PromptTemplate, prompt_manager
 from agent.prompt_manager.template_place import init_templates_place
 from agent.prompt_manager.template_mining import init_templates_mining
-from agent.prompt_manager.template_container import init_templates_container
+from agent.prompt_manager.template_use_block import init_templates_use_block
+from agent.prompt_manager.template_move import init_templates_move
+from agent.prompt_manager.template_memo import init_templates_memo
 
 def init_templates() -> None:
     """初始化提示词模板"""
     init_templates_place()
     init_templates_mining()
-    init_templates_container()
-    
+    init_templates_use_block()
+    init_templates_move()
+    init_templates_memo()
+
     prompt_manager.register_template(
         PromptTemplate(
         name="minecraft_excute_task_thinking",
@@ -35,6 +39,7 @@ def init_templates() -> None:
 **备忘录**：
 {memo_list}
 
+**当前模式：{mode}**
 **你可以做的动作**
 **聊天动作**
 在聊天框发送消息
@@ -75,105 +80,67 @@ def init_templates() -> None:
 移动到一个能够到达的位置
 {{
     "action_type":"move",
+    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
+}}
+
+**进入移动模式**
+可以进行持续的移动，走到合适的地点
+{{
+    "action_type":"enter_move_mode",
     "reason":"移动的原因"
 }}
 
-**使用方块**
-可以打开箱子存取物品，打开熔炉进行冶炼，或存取熔炼后的物品
-可以打开crafting_table进行合成
+**进入使用方块模式**
+可以打开chest存取物品，打开furnace进行冶炼，或存取熔炼后的物品
+或者使用crafting_table等功能性方块进行合成等操作
 {{
-    "action_type":"use_container",
-    "reason":"使用容器的原因"
+    "action_type":"enter_use_block_mode",
+    "reason":"使用方块的原因"
 }}
 
-**添加备忘录/移除备忘录**
-添加备忘录到记忆，可以在后续回顾
-你的记忆是有限的，因此请将重要信息记录下来，用于后续的思考和执行
-请在每次思考之后，如果有内容需要添加，请使用备忘录添加，不要重复添加
-{{
-    "action_type":"add_memo",
-    "memo":"要添加的内容",
-}}
-
-移除备忘录
-{{
-    "action_type":"remove_memo",
-    "memo":"要移除的内容",
-}}
-
-**任务动作**
+**进入任务规划模式**
 对任务列表进行修改，包括：
 1. 更新当前任务的进展
 2. 如果当前任务无法完成，需要前置任务，创建新任务
 3. 选择其他任务
 {{
-    "action_type":"update_task_list",
+    "action_type":"enter_task_edit_mode",
     "reason":"修改任务列表的原因"
 }}
+
+**进入备忘录模式**
+记录重要信息，用于后续思考和执行
+{{
+    "action_type":"enter_memo_mode",
+    "reason":"使用备忘录的原因"
+}}
+
 
 之前的思考和执行的记录：
 {thinking_list}
 
 **模式**
-1.请你灵活使用采矿模式，帮助你更高效的完成任务
-
+1.请你灵活使用采矿模式，备忘录模式，任务规划模式，帮助你更高效的完成任务
+2.如果要存取物品，熔炼或使用方块，请你进入使用方块模式
+3.如果要修改任务列表，请你进入任务规划模式
+4.如果要使用备忘录，请你进入备忘录模式
+5.如果要进行大量移动，请你进入移动模式
 
 **注意事项**
 1.先总结之前的思考和执行的记录，对执行结果进行分析，是否达成目的，是否需要调整任务或动作
 2.你可以根据任务选择合适的动作模式，也可以选择单独的动作
 2.想法要求简短，精准，如果要描述坐标，完整的描述，不要有多余信息
-3.你的想法长度最多保留10条，如果有重要信息，请使用备忘录进行保留
-4.你可以通过事件知道别的玩家的位置，或者别的玩家正在做什么，请你与玩家保持积极互动。
-4.然后根据现有的**动作**，**任务**,**情景**，**物品栏**,**最近事件**和**周围环境**，进行下一步规划，推进任务进度。
-5.你的视野是周围3-4个方块，如果你需要更多信息，或者寻找目标，请移动到合适的位置，再进行规划
-6.如果一个动作反复无法完成，请反思性思考，结合周围环境尝试别的方案，不要重复尝试同一个动作
-规划内容是一段平文本，不要分点
+3.你的想法长度最多保留20条，如果有重要信息，请使用备忘录进行保留
+4.你可以通过事件知道别的玩家的位置，或者别的玩家正在做什么。
+5.然后根据现有的**动作**，**任务**,**情景**，**物品栏**,**最近事件**和**周围环境**，进行下一步规划，推进任务进度。
+6.你的视野是周围3-4个方块，如果你需要更多信息，或者寻找目标，请移动到合适的位置，再进行规划
+7.如果一个动作反复无法完成，请反思性思考，结合周围环境尝试别的方案，不要重复尝试同一个动作
+8.如果一个动作已经执行，并且达到了目的，请不要重复执行同一个动作
+规划内容是一段精简的平文本，不要分点
 规划后请使用动作，动作用json格式输出:
 """,
         description="任务-动作选择",
-        parameters=["goal", "task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
-    ))
-    
-    
-    prompt_manager.register_template(
-        PromptTemplate(
-        name="minecraft_excute_move_action",
-        template="""
-你是麦麦，游戏名叫Mai,你正在游玩Minecraft，是一名Minecraft玩家。请你选择合适的动作来完成当前任务：
-
-**当前需要执行的任务**：
-{task}
-
-**环境信息**：{environment}
-
-**位置信息**：
-{position}
-
-**周围方块的信息**：
-{nearby_block_info}
-
-**玩家聊天记录**：
-{chat_str}
-
-**备忘录**：
-{memo_list}
- 
- 之前的思考和执行的记录：
-{thinking_list}
-
-**注意事项**
-1.你现在想要进行移动动作，请你选择合适的移动目的地
-2.请参考周围方块的信息，寻找可以站立的位置，从中选择移动的目的地，并输出移动的目的地
-请将目标位置用json格式输出:
-{{
-    "x":坐标x,
-    "y":坐标y,
-    "z":坐标z,
-}}
-
-""",
-        description="任务-移动动作",
-        parameters=["task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
+        parameters=["mode","goal", "task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
     ))
     
     
@@ -208,7 +175,7 @@ def init_templates() -> None:
 **备忘录**：
 {memo_list}
  
-**动作列表：任务动作**
+**动作列表：任务规划动作**
 1. 更新某个未完成的任务的进度
  {{
      "action_type":"update_task_progress",

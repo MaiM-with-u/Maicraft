@@ -31,12 +31,14 @@ def init_templates_mining() -> None:
 **你正在进行采矿，你可以做的动作**
 
 **挖掘/破坏动作**
-挖掘某个位置指定的方块
+挖掘某个或多个位置指定的方块
 {{
     "action_type":"mine_block",
-    "x":"挖掘x位置",
-    "y":"挖掘y位置",
-    "z":"挖掘z位置",
+    "position": [
+        {{"x": x坐标, "y": y坐标, "z": z坐标}},
+        {{"x": x坐标, "y": y坐标, "z": z坐标}},
+        {{"x": x坐标, "y": y坐标, "z": z坐标}},
+    ],
 }}
 
 **批量挖掘**
@@ -53,7 +55,7 @@ def init_templates_mining() -> None:
 移动到一个能够到达的位置
 {{
     "action_type":"move",
-    "reason":"移动的原因"
+    "position": {{"x": x坐标, "y": y坐标, "z": z坐标}},
 }}
 
 **放置动作**
@@ -61,9 +63,7 @@ def init_templates_mining() -> None:
 {{
     "action_type":"place_block",
     "block":"方块名称",
-    "x":"放置x位置",
-    "y":"放置y位置",
-    "z":"放置z位置",
+    "position": {{"x": x坐标, "y": y坐标, "z": z坐标}},
 }}
 
 **退出采矿/采掘模式**

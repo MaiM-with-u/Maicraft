@@ -5,6 +5,7 @@ import tomli
 
 from mcp_server.client import MCPClient
 from config import global_config
+from mcp_server.client import global_mcp_client
 from utils.logger import setup_logging, get_logger
 
 
@@ -23,8 +24,7 @@ async def main() -> None:
     from agent.mai_agent import MaiAgent
     from agent.action.craft_action.craft_action import recipe_finder
 
-    mcp_client = MCPClient()
-    connected = await mcp_client.connect()
+    connected = await global_mcp_client.connect()
     if not connected:
         print("[启动] 无法连接 MCP 服务器，退出")
         return
@@ -32,16 +32,15 @@ async def main() -> None:
     
 
     # 让配方系统可用
-    recipe_finder.mcp_client = mcp_client
+    recipe_finder.mcp_client = global_mcp_client
 
-    agent = MaiAgent(mcp_client)
+    agent = MaiAgent()
     await agent.initialize()
 
     # 启动两个主循环
-    plan_task = asyncio.create_task(agent.run_plan_loop())
+    # plan_task = asyncio.create_task(agent.run_plan_loop())
     exec_task = asyncio.create_task(agent.run_execute_loop())
-    if hasattr(agent, "attach_tasks"):
-        agent.attach_tasks(plan_task, exec_task)
+    agent.exec_task = exec_task
 
     print("[启动] Maicraft-Mai 已启动，按 Ctrl+C 退出")
     try:
@@ -76,7 +75,7 @@ async def main() -> None:
                 pass
         except Exception:
             pass
-        await mcp_client.disconnect()
+        await global_mcp_client.disconnect()
 
 
 if __name__ == "__main__":
