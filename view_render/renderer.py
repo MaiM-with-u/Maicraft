@@ -19,8 +19,8 @@ from agent.block_cache.block_cache import BlockCache, CachedBlock, global_block_
 class RenderConfig:
     image_width: int = 1024
     image_height: int = 768
-    background_color: Tuple[int, int, int, int] = (16, 16, 20, 255)
-    block_size: int = 16  # 单位立方体基准尺寸（像素）
+    background_color: Tuple[int, int, int, int] = (180, 210, 255, 255)  # 淡蓝色背景
+    block_size: int = 64  # 单位立方体基准尺寸（像素）
     draw_grid: bool = False
     face_colors: Dict[str, Tuple[int, int, int, int]] = None  # top, left, right
     vertical_scale: float = 1.0  # 垂直高度像素（每上升1格的像素高度 = block_size * vertical_scale）
@@ -81,12 +81,21 @@ class BlockCacheRenderer:
                           center: Optional[Tuple[float, float, float]] = None,
                           radius: Optional[float] = None,
                           image_format: str = "PNG",
-                          data_uri: bool = False) -> str:
+                          data_uri: bool = False,
+                          compress_ratio: float = 0.25) -> str:
         """渲染并返回图像的Base64字符串。
         - image_format: "PNG" 或 "JPEG"
         - data_uri: True时返回 data URI 前缀
+        - compress_ratio: 压缩比例，0.25表示压缩到原来的1/4大小
         """
         img = self.render(center=center, radius=radius, save_path=None)
+        
+        # 压缩图片到指定比例
+        if compress_ratio != 1.0:
+            new_width = int(img.width * compress_ratio)
+            new_height = int(img.height * compress_ratio)
+            img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        
         buffer = BytesIO()
         fmt = image_format.upper()
         img.save(buffer, format=fmt)
@@ -96,13 +105,23 @@ class BlockCacheRenderer:
             return f"data:{mime};base64,{encoded}"
         return encoded
 
-    def get_last_render_base64(self, image_format: str = "PNG", data_uri: bool = False) -> Optional[str]:
-        """返回最近一次渲染图像的Base64字符串；若还未渲染则返回None。"""
+    def get_last_render_base64(self, image_format: str = "PNG", data_uri: bool = False, compress_ratio: float = 0.25) -> Optional[str]:
+        """返回最近一次渲染图像的Base64字符串；若还未渲染则返回None。
+        - compress_ratio: 压缩比例，0.25表示压缩到原来的1/4大小
+        """
         if self._last_image is None:
             return None
+        
+        # 压缩图片到指定比例
+        img = self._last_image
+        if compress_ratio != 1.0:
+            new_width = int(img.width * compress_ratio)
+            new_height = int(img.height * compress_ratio)
+            img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        
         buffer = BytesIO()
         fmt = image_format.upper()
-        self._last_image.save(buffer, format=fmt)
+        img.save(buffer, format=fmt)
         encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
         if data_uri:
             mime = "image/png" if fmt == "PNG" else "image/jpeg"

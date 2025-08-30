@@ -100,12 +100,13 @@ class EnvironmentInfo:
         prompt = """
 你是一个经验丰富的Minecraft玩家，现在你正在一个Minecraft世界中，请根据你看到的画面，描述你周围的环境。
 黄色箭头代表玩家位置，黄色线条代表了玩家走过的路线
-周围黑色的区域代表还未探索的区域，不是没有方块的区域
+周围蓝色的区域代表还未探索，未加载的区域，不是没有方块的区域
 请你根据这幅鸟瞰图大致描述 xyz各个方向的地形和物品 
         """
         
         logger.info(f"prompt: {prompt}")
         result = await self.vlm.simple_vision(prompt, self.overview_base64)
+        logger.info(f"result: {result}")
         self.overview_str = result
         return result
         
@@ -551,7 +552,7 @@ class EnvironmentInfo:
         lines.append(f"  护甲值: {self.armor}")
         lines.append(f"  是否在地面上: {self.on_ground}")
         # lines.append(f"  是否在睡觉: {self.is_sleeping}")
-        lines.append(f"  氧气: {self.oxygen}")
+        # lines.append(f"  氧气: {self.oxygen}")
         
         # 视角信息
         # if self.yaw != 0.0 or self.pitch != 0.0:
@@ -849,196 +850,6 @@ class EnvironmentInfo:
         
         else:
             return ""
-
-    @staticmethod
-    def compare_inventories(old_inventory: List[Dict[str, Any]], new_inventory: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        比较两个inventory的差异
-        
-        Args:
-            old_inventory: 旧的物品栏列表
-            new_inventory: 新的物品栏列表
-            
-        Returns:
-            包含差异信息的字典:
-            {
-                'added': [{'name': '物品名', 'count': 数量, 'slot': 槽位}],
-                'removed': [{'name': '物品名', 'count': 数量, 'slot': 槽位}],
-                'changed': [{'name': '物品名', 'old_count': 旧数量, 'new_count': 新数量, 'slot': 槽位}],
-                'summary': '差异摘要文本'
-            }
-        """
-        # 创建物品名称到物品信息的映射，用于快速查找
-        old_items = {}
-        new_items = {}
-        
-        # 处理旧物品栏
-        for item in old_inventory:
-            if isinstance(item, dict) and 'name' in item and item['name']:
-                item_name = item['name']
-                if item_name not in old_items:
-                    old_items[item_name] = []
-                old_items[item_name].append({
-                    'name': item_name,
-                    'count': item.get('count', 0),
-                    'slot': item.get('slot', 0)
-                })
-        
-        # 处理新物品栏
-        for item in new_inventory:
-            if isinstance(item, dict) and 'name' in item and item['name']:
-                item_name = item['name']
-                if item_name not in new_items:
-                    new_items[item_name] = []
-                new_items[item_name].append({
-                    'name': item_name,
-                    'count': item.get('count', 0),
-                    'slot': item.get('slot', 0)
-                })
-        
-        added = []
-        removed = []
-        changed = []
-        
-        # 检查新增的物品
-        for item_name, new_item_list in new_items.items():
-            if item_name not in old_items:
-                # 完全新增的物品
-                for new_item in new_item_list:
-                    added.append(new_item.copy())
-            else:
-                # 检查数量变化
-                old_item_list = old_items[item_name]
-                
-                # 简单的数量比较（假设相同名称的物品数量变化）
-                old_total_count = sum(item['count'] for item in old_item_list)
-                new_total_count = sum(item['count'] for item in new_item_list)
-                
-                if new_total_count > old_total_count:
-                    # 数量增加
-                    added.append({
-                        'name': item_name,
-                        'count': new_total_count - old_total_count,
-                        'slot': 'multiple'  # 多个槽位
-                    })
-                elif new_total_count < old_total_count:
-                    # 数量减少
-                    removed.append({
-                        'name': item_name,
-                        'count': old_total_count - new_total_count,
-                        'slot': 'multiple'  # 多个槽位
-                    })
-                
-                # 检查具体槽位的变化
-                for new_item in new_item_list:
-                    new_slot = new_item['slot']
-                    new_count = new_item['count']
-                    
-                    # 查找相同槽位的旧物品
-                    old_item_in_slot = None
-                    for old_item in old_item_list:
-                        if old_item['slot'] == new_slot:
-                            old_item_in_slot = old_item
-                            break
-                    
-                    if old_item_in_slot is None:
-                        # 这个槽位新增了物品
-                        added.append(new_item.copy())
-                    elif old_item_in_slot['count'] != new_count:
-                        # 这个槽位的物品数量发生了变化
-                        changed.append({
-                            'name': item_name,
-                            'old_count': old_item_in_slot['count'],
-                            'new_count': new_count,
-                            'slot': new_slot
-                        })
-        
-        # 检查移除的物品
-        for item_name, old_item_list in old_items.items():
-            if item_name not in new_items:
-                # 完全移除的物品
-                for old_item in old_item_list:
-                    removed.append(old_item.copy())
-            else:
-                # 检查具体槽位的移除
-                new_item_list = new_items[item_name]
-                for old_item in old_item_list:
-                    old_slot = old_item['slot']
-                    
-                    # 查找相同槽位的新物品
-                    new_item_in_slot = None
-                    for new_item in new_item_list:
-                        if new_item['slot'] == old_slot:
-                            new_item_in_slot = new_item
-                            break
-                    
-                    if new_item_in_slot is None:
-                        # 这个槽位的物品被移除了
-                        removed.append(old_item.copy())
-        
-        # 生成摘要文本
-        summary_parts = []
-        if added:
-            added_summary = ", ".join([f"{item['name']}x{item['count']}" for item in added])
-            summary_parts.append(f"新增: {added_summary}")
-        
-        if removed:
-            removed_summary = ", ".join([f"{item['name']}x{item['count']}" for item in removed])
-            summary_parts.append(f"减少: {removed_summary}")
-        
-        if changed:
-            changed_summary = ", ".join([f"{item['name']} {item['old_count']}→{item['new_count']}" for item in changed])
-            summary_parts.append(f"变化: {changed_summary}")
-        
-        if not summary_parts:
-            summary = "物品栏没有变化"
-        else:
-            summary = "; ".join(summary_parts)
-        
-        return {
-            'added': added,
-            'removed': removed,
-            'changed': changed,
-            'summary': summary
-        }
-
-    @staticmethod
-    def get_inventory_diff_text(old_inventory: List[Dict[str, Any]], new_inventory: List[Dict[str, Any]]) -> str:
-        """
-        获取两个inventory差异的可读文本
-        
-        Args:
-            old_inventory: 旧的物品栏列表
-            new_inventory: 新的物品栏列表
-            
-        Returns:
-            格式化的差异文本
-        """
-        diff = EnvironmentInfo.compare_inventories(old_inventory, new_inventory)
-        
-        lines = ["【物品栏变化】"]
-        
-        if diff['added']:
-            lines.append("新增物品:")
-            for item in diff['added']:
-                slot_info = f" (槽位{item['slot']})" if item['slot'] != 'multiple' else ""
-                lines.append(f"  + {item['name']} x{item['count']}{slot_info}")
-        
-        if diff['removed']:
-            lines.append("减少物品:")
-            for item in diff['removed']:
-                slot_info = f" (槽位{item['slot']})" if item['slot'] != 'multiple' else ""
-                lines.append(f"  - {item['name']} x{item['count']}{slot_info}")
-        
-        if diff['changed']:
-            lines.append("数量变化:")
-            for item in diff['changed']:
-                lines.append(f"  {item['name']}: {item['old_count']} → {item['new_count']} (槽位{item['slot']})")
-        
-        if not any([diff['added'], diff['removed'], diff['changed']]):
-            lines.append("物品栏没有变化")
-        
-        return "\n".join(lines)
 
     def get_held_item_info(self) -> str:
         """获取手持物品的详细信息"""

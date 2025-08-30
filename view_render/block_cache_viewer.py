@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+import threading
 from typing import Optional, Tuple
 
 import pygame
@@ -23,10 +24,12 @@ class BlockCacheViewer:
         self.renderer = renderer or BlockCacheRenderer()
         self.update_interval_seconds = update_interval_seconds
         self._running = False
+        self._thread = None
 
     def run(self,
             center: Optional[Tuple[float, float, float]] = None,
             radius: Optional[float] = None) -> None:
+        """同步运行方法，在主线程中运行"""
         cfg: RenderConfig = self.renderer.config
         
 
@@ -59,21 +62,51 @@ class BlockCacheViewer:
             clock.tick(60)
 
         pygame.quit()
+
+    def run_in_thread(self,
+                     center: Optional[Tuple[float, float, float]] = None,
+                     radius: Optional[float] = None) -> None:
+        """在单独线程中运行，防止阻塞主线程"""
+        if self._thread and self._thread.is_alive():
+            logger.warning("BlockCacheViewer 已在运行中")
+            return
         
-    
-        
+        self._thread = threading.Thread(
+            target=self.run,
+            args=(center, radius),
+            daemon=True,  # 设为守护线程，主程序退出时自动结束
+            name="BlockCacheViewer-Thread"
+        )
+        self._thread.start()
+        logger.info("BlockCacheViewer 已在单独线程中启动")
+
+    def stop(self) -> None:
+        """停止预览窗口"""
+        self._running = False
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=2.0)  # 等待最多2秒
+            logger.info("BlockCacheViewer 已停止")
     
     async def run_loop(self):
-        while False:
-            await self.update_overview()
-            await asyncio.sleep(20)
+        """异步循环方法，用于定期更新概览"""
+        while True:
+            try:
+                await self.update_overview()
+                await asyncio.sleep(10)
+            except Exception as e:
+                logger.error(f"run_loop 异常: {e}")
+                await asyncio.sleep(5)  # 出错时等待5秒再继续
     
     async def update_overview(self):
-        renderer = self.renderer
-        renderer.render_to_base64()
-        image_base64 = renderer.get_last_render_base64(image_format="PNG", data_uri=True)
-        global_environment.overview_base64 = image_base64
-        await global_environment.get_overview_str()
+        """更新概览图像"""
+        try:
+            renderer = self.renderer
+            renderer.render_to_base64()
+            image_base64 = renderer.get_last_render_base64(image_format="PNG", data_uri=True, compress_ratio=0.25)
+            global_environment.overview_base64 = image_base64
+            await global_environment.get_overview_str()
+        except Exception as e:
+            logger.error(f"update_overview 异常: {e}")
 
 
 __all__ = ["BlockCacheViewer"]

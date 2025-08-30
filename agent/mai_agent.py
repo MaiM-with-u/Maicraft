@@ -31,7 +31,6 @@ from agent.utils.utils_tool_translation import (
     translate_chat_tool_result,
     translate_start_smelting_tool_result,
     translate_collect_smelted_items_tool_result,
-    translate_view_chest_result,
 )
 from agent.action.view_container import ViewContainer
 
@@ -89,7 +88,7 @@ class MaiAgent:
         
         self.goal_list: list[tuple[str, str, str]] = []  # (goal, status, details)
 
-        self.goal = "以合适的步骤挖到3个钻石，制作成钻石镐"
+        self.goal = "自由的游玩minecraft"
 
         self.memo_list: list[str] = []
         
@@ -106,7 +105,7 @@ class MaiAgent:
         self._viewer_started: bool = False
         self._plan_task: Optional[asyncio.Task] = None
         self._exec_task: Optional[asyncio.Task] = None
-        self._viewer_task: Optional[asyncio.Task] = None
+        # 不再需要_viewer_task，因为现在使用线程
         
         
     async def initialize(self):
@@ -148,7 +147,7 @@ class MaiAgent:
             self.logger.info(f"[MaiAgent] 获取到 {len(self.action_tools)} 个可用工具")
             self.openai_tools = convert_mcp_tools_to_openai_format(self.action_tools)
 
-            # await self._start_block_cache_viewer()
+            await self._start_block_cache_viewer()
             
             # 创建并启动环境更新器
             self.environment_updater = EnvironmentUpdater(
@@ -271,12 +270,13 @@ class MaiAgent:
             return
         try:
             self.block_cache_viewer = BlockCacheViewer(update_interval_seconds=0.6)
-            # 使用主事件循环任务运行pygame，保证Ctrl+C能够打断
-            import asyncio
+            # 在单独线程中运行pygame，防止阻塞主线程
+            self.block_cache_viewer.run_in_thread()
+            # 启动overview更新异步任务
             asyncio.create_task(self.block_cache_viewer.run_loop())
-            self._viewer_task = asyncio.create_task(self.block_cache_viewer.run_async())
             self._viewer_started = True
-            self.logger.info("[MaiAgent] 方块缓存预览窗口已启动（每3秒刷新）")
+            self.logger.info("[MaiAgent] 方块缓存预览窗口已在单独线程中启动（每0.6秒刷新）")
+            self.logger.info("[MaiAgent] overview更新异步任务已启动（每10秒更新）")
         except Exception as e:
             self.logger.error(f"[MaiAgent] 启动方块缓存预览窗口失败: {e}")
 
@@ -357,7 +357,7 @@ class MaiAgent:
                 if self.mode == "main_action":
                     input_data["goal"] = self.goal
                     prompt = prompt_manager.generate_prompt("minecraft_excute_task_thinking", **input_data)
-                    # self.logger.info(f"[MaiAgent] 执行任务提示词: {prompt}")
+                    self.logger.info(f"[MaiAgent] 执行任务提示词: {prompt}")
                 elif self.mode == "task_action":
                     input_data["to_do_list"] = self.to_do_list.__str__()
                     input_data["task_done_list"] = self._format_task_done_list()
@@ -366,7 +366,7 @@ class MaiAgent:
                     # self.logger.info(f"\033[38;5;153m[MaiAgent] 执行任务提示词: {prompt}\033[0m")
                 elif self.mode == "move_action":
                     prompt = prompt_manager.generate_prompt("minecraft_excute_move_action", **input_data)
-                    # self.logger.info(f"\033[38;5;208m[MaiAgent] 执行任务提示词: {prompt}\033[0m")
+                    self.logger.info(f"\033[38;5;208m[MaiAgent] 执行任务提示词: {prompt}\033[0m")
                 elif self.mode == "container_action":
                     prompt = prompt_manager.generate_prompt("minecraft_excute_container_action", **input_data)
                     # self.logger.info(f"\033[38;5;208m[MaiAgent] 执行任务提示词: {prompt}\033[0m")
@@ -554,14 +554,15 @@ class MaiAgent:
                     result.result_str += translate_start_smelting_tool_result(result_content)
                 else:
                     result.result_str += f"开始熔炼失败: {result_content}"
-            elif action_type == "view_chest":
+            elif action_type == "view_container":
                 x = math.floor(float(json_obj.get("x")))
                 y = math.floor(float(json_obj.get("y")))
                 z = math.floor(float(json_obj.get("z")))
+                type = json_obj.get("type")
                 args = {"x": x, "y": y, "z": z}
-                result.result_str = f"想要查看: {x},{y},{z}\n"
-                result_content = await self.view_container.view_chest(x, y, z)
-                result.result_str += translate_view_chest_result(result_content)
+                result.result_str = f"想要查看{type}: {x},{y},{z}\n"
+                result_content = await self.view_container.view_container(x, y, z, type)
+                result.result_str += result_content
             elif action_type == "craft":
                 item = json_obj.get("item")
                 count = json_obj.get("count")
@@ -728,12 +729,6 @@ class MaiAgent:
         try:
             if self.block_cache_viewer:
                 self.block_cache_viewer.stop()
-                # 等待异步任务结束
-                if self._viewer_task and not self._viewer_task.done():
-                    try:
-                        await asyncio.wait_for(self._viewer_task, timeout=3.0)
-                    except asyncio.TimeoutError:
-                        self._viewer_task.cancel()
         except Exception:
             pass
         # 取消后台任务
