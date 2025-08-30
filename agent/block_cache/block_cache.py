@@ -24,7 +24,6 @@ class CachedBlock:
         self.last_seen = last_seen
         self.first_seen = first_seen
         self.seen_count = seen_count
-        
     
     def to_dict(self) -> dict:
         """转换为字典格式"""
@@ -58,6 +57,45 @@ class CachedBlock:
         return (self.position.x, self.position.y, self.position.z) == (other.position.x, other.position.y, other.position.z)
 
 
+class PlayerPositionCache:
+    """玩家位置和视角信息缓存"""
+    def __init__(self, player_name: str, position: Position, yaw: float, pitch: float, timestamp: datetime):
+        self.player_name = player_name
+        self.position = position
+        self.yaw = yaw
+        self.pitch = pitch
+        self.timestamp = timestamp
+    
+    def to_dict(self) -> dict:
+        """转换为字典格式"""
+        return {
+            "player_name": self.player_name,
+            "position": {
+                "x": self.position.x,
+                "y": self.position.y,
+                "z": self.position.z
+            },
+            "yaw": self.yaw,
+            "pitch": self.pitch,
+            "timestamp": self.timestamp.isoformat()
+        }
+    
+    @classmethod
+    def from_dict(cls, data: dict) -> 'PlayerPositionCache':
+        """从字典创建对象"""
+        return cls(
+            player_name=data["player_name"],
+            position=Position(
+                x=data["position"]["x"],
+                y=data["position"]["y"],
+                z=data["position"]["z"]
+            ),
+            yaw=data["yaw"],
+            pitch=data["pitch"],
+            timestamp=datetime.fromisoformat(data["timestamp"])
+        )
+
+
 class BlockCache:
     """方块缓存管理器"""
     def __init__(self, cache_file: str = None, auto_save_interval: int = None):
@@ -77,24 +115,30 @@ class BlockCache:
         # 名称索引：方块名称 -> 位置集合
         self._name_index: Dict[str, Set[BlockPosition]] = defaultdict(set)
         
+        # 玩家位置缓存 - 使用字典存储每个玩家的最新位置，键为玩家名称
+        self._player_position_cache: Dict[str, PlayerPositionCache] = {}
+        
         # 统计信息
         self._stats = {
             "total_blocks_cached": 0,
             "total_updates": 0,
             "cache_hits": 0,
             "cache_misses": 0,
+            "total_player_positions": 0,
             "last_cleanup": datetime.now()
         }
         
         # 缓存文件配置
         if cache_file is None:
-            # 使用默认路径：插件目录下的cache子目录
-            plugin_dir = Path(__file__).parent.parent.parent.parent
-            cache_dir = plugin_dir / "cache"
+            # 使用默认路径：main.py同级目录下的cache子目录
+            main_dir = Path(__file__).parent.parent.parent
+            cache_dir = main_dir / "cache"
             cache_dir.mkdir(exist_ok=True)
             self._cache_file = cache_dir / "block_cache.json"
+            self._player_cache_file = cache_dir / "player_position_cache.json"
         else:
             self._cache_file = Path(cache_file)
+            self._player_cache_file = self._cache_file.parent / "player_position_cache.json"
             self._cache_file.parent.mkdir(parents=True, exist_ok=True)
         
         # 自动保存间隔配置
@@ -107,11 +151,13 @@ class BlockCache:
         
         # 从文件加载缓存
         self._load_cache()
+        self._load_player_cache()
         
         # 启动自动保存任务
         self._start_auto_save()
         
         logger.info(f"方块缓存系统初始化完成，缓存文件：{self._cache_file}")
+        logger.info(f"玩家位置缓存文件：{self._player_cache_file}")
         logger.info(f"自动保存间隔：{self._auto_save_interval}秒")
     
     def _get_config_auto_save_interval(self) -> int:
@@ -198,6 +244,62 @@ class BlockCache:
             # 如果加载失败，创建新的缓存文件
             self._create_new_cache_file()
     
+    def _load_player_cache(self):
+        """从文件加载玩家位置缓存"""
+        try:
+            if self._player_cache_file.exists():
+                try:
+                    with open(self._player_cache_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                except json.JSONDecodeError as json_error:
+                    logger.error(f"玩家位置缓存JSON解析错误: {json_error}")
+                    return
+                except Exception as e:
+                    logger.error(f"读取玩家位置缓存文件失败: {e}")
+                    return
+                
+                # 加载玩家位置数据
+                positions_data = data.get("player_positions", [])
+                loaded_count = 0
+                
+                for pos_data in positions_data:
+                    try:
+                        player_pos = PlayerPositionCache.from_dict(pos_data)
+                        # 使用玩家名称作为键，只保留最新数据
+                        self._player_position_cache[player_pos.player_name] = player_pos
+                        loaded_count += 1
+                    except Exception as e:
+                        logger.warning(f"加载玩家位置缓存数据失败: {e}")
+                        continue
+                
+                # 更新统计信息
+                self._stats["total_player_positions"] = len(self._player_position_cache)
+                
+                logger.info(f"从文件加载了 {loaded_count} 个玩家位置缓存")
+            else:
+                logger.info("玩家位置缓存文件不存在，将创建新的缓存")
+                self._create_new_player_cache_file()
+        except Exception as e:
+            logger.error(f"加载玩家位置缓存文件失败: {e}")
+            # 如果加载失败，创建新的缓存文件
+            self._create_new_player_cache_file()
+    
+    def _create_new_player_cache_file(self):
+        """创建新的空玩家位置缓存文件"""
+        try:
+            new_cache_data = {
+                "player_positions": [],
+                "last_save": datetime.now().isoformat(),
+                "cache_version": "1.0"
+            }
+            
+            with open(self._player_cache_file, 'w', encoding='utf-8') as f:
+                json.dump(new_cache_data, f, ensure_ascii=False, indent=2)
+            
+            logger.info("已创建新的玩家位置缓存文件")
+        except Exception as e:
+            logger.error(f"创建新玩家位置缓存文件失败: {e}")
+    
     def _try_repair_cache(self) -> bool:
         """尝试修复损坏的缓存文件"""
         try:
@@ -249,6 +351,7 @@ class BlockCache:
                     "total_updates": 0,
                     "cache_hits": 0,
                     "cache_misses": 0,
+                    "total_player_positions": 0,
                     "last_cleanup": datetime.now().isoformat()
                 },
                 "last_save": datetime.now().isoformat(),
@@ -286,6 +389,28 @@ class BlockCache:
         except Exception as e:
             logger.error(f"保存缓存文件失败: {e}")
     
+    def _save_player_cache(self):
+        """保存玩家位置缓存到文件"""
+        try:
+            # 准备保存数据
+            save_data = {
+                "player_positions": [],
+                "last_save": datetime.now().isoformat(),
+                "cache_version": "1.0"
+            }
+            
+            # 转换玩家位置数据为可序列化格式
+            for player_pos in self._player_position_cache.values():
+                save_data["player_positions"].append(player_pos.to_dict())
+            
+            # 保存到文件
+            with open(self._player_cache_file, 'w', encoding='utf-8') as f:
+                json.dump(save_data, f, ensure_ascii=False, indent=2)
+            
+            logger.debug(f"玩家位置缓存已保存到文件: {self._player_cache_file}")
+        except Exception as e:
+            logger.error(f"保存玩家位置缓存文件失败: {e}")
+    
     def _serialize_stats(self) -> dict:
         """序列化统计信息，将datetime对象转换为字符串"""
         serialized_stats = {}
@@ -303,6 +428,7 @@ class BlockCache:
                 try:
                     await asyncio.sleep(self._auto_save_interval)
                     self._save_cache()
+                    self._save_player_cache()
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
@@ -328,12 +454,14 @@ class BlockCache:
         """强制保存缓存"""
         logger.info("强制保存缓存...")
         self._save_cache()
+        self._save_player_cache()
     
     def clear_cache(self):
         """清空缓存"""
         self._position_cache.clear()
         self._type_index.clear()
         self._name_index.clear()
+        self._player_position_cache.clear()
         
         # 重置统计信息
         self._stats = {
@@ -341,6 +469,7 @@ class BlockCache:
             "total_updates": 0,
             "cache_hits": 0,
             "cache_misses": 0,
+            "total_player_positions": 0,
             "last_cleanup": datetime.now()
         }
         
@@ -351,8 +480,84 @@ class BlockCache:
         try:
             self.stop_auto_save()
             self._save_cache()
+            self._save_player_cache()
         except:
             pass
+    
+    def update_player_position(self, player_name: str, position: Position, yaw: float, pitch: float) -> PlayerPositionCache:
+        """
+        更新玩家位置和视角信息（只保留最新位置）
+        
+        Args:
+            player_name: 玩家名称
+            position: 玩家位置
+            yaw: 水平视角
+            pitch: 垂直视角
+            
+        Returns:
+            缓存的玩家位置对象
+        """
+        now = datetime.now()
+        
+        # 创建新的玩家位置缓存
+        player_pos = PlayerPositionCache(
+            player_name=player_name,
+            position=position,
+            yaw=yaw,
+            pitch=pitch,
+            timestamp=now
+        )
+        
+        # 更新或添加玩家位置（覆盖旧数据）
+        self._player_position_cache[player_name] = player_pos
+        
+        # 更新统计信息（总玩家数量）
+        self._stats["total_player_positions"] = len(self._player_position_cache)
+        
+        logger.debug(f"更新玩家位置缓存: {player_name} at ({position.x:.2f}, {position.y:.2f}, {position.z:.2f})")
+        return player_pos
+    
+    def get_player_positions(self, player_name: str = None, limit: int = None) -> List[PlayerPositionCache]:
+        """
+        获取玩家位置信息（每个玩家只保留最新位置）
+        
+        Args:
+            player_name: 玩家名称，如果为None则返回所有玩家的最新位置
+            limit: 限制返回的玩家数量，如果为None则返回所有玩家
+            
+        Returns:
+            玩家位置记录列表
+        """
+        if player_name:
+            # 获取特定玩家的最新位置
+            if player_name in self._player_position_cache:
+                return [self._player_position_cache[player_name]]
+            else:
+                return []
+        else:
+            # 返回所有玩家的最新位置
+            positions = list(self._player_position_cache.values())
+            
+            # 按时间戳排序（最新的在前）
+            positions.sort(key=lambda x: x.timestamp, reverse=True)
+            
+            # 限制返回数量
+            if limit:
+                positions = positions[:limit]
+            
+            return positions
+    
+    def get_latest_player_position(self, player_name: str) -> Optional[PlayerPositionCache]:
+        """
+        获取玩家的位置信息（每个玩家只保留最新位置）
+        
+        Args:
+            player_name: 玩家名称
+            
+        Returns:
+            玩家的位置信息，如果不存在则返回None
+        """
+        return self._player_position_cache.get(player_name)
     
     def update_from_blocks(self, blocks_data: Dict[str, Any]) -> int:
         """
@@ -548,7 +753,8 @@ class BlockCache:
             "current_cache_size": len(self._position_cache),
             "type_count": len(self._type_index),
             "cache_hit_rate": (self._stats["cache_hits"] / 
-                              max(1, self._stats["cache_hits"] + self._stats["cache_misses"]))
+                              max(1, self._stats["cache_hits"] + self._stats["cache_misses"])),
+            "player_position_count": len(self._player_position_cache)
         }
     
     def _update_indices(self, block: CachedBlock, new_type: str):

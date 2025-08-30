@@ -193,6 +193,18 @@ class EnvironmentInfo:
         self.yaw = data.get("yaw", 0.0)
         self.pitch = data.get("pitch", 0.0)
         
+        # 缓存玩家位置和视角信息到方块缓存系统
+        if self.position and self.player_name:
+            try:
+                global_block_cache.update_player_position(
+                    player_name=self.player_name,
+                    position=self.position,
+                    yaw=self.yaw,
+                    pitch=self.pitch
+                )
+            except Exception as e:
+                logger.warning(f"缓存玩家位置信息失败: {e}")
+        
         # 更新装备信息
         self.equipment = data.get("equipment", {})
         

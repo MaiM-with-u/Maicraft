@@ -18,11 +18,9 @@ Pillow
 pyvts
 obsws-python
 pygame  # Optional: For more reliable audio playback in TTS plugin
+pywin32  # For Windows-specific OpenGL context creation
 tomli
-torchaudio
 maim-message
 customtkinter
 fastmcp
 json-repair
-pytest
-pytest-asyncio
