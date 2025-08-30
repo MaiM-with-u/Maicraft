@@ -4,6 +4,7 @@ from agent.prompt_manager.template_mining import init_templates_mining
 from agent.prompt_manager.template_use_block import init_templates_use_block
 from agent.prompt_manager.template_move import init_templates_move
 from agent.prompt_manager.template_memo import init_templates_memo
+from agent.prompt_manager.template_chat import init_templates_chat
 
 def init_templates() -> None:
     """初始化提示词模板"""
@@ -12,6 +13,7 @@ def init_templates() -> None:
     init_templates_use_block()
     init_templates_move()
     init_templates_memo()
+    init_templates_chat()
 
     prompt_manager.register_template(
         PromptTemplate(
@@ -41,15 +43,6 @@ def init_templates() -> None:
 
 **当前模式：{mode}**
 **你可以做的动作**
-**聊天动作**
-在聊天框发送消息
-可以与其他玩家交流或者求助
-你可以积极参与其他玩家的聊天
- {{
-     "action_type":"chat",
-     "message":"消息内容",
- }}
- 
 **挖掘/破坏动作**
 挖掘某个位置指定的方块
 {{
@@ -83,14 +76,23 @@ def init_templates() -> None:
     "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
 }}
 
-**进入移动模式**
+**进入move模式**
 可以进行持续的移动，走到合适的地点
 {{
     "action_type":"enter_move_mode",
     "reason":"移动的原因"
 }}
 
-**进入使用方块模式**
+**进入chat模式**
+与其他玩家交流或者求助，有任何需要的可以进入聊天模式
+当你需要其他玩家的帮助，或者想与其他玩家闲聊，或是有新发现，进入聊天模式
+当有人叫你名字时，进入聊天模式
+ {{
+     "action_type":"enter_chat_mode",
+     "reason":"进入聊天模式的原因"
+ }}
+
+**进入use_block模式**
 可以打开chest存取物品，打开furnace进行冶炼，或存取熔炼后的物品
 或者使用crafting_table等功能性方块进行合成等操作
 {{
@@ -98,7 +100,7 @@ def init_templates() -> None:
     "reason":"使用方块的原因"
 }}
 
-**进入任务规划模式**
+**进入task_edit模式**
 对任务列表进行修改，包括：
 1. 更新当前任务的进展
 2. 如果当前任务无法完成，需要前置任务，创建新任务
@@ -108,7 +110,7 @@ def init_templates() -> None:
     "reason":"修改任务列表的原因"
 }}
 
-**进入备忘录模式**
+**进入memo模式**
 记录重要信息，用于后续思考和执行
 {{
     "action_type":"enter_memo_mode",
@@ -120,11 +122,13 @@ def init_templates() -> None:
 {thinking_list}
 
 **模式**
-1.请你灵活使用采矿模式，备忘录模式，任务规划模式，帮助你更高效的完成任务
-2.如果要存取物品，熔炼或使用方块，请你进入使用方块模式
-3.如果要修改任务列表，请你进入任务规划模式
-4.如果要使用备忘录，请你进入备忘录模式
-5.如果要进行大量移动，请你进入移动模式
+1.请你灵活使用采矿模式，备忘录模式，任务规划模式，chat模式，帮助你更高效的完成任务
+2.如果要存取物品，熔炼或使用方块，请你进入use_block模式
+2.如果要与其他玩家交流，请你进入chat模式
+3.如果要修改任务列表，请你进入task_edit模式
+4.如果要使用备忘录，请你进入memo模式
+5.如果要进行大量移动，请你进入move模式
+6.如果有新的发现，请你进入chat模式
 
 **注意事项**
 1.先总结之前的思考和执行的记录，对执行结果进行分析，是否达成目的，是否需要调整任务或动作
@@ -205,6 +209,12 @@ def init_templates() -> None:
      "reason":"删除任务的原因",
  }}
  
+ 5. 当任务修改完成，想要继续其他动作，请退出任务修改模式
+ {{
+     "action_type":"exit_task_edit_mode",
+     "reason":"退出任务修改模式的原因",
+ }}
+ 
 
  
  之前的思考和执行的记录：
@@ -218,73 +228,5 @@ def init_templates() -> None:
 """,
         description="任务-任务动作",
         parameters=["goal", "to_do_list", "task_done_list", "task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
-    ))
-    
-    
-    
-    
-    prompt_manager.register_template(
-        PromptTemplate(
-        name="minecraft_to_do",
-        template="""
-你是麦麦，游戏名叫Mai,你正在游玩Minecraft，是一名Minecraft玩家。请根据当前的目标，来决定要做哪些事：
-
-**当前目标**：{goal}
-
-**位置信息**：
-{position}
-
-**环境信息**：
-{environment}
-
-**周围方块的信息**：
-{nearby_block_info}
-
-**玩家聊天记录**：
-{chat_str}
-
-请判断为了达成目标，需要进行什么任务
-请列举出所有需要完成的任务，并以json格式输出：
-
-注意，任务的格式如下，请你参考以下格式：
-{{
-    "tasks": {{
-    {{
-        "details":"挖掘十个石头,用于合成石稿",
-        "done_criteria":"物品栏中包含十个及以上石头"
-    }},
-    {{
-        "type": "craft",
-        "details":"使用工作台合成一把石稿,用于挖掘铁矿",
-        "done_criteria":"物品栏中包含一把石稿"
-    }},
-    {{
-        "type": "move",
-        "details":"移动到草地,用于挖掘铁矿",
-        "done_criteria":"脚下方块为grass_block"
-    }},
-    {{
-        "type": "place",
-        "details":"在面前放置一个熔炉,用于熔炼铁锭",
-        "done_criteria":"物品栏中包含一个熔炉"
-    }},
-    {{
-        "type": "get",
-        "details":"从箱子里获取三个铁锭,用于合成铁桶",
-        "done_criteria":"物品栏中包含三个铁锭"
-    }}
-    }}
-}}
-
-*请你根据当前的物品栏，环境信息，位置信息，来决定要如何安排任务*
-
-你可以：
-1. 任务需要明确，并且可以检验是否完成
-2. 可以一次输出多个任务，保证能够达成目标
-
-请用json格式输出任务列表。
-""",
-        description="任务规划",
-        parameters=["goal", "environment", "nearby_block_info", "position", "chat_str"],
     ))
     

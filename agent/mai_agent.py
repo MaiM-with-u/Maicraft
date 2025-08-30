@@ -35,13 +35,17 @@ from agent.utils.utils_tool_translation import (
 )
 from agent.action.view_container import ViewContainer
 from mcp_server.client import global_mcp_client
+from agent.thinking_log import global_thinking_log
+from agent.mai_mode import mai_mode
 
 COLOR_MAP = {
     "main_mode": "\033[32m",        # 绿色
-    "task_action": "\033[38;5;39m",   # 蓝色
-    "move_mode": "\033[38;5;208m",  # 橙色
-    "use_mode": "\033[38;5;141m", # 紫色
+    "move_mode": "\033[38;5;141m",  # 橙色
     "mining_mode": "\033[38;5;226m",  # 黄色
+    "chat_mode": "\033[38;5;51m",     # 青色
+    "memo_mode": "\033[38;5;199m",    # 粉色
+    "task_edit_mode": "\033[38;5;196m", # 红色
+    "use_block_mode": "\033[38;5;208m", # 紫色（与use_mode相同）
 }
 
 
@@ -105,8 +109,6 @@ class MaiAgent:
         
         self.on_going_task_id = ""
         
-        self.thinking_list: list[str] = []
-        
         
         self.to_do_list: ToDoList = ToDoList()
         self.task_done_list: list[tuple[bool, str, str]] = []
@@ -121,7 +123,7 @@ class MaiAgent:
     async def initialize(self):
         """异步初始化"""
         try:
-            self.logger.info("[MaiAgent] 开始初始化")
+            self.logger.info(" 开始初始化")
             
             init_templates()
             
@@ -149,12 +151,12 @@ class MaiAgent:
             global_environment.set_vlm(self.vlm)
             
             
-            self.logger.info("[MaiAgent] LLM客户端初始化成功")
+            self.logger.info(" LLM客户端初始化成功")
             
             
             self.tools = await global_mcp_client.get_tools_metadata()
             self.action_tools = filter_action_tools(self.tools)
-            self.logger.info(f"[MaiAgent] 获取到 {len(self.action_tools)} 个可用工具")
+            self.logger.info(f" 获取到 {len(self.action_tools)} 个可用工具")
             self.openai_tools = convert_mcp_tools_to_openai_format(self.action_tools)
 
             await self._start_block_cache_viewer()
@@ -170,20 +172,18 @@ class MaiAgent:
             self.view_container = ViewContainer(global_mcp_client)
             # 启动环境更新器
             if self.environment_updater.start():
-                self.logger.info("[MaiAgent] 环境更新器启动成功")
+                self.logger.info(" 环境更新器启动成功")
             else:
-                self.logger.error("[MaiAgent] 环境更新器启动失败")
+                self.logger.error(" 环境更新器启动失败")
 
             await asyncio.sleep(1)
             
-            self.mode = "main_mode"
-            
             # 初始化NearbyBlockManager
             self.nearby_block_manager = NearbyBlockManager()
-            self.logger.info("[MaiAgent] NearbyBlockManager初始化成功")
+            self.logger.info(" NearbyBlockManager初始化成功")
 
             self.initialized = True
-            self.logger.info("[MaiAgent] 初始化完成")
+            self.logger.info(" 初始化完成")
 
             # 启动方块缓存预览窗口（后台，不阻塞事件循环）
             
@@ -192,35 +192,15 @@ class MaiAgent:
             
 
         except Exception as e:
-            self.logger.error(f"[MaiAgent] 初始化失败: {e}")
+            self.logger.error(f" 初始化失败: {e}")
             raise
-        
-        
-    # async def run_plan_loop(self):
-    #     """
-    #     运行主循环
-    #     """
-    #     while True:            
-    #         try:
-    #             await self.propose_all_task(to_do_list=self.to_do_list, environment_info=global_environment.get_summary())
-    #         except Exception:
-    #             import traceback
-    #             self.logger.error(f"[MaiAgent] propose_all_task 调用异常: {traceback.format_exc()}")
-    #         while True:
-    #             if self.to_do_list.check_if_all_done():
-    #                 self.logger.info(f"[MaiAgent] 所有任务已完成，目标{self.goal}完成")
-    #                 self.to_do_list.clear()
-    #                 self.goal_list.append((self.goal, "done", "所有任务已完成"))
-    #                 await asyncio.sleep(1)
-    #                 break
-    #             await asyncio.sleep(5)
                 
     async def run_execute_loop(self):
         """
         运行执行循环
         """
         self.on_going_task_id = ""
-        self.mode = "main_mode"
+        mai_mode.mode = "main_mode"
         while True:
             await self.next_thinking()
     
@@ -250,15 +230,12 @@ class MaiAgent:
         返回: (执行结果, 执行状态)
         """
         try:
-            # 限制思考上下文
-            if len(self.thinking_list) > 20:
-                self.thinking_list = self.thinking_list[-20:]
             
             task = self.to_do_list.get_task_by_id(self.on_going_task_id)
             if task:
-                self.logger.info(f"[MaiAgent]执行任务:\n {task}")
+                self.logger.info(f"执行任务:\n {task}")
             else:
-                self.logger.debug("[MaiAgent]没有任务")
+                self.logger.debug("没有任务")
             
             # 获取当前环境信息
             await self.environment_updater.perform_update()
@@ -270,7 +247,7 @@ class MaiAgent:
                 "task": task.__str__(),
                 "environment": environment_info,
                 # "executed_tools": executed_tools_str,
-                "thinking_list": "\n".join(self.thinking_list),
+                "thinking_list": global_thinking_log.get_thinking_log(),
                 "nearby_block_info": nearby_block_info,
                 "position": global_environment.get_position_str(),
                 "memo_list": "\n".join(self.memo_list),
@@ -278,71 +255,92 @@ class MaiAgent:
                 "to_do_list": self.to_do_list.__str__(),
                 "task_done_list": self._format_task_done_list(),
                 "goal": self.goal,
-                "mode": self.mode
+                "mode": mai_mode.mode
             }
             
             # 根据不同的模式，给予不同的工具
-            if self.mode == "main_mode":
+            if mai_mode.mode == "main_mode":
                 # 主模式，可以选择基础动作，和深入动作
                 prompt = prompt_manager.generate_prompt("minecraft_excute_task_thinking", **input_data)
-                # self.logger.info(f"[MaiAgent] 执行任务提示词: {prompt}")
-            elif self.mode == "task_action":
+                # self.logger.info(f" 执行任务提示词: {prompt}")
+            elif mai_mode.mode == "task_edit":
                 prompt = prompt_manager.generate_prompt("minecraft_excute_task_action", **input_data)
-                # self.logger.info(f"\033[38;5;153m[MaiAgent] 执行任务提示词: {prompt}\033[0m")
-            elif self.mode == "move_mode":
+                # self.logger.info(f"\033[38;5;153m 执行任务提示词: {prompt}\033[0m")
+            elif mai_mode.mode == "move_mode":
                 prompt = prompt_manager.generate_prompt("move_mode", **input_data)
-                # self.logger.info(f"\033[38;5;208m[MaiAgent] 执行任务提示词: {prompt}\033[0m")
-            elif self.mode == "use_mode":
+                # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
+            elif mai_mode.mode == "use_block":
                 prompt = prompt_manager.generate_prompt("use_block_mode", **input_data)
-                # self.logger.info(f"\033[38;5;208m[MaiAgent] 执行任务提示词: {prompt}\033[0m")
-            elif self.mode == "mining_mode":
+                # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
+            elif mai_mode.mode == "mining_mode":
                 prompt = prompt_manager.generate_prompt("minecraft_mining_nearby", **input_data)
-                # self.logger.info(f"\033[38;5;208m[MaiAgent] 执行任务提示词: {prompt}\033[0m")
-            elif self.mode == "memo_mode":
+                # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
+            elif mai_mode.mode == "memo":
                 prompt = prompt_manager.generate_prompt("memo_mode", **input_data)
-                # self.logger.info(f"\033[38;5;208m[MaiAgent] 执行任务提示词: {prompt}\033[0m")
-            
+                # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
+            elif mai_mode.mode == "chat":
+                prompt = prompt_manager.generate_prompt("mai_chat", **input_data)
+                # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
+            else:
+                self.logger.warning(f" 不支持的模式: {mai_mode.mode}")
+                return
             
             
             thinking = await self.llm_client.simple_chat(prompt)
-            # self.logger.info(f"[MaiAgent] 任务想法: {thinking}")
+            # self.logger.info(f" 原始输出: {thinking}")
             
             json_obj, thinking_log = parse_thinking(thinking)
+            
+            #出现意外的调试
+            if not json_obj:
+                self.logger.warning(f" 思考结果中没有json对象: {thinking}")
+                return TaskResult()
+            
+            action_type = json_obj.get("action_type")
+            if not action_type:
+                self.logger.warning(f" 思考结果中没有action_type: {thinking}")
+                return TaskResult()
+            
+            
             time_str = time.strftime("%H:%M:%S", time.localtime())
-            color_prefix = COLOR_MAP.get(self.mode, "\033[0m")
+            color_prefix = COLOR_MAP.get(mai_mode.mode, "\033[0m")
             
             if thinking_log:
-                self.thinking_list.append(f"时间：{time_str} 思考结果：{thinking_log}")
+                global_thinking_log.add_thinking_log(f"时间：{time_str} 思考结果：{thinking_log}")
                 
-            self.logger.info(f"{color_prefix}[MaiAgent] 想法{self.mode}: {thinking_log}\033[0m")
+            self.logger.info(f"{color_prefix} 想法{mai_mode.mode}: {thinking_log}\033[0m")
             
             if json_obj:
-                self.logger.info(f"{color_prefix}[MaiAgent] 动作: {json_obj}\033[0m")
+                self.logger.info(f"{color_prefix} 动作: {json_obj}\033[0m")
                 
                 result = await self.excute_action(json_obj)
-                self.thinking_list.append(f"时间：{time_str} 执行结果：{result.result_str}")
+                global_thinking_log.add_thinking_log(f"时间：{time_str} 执行结果：{result.result_str}")
                 
-                self.logger.info(f"[MaiAgent] 执行结果: {result.result_str}")
+                self.logger.info(f" 执行结果: {result.result_str}")
                 
                 
         except Exception as e:
-            self.logger.error(f"[MaiAgent] 任务执行异常: {traceback.format_exc()}")
+            self.logger.error(f" 任务执行异常: {traceback.format_exc()}")
         
         
         
     async def excute_action(self,action_json) -> ThinkingJsonResult:
-        if self.mode == "main_mode":
+        if mai_mode.mode == "main_mode":
             return await self.excute_main_mode(action_json)
-        elif self.mode == "move_mode":
+        elif mai_mode.mode == "move_mode":
             return await self.excute_move_mode(action_json)
-        elif self.mode == "mining_mode":
+        elif mai_mode.mode == "mining_mode":
             return await self.excute_mining_mode(action_json)
-        elif self.mode == "use_mode":
+        elif mai_mode.mode == "use_block":
             return await self.excute_use_mode(action_json)
-        elif self.mode == "memo_mode":
-            return await self.excute_memo_mode(action_json)
+        elif mai_mode.mode == "memo":
+            return await self.excute_memo(action_json)
+        elif mai_mode.mode == "chat":
+            return await self.excute_chat(action_json)
+        elif mai_mode.mode == "task_edit":
+            return await self.excute_task_edit(action_json)
         else:
-            self.logger.warning(f"[MaiAgent] {self.mode} 不支持的action_type: {action_json.get('action_type')}")
+            self.logger.warning(f" {mai_mode.mode} 不支持的action_type: {action_json.get('action_type')}")
             return ThinkingJsonResult()
             
             
@@ -394,43 +392,62 @@ class MaiAgent:
             call_result = await global_mcp_client.call_tool_directly("place_block", args)
             is_success, result_content = parse_tool_result(call_result)
             result.result_str += translate_place_block_tool_result(result_content,args)
-        elif action_type == "chat":
-            message = action_json.get("message")
-            args = {"message": message}
-            call_result = await global_mcp_client.call_tool_directly("chat", args)
-            is_success, result_content = parse_tool_result(call_result)
-            if is_success:
-                result.result_str = translate_chat_tool_result(result_content)
-            else:
-                result.result_str = f"聊天失败: {result_content}"
         elif action_type == "enter_move_mode":
             reason = action_json.get("reason")
-            self.mode = "move_mode"
+            mai_mode.mode = "move_mode"
             result.result_str = f"想要移动，进入move模式，原因是: {reason}\n"
             return result
         elif action_type == "enter_mining_mode":
-            self.mode = "mining_mode"
+            mai_mode.mode = "mining_mode"
             result.result_str = "进入采矿/采掘模式\n"
             return result
         elif action_type == "enter_use_block_mode":
             reason = action_json.get("reason")
             result.result_str = f"想要使用方块，进入use模式，原因是: {reason}\n"
-            self.mode = "use_mode"
+            mai_mode.mode = "use_block"
             return result
         elif action_type == "enter_memo_mode":
             reason = action_json.get("reason")
             result.result_str = f"想要使用备忘录，进入memo模式，原因是: {reason}\n"
-            self.mode = "memo_mode"
+            mai_mode.mode = "memo"
             return result
         elif action_type == "enter_task_edit_mode":
-            self.mode = "task"
+            mai_mode.mode = "task_edit"
             reason = action_json.get("reason")
             result.result_str = f"选择进行修改任务列表: \n原因: {reason}\n"
             return result
+        elif action_type == "enter_chat_mode":
+            mai_mode.mode = "chat"
+            reason = action_json.get("reason")
+            result.result_str = f"想要聊天，进入chat模式，原因是: {reason}\n"
+            return result
         else:
-            self.logger.warning(f"[MaiAgent] {self.mode} 不支持的action_type: {action_type}")
+            self.logger.warning(f" {mai_mode.mode} 不支持的action_type: {action_type}")
             
             
+        return result
+
+    async def excute_chat(self,action_json) -> ThinkingJsonResult:
+        result = ThinkingJsonResult()
+        action_type = action_json.get("action_type")
+        if action_type == "chat":
+            message = action_json.get("message")
+            if message is not None:
+                message = message.strip().replace('\n', '').replace('\r', '')
+            args = {"message": message}
+            call_result = await global_mcp_client.call_tool_directly("chat", args)
+            is_success, result_content = parse_tool_result(call_result)
+            return result
+        elif action_type == "wait_player_message":
+            wait_time = action_json.get("wait_time")
+            result.result_str = f"等待玩家消息: \n等待时间: {wait_time}\n"
+            await asyncio.sleep(wait_time)
+            return result
+        elif action_type == "exit_chat_mode":
+            mai_mode.mode = "main_mode"
+            reason = action_json.get("reason")
+            result.result_str = f"退出聊天模式: \n原因: {reason}\n"
+            return result
         return result
     
     async def excute_move_mode(self,action_json) -> ThinkingJsonResult:
@@ -447,10 +464,13 @@ class MaiAgent:
             is_success, result_content = parse_tool_result(call_result)
             result.result_str += translate_move_tool_result(result_content, args)
         elif action_type == "exit_move_mode":
-            self.mode = "main_mode"
+            mai_mode.mode = "main_mode"
             reason = action_json.get("reason")
             result.result_str = f"退出移动模式: \n原因: {reason}\n"
             return result
+        else:
+            self.logger.warning(f" {mai_mode.mode} 不支持的action_type: {action_type}")
+            result.result_str = f"当前模式{mai_mode.mode}不支持的action_type: {action_type}\n"
         
         return result
     
@@ -522,7 +542,7 @@ class MaiAgent:
             result.result_str += translate_move_tool_result(result_content, args)
             return result
         elif action_type == "exit_mining_mode":
-            self.mode = "main_mode"
+            mai_mode.mode = "main_mode"
             result.result_str = "退出采矿/采掘模式\n"
             return result
         
@@ -561,6 +581,17 @@ class MaiAgent:
                 result.result_str += translate_start_smelting_tool_result(result_content)
             else:
                 result.result_str += f"开始熔炼失败: {result_content}"
+        elif action_type == "place_block":
+            block = action_json.get("block")
+            position = action_json.get("position")
+            x = math.floor(float(position.get("x")))
+            y = math.floor(float(position.get("y")))
+            z = math.floor(float(position.get("z")))
+            result.result_str = f"想要放置方块: {block} 位置: {x},{y},{z}\n"
+            args = {"block": block, "x": x, "y": y, "z": z}
+            call_result = await global_mcp_client.call_tool_directly("place_block", args)
+            is_success, result_content = parse_tool_result(call_result)
+            result.result_str += translate_place_block_tool_result(result_content,args)
         elif action_type == "view_container":
             position = action_json.get("position", {})
             x = math.floor(float(position.get("x", 0)))
@@ -607,18 +638,19 @@ class MaiAgent:
         elif action_type == "finish_using":
             reason = action_json.get("reason")
             result.result_str = f"结束使用方块模式: \n原因: {reason}\n"
-            self.mode = "main_mode"
+            mai_mode.mode = "main_mode"
         else:
-            self.logger.warning(f"在模式，{self.mode} 不支持的action_type: {action_type}")
-            self.mode = "main_mode"
+            self.logger.warning(f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}")
+            result.result_str = f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}\n"
+            mai_mode.mode = "main_mode"
             
         return result
             
-    async def excute_memo_mode(self,action_json) -> ThinkingJsonResult:
+    async def excute_memo(self,action_json) -> ThinkingJsonResult:
         result = ThinkingJsonResult()
         action_type = action_json.get("action_type")
         if action_type == "exit_memo_mode":
-            self.mode = "main_mode"
+            mai_mode.mode = "main_mode"
         elif action_type == "add_memo":
             memo = action_json.get("memo")
             result.result_str = f"添加备忘录: {memo}\n"
@@ -628,13 +660,13 @@ class MaiAgent:
             result.result_str = f"移除备忘录: {memo}\n"
             self.memo_list.remove(memo)
         else:
-            result.result_str = f"在模式，{self.mode} 不支持的action_type: {action_type}\n"
-            self.logger.warning(f"在模式，{self.mode} 不支持的action_type: {action_type}")
-            self.mode = "main_mode"
+            result.result_str = f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}\n"
+            self.logger.warning(f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}")
+            mai_mode.mode = "main_mode"
             
         return result
 
-    async def excute_task_mode(self, action_json) -> ThinkingJsonResult:
+    async def excute_task_edit(self, action_json) -> ThinkingJsonResult:
         """
         执行json
         返回: ThinkingJsonResult
@@ -672,10 +704,10 @@ class MaiAgent:
             new_task_criteria = action_json.get("new_task_criteria")
             self.result_str = f"创建新任务: {new_task},原因: {new_task_criteria}\n"
             self.to_do_list.add_task(new_task, new_task_criteria)
-        elif action_type == "exit_task_mode":
+        elif action_type == "exit_task_edit_mode":
             reason = action_json.get("reason")
             result.result_str = f"退出任务修改模式，原因是: {reason}\n"
-            self.mode = "main_mode"
+            mai_mode.mode = "main_mode"
             return result
         
         return result
@@ -692,10 +724,10 @@ class MaiAgent:
             if global_config.visual.enable:
                 asyncio.create_task(self.block_cache_viewer.run_loop())
                 self._viewer_started = True
-                self.logger.info("[MaiAgent] 方块缓存预览窗口已在单独线程中启动（每0.6秒刷新）")
-                self.logger.info("[MaiAgent] overview更新异步任务已启动（每10秒更新）")
+                self.logger.info(" 方块缓存预览窗口已在单独线程中启动（每0.6秒刷新）")
+                self.logger.info(" overview更新异步任务已启动（每10秒更新）")
         except Exception as e:
-            self.logger.error(f"[MaiAgent] 启动方块缓存预览窗口失败: {e}")
+            self.logger.error(f" 启动方块缓存预览窗口失败: {e}")
 
 
     async def shutdown(self) -> None:

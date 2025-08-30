@@ -11,26 +11,6 @@ def parse_json(text: str) -> dict:
     except json.JSONDecodeError:
         return None
     
-    
-# 统一处理全角/半角冒号
-def extract_between(text: str, prefix_full: str, prefix_half: str, closing: str = ">") -> Optional[str]:
-    start = -1
-    use_full = False
-    if prefix_full in text:
-        start = text.find(prefix_full)
-        use_full = True
-    elif prefix_half in text:
-        start = text.find(prefix_half)
-        use_full = False
-    if start == -1:
-        return None
-    end = text.find(closing, start)
-    if end == -1:
-        # 若无闭合符，取到文本末尾
-        end = len(text)
-    offset = len(prefix_full) if use_full else len(prefix_half)
-    return text[start + offset:end].strip()
-    
 def convert_mcp_tools_to_openai_format(mcp_tools) -> List[Dict[str, Any]]:
     """将MCP工具转换为OpenAI工具格式"""
     openai_tools = []

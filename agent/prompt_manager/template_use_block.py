@@ -26,6 +26,14 @@ def init_templates_use_block() -> None:
 {memo_list}
 
 **你可以做的动作**
+**放置动作**
+能够放置方块
+{{
+    "action_type":"place_block",
+    "block":"方块名称",
+    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
+}}
+
 **craft**
 使用工作台或者背包进行合成物品
 能够进行工作台3x3合成

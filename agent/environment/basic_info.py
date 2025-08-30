@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Dict, Any
 
 @dataclass
 class Player:
@@ -107,6 +107,49 @@ class Event:
     damage: Optional[int] = None  # 伤害值
     entity_position: Optional[Position] = None  # 实体位置
     weather: Optional[str] = None  # 天气信息
+    
+    # 新增字段支持更多事件类型
+    game_tick: Optional[int] = None  # 游戏tick
+    player_info: Optional[Dict[str, Any]] = None  # 玩家信息
+    position: Optional[Dict[str, float]] = None  # 位置信息
+    
+    def to_dict(self) -> dict:
+        """将Event对象转换为字典"""
+        result = {
+            "type": self.type,
+            "timestamp": self.timestamp,
+            "server_id": self.server_id,
+            "player_name": self.player_name,
+            "game_tick": self.game_tick,
+            "weather": self.weather,
+            "health": self.health,
+            "food": self.food,
+            "saturation": self.saturation,
+            "chat_text": self.chat_text,
+            "kick_reason": self.kick_reason,
+            "entity_name": self.entity_name,
+            "damage": self.damage,
+            "experience": self.experience,
+            "level": self.level
+        }
+        
+        # 添加可选字段
+        if self.player:
+            result["player"] = self.player.__dict__ if hasattr(self.player, '__dict__') else str(self.player)
+        if self.old_position:
+            result["old_position"] = self.old_position.to_dict()
+        if self.new_position:
+            result["new_position"] = self.new_position.to_dict()
+        if self.block:
+            result["block"] = self.block.__dict__ if hasattr(self.block, '__dict__') else str(self.block)
+        if self.entity_position:
+            result["entity_position"] = self.entity_position.to_dict()
+        if self.position:
+            result["position"] = self.position
+        if self.player_info:
+            result["player_info"] = self.player_info
+            
+        return result
 
 
 @dataclass

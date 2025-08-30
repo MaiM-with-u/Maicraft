@@ -298,18 +298,20 @@ class RecipeFinder:
             report_lines = ["合成失败分析："]
             
             # 添加总体缺少材料汇总
-            if all_missing:
-                missing_summary = [f"{item} x{count}" for item, count in all_missing.items()]
-                report_lines.append(f"总体缺少材料：{', '.join(missing_summary)}")
+            # if all_missing:
+            #     missing_summary = [f"{item} x{count}" for item, count in all_missing.items()]
+            #     report_lines.append(f"总体缺少材料：{', '.join(missing_summary)}")
             
             # 添加各配方的详细分析
             for i, recipe in enumerate(recipe_analysis, 1):
-                report_lines.append(f"\n配方{i}（{recipe['type']}）：")
+                # report_lines.append(f"\n配方{i}（{recipe['type']}）：")
+                report_lines.append(f"\n配方{i}：")
                 if recipe.get("status") == "材料充足":
-                    report_lines.append(f"  ✓ 材料充足，每批次产出：{recipe['per_batch']}，需要批次：{recipe['batches']}")
+                    # report_lines.append(f"  ✓ 材料充足，每批次产出：{recipe['per_batch']}，需要批次：{recipe['batches']}")
+                    report_lines.append(f"  ✓ 材料充足")
                 else:
                     report_lines.append(f"  ✗ 缺少材料：{', '.join(recipe['missing'])}")
-                    report_lines.append(f"    每批次产出：{recipe['per_batch']}，需要批次：{recipe['batches']}")
+                    # report_lines.append(f"    每批次产出：{recipe['per_batch']}，需要批次：{recipe['batches']}")
             
             return "\n".join(report_lines)
             

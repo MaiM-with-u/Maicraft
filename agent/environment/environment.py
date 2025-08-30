@@ -241,166 +241,6 @@ class EnvironmentInfo:
         self.empty_slot_count = inventory_data.get('emptySlotCount', 0)
         self.slot_count = inventory_data.get('slotCount', 0)
         
-
-
-        # 更新最近事件 (来自 query_recent_events)
-        new_events = data.get("recentEvents", [])
-        # logger.info(f"新增事件数量: {len(new_events)}")
-        
-        # 确保 recent_events 是列表类型
-        if not isinstance(self.recent_events, list):
-            logger.warning("recent_events 不是列表类型，重新初始化为空列表")
-            self.recent_events = []
-        
-        # 将新事件添加到现有事件列表中，而不是清空重写
-        for event_data in new_events:
-
-            
-            try:
-                # 确定玩家名称
-                player_name = ""
-                if event_data.get("playerInfo"):
-                    player_name = event_data["playerInfo"].get("username", "")
-                elif event_data.get("player"):
-                    player_name = event_data["player"].get("username", "")
-                elif event_data.get("chatInfo"):
-                    player_name = event_data["chatInfo"].get("username", "")
-                
-                event = Event(
-                    type=event_data.get("type", ""),
-                    timestamp=event_data.get("gameTick", 0),  # 使用gameTick作为时间戳
-                    server_id="",  # 新格式中没有serverId
-                    player_name=player_name
-                )
-                
-                # 根据事件类型设置特定属性
-                if event_data.get("player"):
-                    player_data = event_data["player"]
-                    event.player = Player(
-                        uuid=player_data.get("uuid", ""),
-                        username=player_data.get("username", ""),
-                        display_name=player_data.get("displayName", ""),
-                        ping=player_data.get("ping", 0),
-                        gamemode=player_data.get("gamemode", 0)
-                    )
-                    # 设置玩家名称
-                    event.player_name = player_data.get("username", "")
-                
-                # 处理playerInfo字段 (playerJoin事件)
-                if event_data.get("playerInfo"):
-                    player_info = event_data["playerInfo"]
-                    event.player = Player(
-                        uuid=player_info.get("uuid", ""),
-                        username=player_info.get("username", ""),
-                        display_name=player_info.get("displayName", ""),
-                        ping=player_info.get("ping", 0),
-                        gamemode=player_info.get("gamemode", 0)
-                    )
-                    # 设置玩家名称
-                    event.player_name = player_info.get("username", "")
-                
-                # 处理位置信息 (playerRespawn事件)
-                if event_data.get("position"):
-                    pos_data = event_data["position"]
-                    if isinstance(pos_data, dict):
-                        event.new_position = Position(
-                            x=pos_data.get("x", 0.0),
-                            y=pos_data.get("y", 0.0),
-                            z=pos_data.get("z", 0.0)
-                        )
-                    elif isinstance(pos_data, list) and len(pos_data) >= 3:
-                        # 如果位置是列表格式 [x, y, z]
-                        event.new_position = Position(
-                            x=float(pos_data[0]) if pos_data[0] is not None else 0.0,
-                            y=float(pos_data[1]) if pos_data[1] is not None else 0.0,
-                            z=float(pos_data[2]) if pos_data[2] is not None else 0.0
-                        )
-                
-                # 处理健康更新事件
-                if event.type == "healthUpdate":
-                    # 处理新的health格式
-                    health_data = event_data.get("health", {})
-                    if isinstance(health_data, dict):
-                        event.health = health_data.get("current", 0)
-                    else:
-                        event.health = event_data.get("health", 0)
-                    
-                    # 处理新的food格式
-                    food_data = event_data.get("food", {})
-                    if isinstance(food_data, dict):
-                        event.food = food_data.get("current", 0)
-                        event.saturation = food_data.get("saturation", 0)
-                    else:
-                        event.food = event_data.get("food", 0)
-                        event.saturation = event_data.get("saturation", 0)
-                
-                # 处理聊天事件
-                if event.type == "chat" and event_data.get("chatInfo"):
-                    chat_info = event_data["chatInfo"]
-                    event.chat_text = chat_info.get("text", "")
-                    # 确保玩家名称正确设置
-                    if not event.player_name and chat_info.get("username"):
-                        event.player_name = chat_info.get("username", "")
-                    # 添加调试信息
-                
-                # 处理踢出事件
-                if event.type == "playerKick" and event_data.get("reason"):
-                    reason_data = event_data["reason"]
-                    if isinstance(reason_data, dict) and reason_data.get("value", {}).get("translate"):
-                        event.kick_reason = reason_data["value"]["translate"].get("value", "未知原因")
-                    else:
-                        event.kick_reason = str(reason_data)
-                
-                # 处理实体伤害事件
-                if event.type == "entityHurt" and event_data.get("entity"):
-                    entity_data = event_data["entity"]
-                    event.entity_name = entity_data.get("name", "")
-                    event.damage = event_data.get("damage", 0)
-                    # 保存实体位置信息
-                    if entity_data.get("position"):
-                        pos_data = entity_data["position"]
-                        if isinstance(pos_data, dict):
-                            event.entity_position = Position(
-                                x=pos_data.get("x", 0.0),
-                                y=pos_data.get("y", 0.0),
-                                z=pos_data.get("z", 0.0)
-                            )
-                
-                # 处理实体死亡事件
-                if event.type == "entityDeath" and event_data.get("entity"):
-                    entity_data = event_data["entity"]
-                    event.entity_name = entity_data.get("name", "")
-                    # 保存实体位置信息
-                    if entity_data.get("position"):
-                        pos_data = entity_data["position"]
-                        if isinstance(pos_data, dict):
-                            event.entity_position = Position(
-                                x=pos_data.get("x", 0.0),
-                                y=pos_data.get("y", 0.0),
-                                z=pos_data.get("z", 0.0)
-                            )
-                
-                # 处理天气变化事件
-                if event.type == "weatherChange":
-                    event.weather = event_data.get("weather", "")
-                
-                self.recent_events.append(event)
-            except Exception as e:
-                # 记录事件处理错误，但继续处理其他事件
-                import traceback
-                print(f"处理事件数据时出错: {e}")
-                print(f"事件数据: {event_data}")
-                print(f"错误详情: {traceback.format_exc()}")
-                continue
-        
-        # 限制事件列表大小，避免无限增长（保留最近1000个事件）
-        if len(self.recent_events) > 1000:
-            removed_count = len(self.recent_events) - 1000
-            self.recent_events = self.recent_events[removed_count:]
-            # logger.info(f"事件列表已限制大小，移除了 {removed_count} 个旧事件，当前事件总数: {len(self.recent_events)}")
-        # else:
-        #     logger.info(f"事件列表更新完成，当前事件总数: {len(self.recent_events)}")
-        
         # 更新周围环境 - 玩家 (来自 query_surroundings("players"))
         if "nearbyPlayers" in data:
             nearby_players_data = data["nearbyPlayers"]
@@ -673,6 +513,8 @@ class EnvironmentInfo:
             recent_events_to_show = self.recent_events[-max_events:] if len(self.recent_events) > max_events else self.recent_events
             
             for i, event in enumerate(recent_events_to_show, 1):
+                if event.type == "chat":
+                    continue
                 event_desc = self._get_event_description(event)
                 # 添加格式化的时间戳信息
                 if event:
@@ -739,7 +581,7 @@ class EnvironmentInfo:
             
             # 获取聊天内容
             chat_content = ""
-            if hasattr(event, 'chat_text') and event.chat_text:
+            if event.chat_text:
                 chat_content = event.chat_text
             else:
                 chat_content = "未知内容"
