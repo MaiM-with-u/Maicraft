@@ -153,7 +153,7 @@ class RecipeFinder:
     
     async def _get_missing_materials_info(self, target_item: str, quantity: int, has_table_nearby: bool, inventory: list) -> str:
         """
-        获取合成失败时的具体材料缺失信息
+        获取合成失败时的具体材料缺失信息，分析所有可能的合成配方
         """
         try:
             # 构建库存计数器
@@ -164,17 +164,25 @@ class RecipeFinder:
                     if name:
                         bag[name] += int(it.get("count", 0))
 
-            # 尝试获取配方
-            recs = await self._get_raw_recipes(target_item, has_table_nearby)
-            if not recs and has_table_nearby:
-                # 回退到无需工作台配方
-                recs = await self._get_raw_recipes(target_item, False)
+            # 获取所有可能的配方（包括工作台和手工配方）
+            all_recipes = []
             
-            if not recs:
+            # 获取工作台配方
+            if has_table_nearby:
+                table_recipes = await self._get_raw_recipes(target_item, True)
+                all_recipes.extend([(rr, True) for rr in table_recipes])
+            
+            # 获取手工配方
+            hand_recipes = await self._get_raw_recipes(target_item, False)
+            all_recipes.extend([(rr, False) for rr in hand_recipes])
+            
+            if not all_recipes:
                 return "该物品无可用合成配方"
             
-            # 找到第一个有效配方进行分析
-            for rr in recs:
+            # 分析所有配方
+            recipe_analysis = []
+            
+            for rr, use_table in all_recipes:
                 # 提取材料信息
                 def extract_ings(rr: RawRecipe):
                     empty_names = {"empty", "air", ""}
@@ -220,6 +228,8 @@ class RecipeFinder:
                 
                 # 检查每种材料
                 missing_materials = []
+                total_needed = {}
+                
                 for ing in ings:
                     if isinstance(ing, dict):
                         ing_name = self._normalize_item_name(ing.get("name", "未知材料"))
@@ -228,17 +238,80 @@ class RecipeFinder:
                         ing_name = self._normalize_item_name(ing)
                         ing_count = 1 * batches_needed
                     
+                    # 累计总需求
+                    if ing_name not in total_needed:
+                        total_needed[ing_name] = 0
+                    total_needed[ing_name] += ing_count
+                    
                     available = bag.get(ing_name, 0)
                     if available < ing_count:
                         missing = ing_count - available
                         missing_materials.append(f"{ing_name} x{missing}")
                 
+                # 记录这个配方的分析结果
+                recipe_type = "工作台" if use_table else "手工"
                 if missing_materials:
-                    return f"缺少材料：{', '.join(missing_materials)}"
+                    recipe_analysis.append({
+                        "type": recipe_type,
+                        "missing": missing_materials,
+                        "total_needed": total_needed,
+                        "per_batch": per_batch_out,
+                        "batches": batches_needed
+                    })
                 else:
-                    return "材料充足但配方解析失败"
+                    recipe_analysis.append({
+                        "type": recipe_type,
+                        "missing": [],
+                        "total_needed": total_needed,
+                        "per_batch": per_batch_out,
+                        "batches": batches_needed,
+                        "status": "材料充足"
+                    })
             
-            return "配方存在但无法解析材料需求"
+            # 生成综合报告
+            if not recipe_analysis:
+                return "配方存在但无法解析材料需求"
+            
+            # 检查是否有材料充足的配方
+            feasible_recipes = [r for r in recipe_analysis if r.get("status") == "材料充足"]
+            if feasible_recipes:
+                return "存在材料充足的配方，但合成计划生成失败"
+            
+            # 生成所有缺少材料的汇总报告
+            all_missing = {}
+            for recipe in recipe_analysis:
+                for missing_item in recipe["missing"]:
+                    # 解析缺少的物品名称和数量
+                    if " x" in missing_item:
+                        item_name, count_str = missing_item.rsplit(" x", 1)
+                        try:
+                            count = int(count_str)
+                            if item_name not in all_missing:
+                                all_missing[item_name] = 0
+                            all_missing[item_name] = max(all_missing[item_name], count)
+                        except ValueError:
+                            all_missing[missing_item] = 1
+                    else:
+                        all_missing[missing_item] = 1
+            
+            # 生成详细报告
+            report_lines = ["合成失败分析："]
+            
+            # 添加总体缺少材料汇总
+            if all_missing:
+                missing_summary = [f"{item} x{count}" for item, count in all_missing.items()]
+                report_lines.append(f"总体缺少材料：{', '.join(missing_summary)}")
+            
+            # 添加各配方的详细分析
+            for i, recipe in enumerate(recipe_analysis, 1):
+                report_lines.append(f"\n配方{i}（{recipe['type']}）：")
+                if recipe.get("status") == "材料充足":
+                    report_lines.append(f"  ✓ 材料充足，每批次产出：{recipe['per_batch']}，需要批次：{recipe['batches']}")
+                else:
+                    report_lines.append(f"  ✗ 缺少材料：{', '.join(recipe['missing'])}")
+                    report_lines.append(f"    每批次产出：{recipe['per_batch']}，需要批次：{recipe['batches']}")
+            
+            return "\n".join(report_lines)
             
         except Exception as e:
             return f"分析材料需求时出错：{e}"
