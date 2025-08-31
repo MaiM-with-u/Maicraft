@@ -14,20 +14,25 @@ def init_templates_memo() -> None:
 **当前需要执行的任务**：
 {task}
 
-**环境信息**：{environment}
+**环境信息**
+{environment}
 
-**位置信息**：
+**位置信息**
 {position}
 
-**周围方块的信息**：
+**周围方块的信息**
 {nearby_block_info}
 
-**玩家聊天记录**：
+**最近游戏事件**
+{event_str}
+
+**玩家聊天记录**
 {chat_str}
 
 **备忘录**：
 {memo_list}
 
+**当前模式：{mode}**
 **你可以做的动作**
 **添加备忘录**
 添加备忘录到记忆，可以在后续回顾
@@ -45,6 +50,32 @@ def init_templates_memo() -> None:
     "memo":"要移除的信息",
 }}
 
+**设置基地**
+设置基地信息，这是你存放物品的主要地点
+你需要围绕着基地进行建设和发展
+{{
+    "action_type":"set_basement",
+    "info":"基地信息",
+    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
+}}
+
+**添加坐标点**
+添加坐标点到记忆，用于后续的移动，采矿，使用方块等
+请在每次思考之后，如果有内容需要添加，请使用坐标点添加，不要重复添加
+{{
+    "action_type":"add_location",
+    "name":"坐标点名称",
+    "info":"坐标点信息，描述和简介",
+    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
+}}
+
+**移除坐标点**
+移除指定的坐标点，如果该坐标点已经不需要，请移除
+{{
+    "action_type":"remove_location",
+    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
+}}
+
 **退出备忘录模式**
 当你要进行其他动作，或进行其他操作，请退出备忘录模式
 {{
@@ -59,7 +90,7 @@ def init_templates_memo() -> None:
 2.当你要进行其他动作，或进行其他操作，请退出备忘录模式
 
 **注意事项**
-1.你的想法长度最多保留20条，如果有重要信息，请使用备忘录进行保留
+1.想法中如果有重要信息，请使用备忘录进行保留
 2.请检查有没有需要记录下来的备忘录信息，以便后续生存使用
 3.请检查有没有重复或已经失效的信息，进行移除
 4.如果一个动作已经执行，并且达到了目的，请不要重复执行同一个动作
@@ -68,7 +99,7 @@ def init_templates_memo() -> None:
 规划后请使用动作，动作用json格式输出:
 """,
         description="备忘录-动作选择",
-        parameters=["goal", "task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
+        parameters=["event_str","goal", "task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
     ))
     
     

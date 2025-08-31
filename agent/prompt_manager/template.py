@@ -6,6 +6,7 @@ from agent.prompt_manager.template_move import init_templates_move
 from agent.prompt_manager.template_memo import init_templates_memo
 from agent.prompt_manager.template_chat import init_templates_chat
 from agent.prompt_manager.template_use_item import init_templates_use_item
+from agent.prompt_manager.template_task import init_templates_task
 
 def init_templates() -> None:
     """初始化提示词模板"""
@@ -16,33 +17,49 @@ def init_templates() -> None:
     init_templates_memo()
     init_templates_chat()
     init_templates_use_item()
-
+    init_templates_task()
+    
     prompt_manager.register_template(
         PromptTemplate(
-        name="minecraft_excute_task_thinking",
+        name="basic_info",
         template="""
-你是麦麦，游戏名叫Mai,你正在游玩Minecraft，是一名Minecraft玩家。请你选择合适的动作来完成当前任务：
+你是麦麦，游戏名叫Mai,你正在游玩Minecraft，是一名Minecraft玩家。
 
-**当前目标**：
-{goal}
+**当前目标和任务列表**：
+目标：{goal}
+{to_do_list}
 
-**当前需要执行的任务**：
+当前选择的任务：
 {task}
 
-**环境信息**：{environment}
+**环境信息**
+{environment}
 
-**位置信息**：
+**位置信息**
 {position}
 
-**周围方块的信息**：
+**周围方块的信息**
 {nearby_block_info}
 
-**玩家聊天记录**：
+**最近游戏事件**
+{event_str}
+
+**玩家聊天记录**
 {chat_str}
 
 **备忘录**：
 {memo_list}
+""",
+        description="基础信息",
+        parameters=["mode","goal","event_str","task", "environment", "nearby_block_info", "position", "memo_list", "chat_str", "to_do_list"],
+    ))
+    
+    
 
+    prompt_manager.register_template(
+        PromptTemplate(
+        name="main_thinking",
+        template="""
 **当前模式：{mode}**
 **你可以做的动作**
 **挖掘/破坏动作**
@@ -126,23 +143,27 @@ def init_templates() -> None:
 }}
 
 **进入memo模式**
-记录重要信息，用于后续思考和执行
+记录和修改重要信息，包括：
+1.放置的物品，容器，工作方块等
+2.设立基地，修改和添加基地的信息
+3.设立重要的坐标点，用于后续的移动，采矿，探索等
 {{
     "action_type":"enter_memo_mode",
     "reason":"使用备忘录的原因"
 }}
 
 
-之前的思考和执行的记录：
+**思考/执行的记录**
 {thinking_list}
 
 **模式**
-1.请你灵活使用采矿模式，备忘录模式，任务规划模式，chat模式，帮助你更高效的完成任务
-2.如果要存取物品，熔炼或使用方块，请你进入use_block模式
-3.如果要修改任务列表，请你进入task_edit模式
-4.如果要使用备忘录，请你进入memo模式
-5.如果要进行大量移动，请你进入move模式
-6.如果有新的发现，请你进入chat模式
+1.请你灵活使用采矿模式，备忘录模式，任务规划模式，方块使用和物品使用模式，帮助你更高效的完成任务
+2.如果要存取物品，熔炼或使用方块，请你进入use_block模式,而不是进入use_item模式
+3.如果要使用物品，请你进入use_item模式,而不是进入use_block模式
+4.如果要修改任务列表，请你进入task_edit模式
+5.如果要使用备忘录，建立基地，记录重要信息，请你进入memo模式
+6.如果要进行大量移动，请你进入move模式
+7.如果有新的发现，请你进入chat模式
 
 **注意事项**
 1.先总结之前的思考和执行的记录，对执行结果进行分析，是否达成目的，是否需要调整任务或动作
@@ -151,102 +172,13 @@ def init_templates() -> None:
 3.你的想法长度最多保留20条，如果有重要信息，请使用备忘录进行保留
 4.你可以通过事件知道别的玩家的位置，或者别的玩家正在做什么。
 5.然后根据现有的**动作**，**任务**,**情景**，**物品栏**,**最近事件**和**周围环境**，进行下一步规划，推进任务进度。
-6.你的视野是周围3-4个方块，如果你需要更多信息，或者寻找目标，请移动到合适的位置，再进行规划
+6.你的视野是周围半径4的方块，如果你需要更多信息，或者寻找目标，请移动到合适的位置，再进行规划
 7.如果一个动作反复无法完成，请反思性思考，结合周围环境尝试别的方案，不要重复尝试同一个动作
 8.如果一个动作已经执行，并且达到了目的，请不要重复执行同一个动作
 规划内容是一段精简的平文本，不要分点
 规划后请使用动作，动作用json格式输出:
 """,
         description="任务-动作选择",
-        parameters=["mode","goal", "task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
-    ))
-    
-    
-    prompt_manager.register_template(
-        PromptTemplate(
-        name="minecraft_excute_task_action",
-        template="""
-你是麦麦，游戏名叫Mai,你正在游玩Minecraft，是一名Minecraft玩家。请你选择合适的动作修改当前的任务列表：
-**当前目标**：
-{goal}
-
-**当前任务列表**：
-{to_do_list}
-
-**任务执行记录**：
-{task_done_list}
-
-**当前正在执行的任务**：
-{task}
-
-**环境信息**：{environment}
-
-**位置信息**：
-{position}
-
-**周围方块的信息**：
-{nearby_block_info}
-
-**玩家聊天记录**：
-{chat_str}
-
-**备忘录**：
-{memo_list}
- 
-**动作列表：任务规划动作**
-1. 更新某个未完成的任务的进度
- {{
-     "action_type":"update_task_progress",
-     "task_id":"任务id，数字",
-     "progress":"如果任务未完成，请更新目前任务的进展情况",
-     "done":bool类型，true表示完成，false表示未完成
- }}
- 
- 2. 创建一个新任务
- 如果当前没有任何任务
- 如果当前任务无法完成，需要前置任务，创建一个新任务:
- {{
-     "action_type":"create_new_task",
-     "new_task":"前置任务的描述",
-     "new_task_criteria":"前置任务的评估标准",
- }}
- 
- 3. 如果当前条件适合执行别的任务，或当前任务无法完成，需要更换任务，请选择一个合适的任务:
- 如果当前没有在执行任务，请选择一个合适的任务
- {{
-     "action_type":"change_task",
-     "new_task_id":"任务id，数字",
- }}
- 
- 4. 如果某个任务是无法完成，不合理的，请删除该任务
- {{
-     "action_type":"delete_task",
-     "task_id":"任务id，数字",
-     "reason":"删除任务的原因",
- }}
- 
- 5. 当任务修改完成，想要继续其他动作，请退出任务修改模式
- {{
-     "action_type":"exit_task_edit_mode",
-     "reason":"退出任务修改模式的原因",
- }}
- 
-**请在task_id填写数字，不要填写其他内容**
- 
-
- 
- 之前的思考和执行的记录：
-{thinking_list}
-
-**注意事项**
-1.先总结之前的思考和执行的记录，对执行结果进行分析，是否达成目的，是否需要调整任务或动作
-2.然后根据现有的**动作**，**任务**,**情景**，**物品栏**和**周围环境**，进行下一步规划，推进任务进度。
-3.如果已经进行了任务更新，请不要重复更新
-4.请在合适的时候退出任务修改模式，例如当任务无需修改的时候
-规划内容是一段平文本，不要分点
-规划后请使用动作，你**必须**从上述动作列表中选择一个动作，动作用json格式输出:
-""",
-        description="任务-任务动作",
-        parameters=["goal", "to_do_list", "task_done_list", "task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
+        parameters=["mode","goal","event_str","task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
     ))
     

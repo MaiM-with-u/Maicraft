@@ -132,7 +132,7 @@ class BlockCache:
         if cache_file is None:
             # 使用默认路径：main.py同级目录下的cache子目录
             main_dir = Path(__file__).parent.parent.parent
-            cache_dir = main_dir / "cache"
+            cache_dir = main_dir / "data"
             cache_dir.mkdir(exist_ok=True)
             self._cache_file = cache_dir / "block_cache.json"
             self._player_cache_file = cache_dir / "player_position_cache.json"

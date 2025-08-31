@@ -6,6 +6,7 @@ __pycache__/
 # C extensions
 *.so
 
+usage
 config.toml
 mcp_servers.json
 # Distribution / packaging
@@ -22,12 +23,16 @@ cache/
 parts/
 sdist/
 var/
+data/
 wheels/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
+test_image/
+vlm_test_config.py
+vlm_test_results_*.json
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

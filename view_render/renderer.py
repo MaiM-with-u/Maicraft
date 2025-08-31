@@ -20,7 +20,7 @@ class RenderConfig:
     image_width: int = 1024
     image_height: int = 768
     background_color: Tuple[int, int, int, int] = (180, 210, 255, 255)  # 淡蓝色背景
-    block_size: int = 64  # 单位立方体基准尺寸（像素）
+    block_size: int = 16  # 单位立方体基准尺寸（像素）
     draw_grid: bool = False
     face_colors: Dict[str, Tuple[int, int, int, int]] = None  # top, left, right
     vertical_scale: float = 1.0  # 垂直高度像素（每上升1格的像素高度 = block_size * vertical_scale）

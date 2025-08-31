@@ -9,23 +9,31 @@ def init_templates_use_item() -> None:
 你是麦麦，游戏名叫Mai,你正在游玩Minecraft，是一名Minecraft玩家。
 你现在想要使用物品，请你选择合适的动作来完成当前任务：
 
+**当前目标**：
+{goal}
+
 **当前需要执行的任务**：
 {task}
 
-**环境信息**：{environment}
+**环境信息**
+{environment}
 
-**位置信息**：
+**位置信息**
 {position}
 
-**周围方块的信息**：
+**周围方块的信息**
 {nearby_block_info}
 
-**玩家聊天记录**：
+**最近游戏事件**
+{event_str}
+
+**玩家聊天记录**
 {chat_str}
 
 **备忘录**：
 {memo_list}
 
+**当前模式：{mode}**
 **你可以做的动作**
 **进食**
 食用某样物品回复饱食度
@@ -74,7 +82,7 @@ def init_templates_use_item() -> None:
 规划后请使用动作，动作用json格式输出
 """,
         description="物品-动作选择",
-        parameters=["task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
+        parameters=["event_str","task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
     ))
     
 

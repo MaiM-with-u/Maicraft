@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional, Dict, Any
+import math
 
 @dataclass
 class Player:
@@ -38,26 +39,27 @@ class BlockPosition:
     y: int
     z: int
 
-    def __init__(self, pos: Position|dict):
-        if isinstance(pos, dict):
-            self.x = pos["x"]
-            self.y = pos["y"]
-            self.z = pos["z"]
+    def __init__(self, pos: Position|dict|tuple|list = None, x: int = None, y: int = None, z: int = None):
+        if pos is not None:
+            if isinstance(pos, dict):
+                self.x = pos["x"]
+                self.y = pos["y"]
+                self.z = pos["z"]
+            elif isinstance(pos, (tuple, list)) and len(pos) == 3:
+                self.x = int(pos[0])
+                self.y = int(pos[1])
+                self.z = int(pos[2])
+            else:
+                # 假设是 Position 对象
+                self.x = math.floor(pos.x)
+                self.y = math.floor(pos.y)
+                self.z = math.floor(pos.z)
+        elif x is not None and y is not None and z is not None:
+            self.x = int(x)
+            self.y = int(y)
+            self.z = int(z)
         else:
-            if pos.x >0:
-                self.x = int(pos.x)
-            else:
-                self.x = int(pos.x) -1 
-                
-            if pos.y >0:
-                self.y = int(pos.y)
-            else:
-                self.y = int(pos.y) -1
-                
-            if pos.z >0:
-                self.z = int(pos.z)
-            else:
-                self.z = int(pos.z) -1
+            raise ValueError("必须提供位置参数或 x, y, z 坐标")
 
     def __hash__(self):
         return hash((self.x, self.y, self.z))
@@ -73,6 +75,23 @@ class BlockPosition:
             "y": self.y,
             "z": self.z
         }
+    
+    def distance(self, other) -> float:
+        """计算与另一个位置的距离
+        
+        Args:
+            other: Position 或 BlockPosition 对象
+            
+        Returns:
+            float: 欧几里得距离
+        """
+        if hasattr(other, 'x') and hasattr(other, 'y') and hasattr(other, 'z'):
+            dx = self.x - other.x
+            dy = self.y - other.y
+            dz = self.z - other.z
+            return math.sqrt(dx*dx + dy*dy + dz*dz)
+        else:
+            raise TypeError("other 必须是包含 x, y, z 属性的位置对象")
 
 
 @dataclass
@@ -87,7 +106,7 @@ class Block:
 class Event:
     """事件信息"""
     type: str
-    timestamp: int
+    timestamp: float
     server_id: str
     player_name: str
     player: Optional[Player] = None

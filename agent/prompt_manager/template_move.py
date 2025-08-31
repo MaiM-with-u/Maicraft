@@ -8,26 +8,31 @@ def init_templates_move() -> None:
         template="""
 你是麦麦，游戏名叫Mai,你正在游玩Minecraft，是一名Minecraft玩家。请你选择合适的动作来完成当前任务：
 
+**当前目标**：
+{goal}
+
 **当前需要执行的任务**：
 {task}
 
-**环境信息**：{environment}
+**环境信息**
+{environment}
 
-**位置信息**：
+**位置信息**
 {position}
 
-**周围方块的信息**：
+**周围方块的信息**
 {nearby_block_info}
 
-**玩家聊天记录**：
+**最近游戏事件**
+{event_str}
+
+**玩家聊天记录**
 {chat_str}
 
 **备忘录**：
 {memo_list}
- 
- 之前的思考和执行的记录：
-{thinking_list}
 
+**当前模式：{mode}**
 **移动动作**
 move_action
 {{
@@ -43,6 +48,9 @@ exit_move_mode
     reason:"选择结束移动模式的原因",
 }}
 
+之前的思考和执行的记录：
+{thinking_list}
+
 **注意事项**
 1.你现在想要进行移动动作，你正在移动模式，请你根据原因，选择合适的移动目的地
 2.请参考周围方块的信息，寻找可以站立的位置，从中选择移动的目的地，并输出移动的目的地
@@ -55,5 +63,5 @@ exit_move_mode
 规划后请使用动作，动作用json格式输出:
 """,
         description="任务-移动动作",
-        parameters=["task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
+        parameters=["event_str","task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
     ))

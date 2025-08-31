@@ -48,6 +48,8 @@ class ToDoList:
         summary = ""
         for item in self.items:
             summary += f"task(id:{item.id})，{item}\n"
+        if not summary:
+            summary = "当前没有创建或完成任何任务"
         return summary
 
     

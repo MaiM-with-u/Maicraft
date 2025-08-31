@@ -37,6 +37,9 @@ from agent.action.view_container import ViewContainer
 from mcp_server.client import global_mcp_client
 from agent.thinking_log import global_thinking_log
 from agent.mai_mode import mai_mode
+from agent.environment.basement import global_basement
+from agent.environment.locations import global_location_points
+from agent.environment.basic_info import BlockPosition
 
 COLOR_MAP = {
     "main_mode": "\033[32m",        # 绿色
@@ -79,10 +82,8 @@ class MaiAgent:
         self.llm_client: Optional[LLMClient] = None
         self.llm_client_fast: Optional[LLMClient] = None
         
-        
         self.vlm: Optional[LLMClient] = None
         
-
 
         # 初始化LLM和工具适配器
         # 延迟初始化
@@ -101,9 +102,10 @@ class MaiAgent:
         self.initialized = False
         
         
+        
         self.goal_list: list[tuple[str, str, str]] = []  # (goal, status, details)
 
-        self.goal = "进行自由游玩"
+        self.goal = global_config.game.goal
 
         self.memo_list: list[str] = []
         
@@ -234,34 +236,39 @@ class MaiAgent:
             task = self.to_do_list.get_task_by_id(self.on_going_task_id)
             if task:
                 self.logger.info(f"执行任务:\n {task}")
+                task_str = task.__str__()
             else:
                 self.logger.debug("没有任务")
+                task_str = "当前没有选择明确的任务"
             
             # 获取当前环境信息
             await self.environment_updater.perform_update()
             environment_info = global_environment.get_summary()
             nearby_block_info = await self.nearby_block_manager.get_block_details_mix_str(global_environment.block_position)
 
-            # 使用原有的提示词模板，但通过call_tool传入工具
             input_data = {
-                "task": task.__str__(),
+                "task": task_str,
                 "environment": environment_info,
-                # "executed_tools": executed_tools_str,
                 "thinking_list": global_thinking_log.get_thinking_log(),
                 "nearby_block_info": nearby_block_info,
                 "position": global_environment.get_position_str(),
-                "memo_list": "\n".join(self.memo_list),
+                "memo_list": "\n".join(self.memo_list) if self.memo_list else "没有备忘录条目",
                 "chat_str": global_environment.get_chat_str(),
+                "event_str": global_environment.get_event_str(),
                 "to_do_list": self.to_do_list.__str__(),
                 "task_done_list": self._format_task_done_list(),
                 "goal": self.goal,
                 "mode": mai_mode.mode
             }
             
+            basic_info_prompt = prompt_manager.generate_prompt("basic_info", **input_data)
+            
+            
             # 根据不同的模式，给予不同的工具
             if mai_mode.mode == "main_mode":
                 # 主模式，可以选择基础动作，和深入动作
-                prompt = prompt_manager.generate_prompt("minecraft_excute_task_thinking", **input_data)
+                mode_prompt = prompt_manager.generate_prompt("main_thinking", **input_data)
+                prompt = basic_info_prompt + mode_prompt
                 self.logger.info(f" 执行任务提示词: {prompt}")
             elif mai_mode.mode == "task_edit":
                 prompt = prompt_manager.generate_prompt("minecraft_excute_task_action", **input_data)
@@ -305,19 +312,18 @@ class MaiAgent:
                 return TaskResult()
             
             
-            time_str = time.strftime("%H:%M:%S", time.localtime())
             color_prefix = COLOR_MAP.get(mai_mode.mode, "\033[0m")
             
             if thinking_log:
-                global_thinking_log.add_thinking_log(f"时间：{time_str} 思考结果：{thinking_log}")
+                global_thinking_log.add_thinking_log(thinking_log,type = "thinking")
                 
             self.logger.info(f"{color_prefix} 想法{mai_mode.mode}: {thinking_log}\033[0m")
             
             if json_obj:
                 self.logger.info(f"{color_prefix} 动作: {json_obj}\033[0m")
-                
+                global_thinking_log.add_thinking_log(f"执行动作：{json_obj}",type = "action")
                 result = await self.excute_action(json_obj)
-                global_thinking_log.add_thinking_log(f"时间：{time_str} 执行结果：{result.result_str}")
+                global_thinking_log.add_thinking_log(f"执行结果：{result.result_str}",type = "notice")
                 
                 self.logger.info(f" 执行结果: {result.result_str}")
                 
@@ -434,12 +440,12 @@ class MaiAgent:
             return result
         elif action_type == "enter_use_block_mode":
             reason = action_json.get("reason")
-            result.result_str = f"想要使用方块，进入use模式，原因是: {reason}\n"
+            result.result_str = f"进入use_block模式，原因是: {reason}\n"
             mai_mode.mode = "use_block"
             return result
         elif action_type == "enter_use_item_mode":
             reason = action_json.get("reason")
-            result.result_str = f"想要使用物品，进入use_item模式，原因是: {reason}\n"
+            result.result_str = f"进入use_item模式，原因是: {reason}\n"
             mai_mode.mode = "use_item"
             return result
         elif action_type == "enter_memo_mode":
@@ -451,11 +457,6 @@ class MaiAgent:
             mai_mode.mode = "task_edit"
             reason = action_json.get("reason")
             result.result_str = f"选择进行修改任务列表: \n原因: {reason}\n"
-            return result
-        elif action_type == "enter_chat_mode":
-            mai_mode.mode = "chat"
-            reason = action_json.get("reason")
-            result.result_str = f"想要聊天，进入chat模式，原因是: {reason}\n"
             return result
         else:
             self.logger.warning(f" {mai_mode.mode} 不支持的action_type: {action_type}")
@@ -673,7 +674,7 @@ class MaiAgent:
             entity = action_json.get("entity")
             result.result_str = f"想要使用: {item} 在: {entity}\n"
             args = {"itemName": item, "targetEntityName": entity,"useType":"useOn"} #useOnEntity表示使用在实体上
-            call_result = await global_mcp_client.call_tool_directly("use_item_on_entity", args)
+            call_result = await global_mcp_client.call_tool_directly("use_item", args)
             is_success, result_content = parse_tool_result(call_result)
             self.logger.info(f"使用结果: {result_content}")
             # result.result_str += translate_use_item_on_entity_tool_result(result_content)
@@ -700,6 +701,33 @@ class MaiAgent:
             memo = action_json.get("memo")
             result.result_str = f"移除备忘录: {memo}\n"
             self.memo_list.remove(memo)
+        elif action_type == "set_basement":
+            info = action_json.get("info")
+            position_json = action_json.get("position")
+            x = math.floor(float(position_json.get("x")))
+            y = math.floor(float(position_json.get("y")))
+            z = math.floor(float(position_json.get("z")))
+            position = BlockPosition(x, y, z)
+            result.result_str = f"设置基地: {info} {x},{y},{z}\n"
+            global_basement.add_basement_info(info, position)
+        elif action_type == "add_location":
+            name = action_json.get("name")
+            info = action_json.get("info")
+            position_json = action_json.get("position")
+            x = math.floor(float(position_json.get("x")))
+            y = math.floor(float(position_json.get("y")))
+            z = math.floor(float(position_json.get("z")))
+            position = BlockPosition(x, y, z)
+            result.result_str = f"添加坐标点: {name} {info} {x},{y},{z}\n"
+            global_location_points.add_location(name, info, position)
+        elif action_type == "remove_location":
+            position_json = action_json.get("position")
+            x = math.floor(float(position_json.get("x")))
+            y = math.floor(float(position_json.get("y")))
+            z = math.floor(float(position_json.get("z")))
+            position = BlockPosition(x, y, z)
+            result.result_str = f"移除坐标点: {x},{y},{z}\n"
+            global_location_points.remove_location(position)
         else:
             result.result_str = f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}\n"
             self.logger.warning(f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}")

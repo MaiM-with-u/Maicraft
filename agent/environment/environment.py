@@ -10,6 +10,9 @@ from utils.logger import get_logger
 from agent.environment.basic_info import Player, Position, Entity, Event, BlockPosition
 from agent.block_cache.block_cache import global_block_cache
 from openai_client.llm_request import LLMClient
+from agent.environment.basement import global_basement
+from agent.environment.locations import global_location_points
+from config import global_config
 
 logger = get_logger("EnvironmentInfo")
 
@@ -361,12 +364,24 @@ class EnvironmentInfo:
                 block_on_feet_str = f"你正站在方块 {block_on_feet.block_type} (x={block_on_feet.position.x},y={block_on_feet.position.y},z={block_on_feet.position.z}) 的上方"
             else:
                 block_on_feet_str = "注意：脚下没有方块，你可能在方块边缘或正在下坠"
-        position_str = f"""
-请注意：
-你现在的坐标(脚所在的坐标)是：x={self.block_position.x}, y={self.block_position.y}, z={self.block_position.z}
+        position_str = f"""你现在的坐标(脚所在的坐标)是：x={self.block_position.x}, y={self.block_position.y}, z={self.block_position.z}
 {block_on_feet_str}
         """
-        return position_str
+        
+        if global_basement.set:
+            base_str = f"""你的基地坐标是：x={global_basement.position.x}, y={global_basement.position.y}, z={global_basement.position.z}
+基地信息：{global_basement.basement_info}，距离你{global_basement.distance_from_player(self.block_position)}方块"""
+        else:
+            base_str = "你还未设置基地，请在合适的地点，选择备忘录模式，设立基地"
+        
+        location_list = global_location_points.all_location_str()
+        
+        final_str = f"""{position_str}
+{base_str}
+{location_list}
+        """
+        
+        return final_str
 
     def get_summary(self) -> str:
         """以可读文本形式返回所有环境信息"""
@@ -389,12 +404,9 @@ class EnvironmentInfo:
             lines.append(f"  饥饿值: {self.food}/{self.food_max}，饥饿值较低，需要马上食用食物")
         elif self.food/self.food_max < 0.8:
             lines.append(f"  饥饿值: {self.food}/{self.food_max}，有条件最好食用食物")
-        
-        if self.food_saturation > 0:
-            lines.append(f"  饥饿饱和度: {self.food_saturation}")
+            
         # lines.append(f"  经验值: {self.experience}")
         lines.append(f"  等级: {self.level}")
-        lines.append(f"  护甲值: {self.armor}")
         lines.append(f"  是否在地面上: {self.on_ground}")
         # lines.append(f"  是否在睡觉: {self.is_sleeping}")
         # lines.append(f"  氧气: {self.oxygen}")
@@ -402,29 +414,7 @@ class EnvironmentInfo:
         # 视角信息
         # if self.yaw != 0.0 or self.pitch != 0.0:
         #     lines.append(f"  视角: Yaw={self.yaw:.2f}°, Pitch={self.pitch:.2f}°")
-        
-        # 速度信息
-        # if self.velocity:
-        #     lines.append(f"  速度: X={self.velocity.x:.2f}, Y={self.velocity.y:.2f}, Z={self.velocity.z:.2f}")
-        
-        # 手持物品信息
-        if self.held_item:
-            item_name = self.held_item.get("displayName", self.held_item.get("name", "未知物品"))
-            item_count = self.held_item.get("count", 1)
-            durability = self.held_item.get("maxDurability", 0)
-            current_damage = 0
-            if self.held_item.get("components"):
-                for component in self.held_item["components"]:
-                    if component.get("type") == "damage":
-                        current_damage = component.get("data", 0)
-                        break
-            
-            lines.append(f"  手持物品: {item_name} x{item_count}")
-            if durability > 1:
-                remaining_durability = durability - current_damage
-                lines.append(f"    耐久度: {remaining_durability}/{durability}")
-            if self.using_held_item:
-                lines.append("    正在使用中")
+
         
         # 光标信息
         # if self.block_at_cursor:
@@ -448,6 +438,26 @@ class EnvironmentInfo:
                 lines.append(f"  装备: {', '.join(equipped_items)}")
         
         lines.append("")
+        
+        lines.append("【装备】")
+        lines.append(f"  护甲值: {self.armor}")
+        if self.held_item:
+            item_name = self.held_item.get("displayName", self.held_item.get("name", "未知物品"))
+            item_count = self.held_item.get("count", 1)
+            durability = self.held_item.get("maxDurability", 0)
+            current_damage = 0
+            if self.held_item.get("components"):
+                for component in self.held_item["components"]:
+                    if component.get("type") == "damage":
+                        current_damage = component.get("data", 0)
+                        break
+            
+            lines.append(f"  手持物品: {item_name} x{item_count}")
+            if durability > 1:
+                remaining_durability = durability - current_damage
+                lines.append(f"    耐久度: {remaining_durability}/{durability}")
+            if self.using_held_item:
+                lines.append("    正在使用中")
         
         # 物品栏
         lines.append("【物品栏】")
@@ -489,7 +499,7 @@ class EnvironmentInfo:
             lines.append(f"  附近玩家数量: {len(self.nearby_players)}")
             for i, player in enumerate(self.nearby_players, 1):
                 lines.append(f"  {i}. {player.display_name} ({player.username})")
-                lines.append(f"     延迟: {player.ping}ms, 游戏模式: {player.gamemode}")
+                # lines.append(f"     延迟: {player.ping}ms, 游戏模式: {player.gamemode}")
         else:
             lines.append("  附近没有其他玩家")
         lines.append("")
@@ -510,13 +520,16 @@ class EnvironmentInfo:
             lines.append(self.overview_str)
             lines.append("")
         
-        # 最近事件
-        lines.append("【最近事件】")
+        lines.append("=" * 10)
+        
+        return "\n".join(lines)
+    
+    def get_event_str(self) -> str:
+        lines = []
         if self.recent_events:
             # 限制显示最近的事件数量，避免信息过多
-            max_events = 10
+            max_events = 20
             recent_events_to_show = self.recent_events[-max_events:] if len(self.recent_events) > max_events else self.recent_events
-            
             for i, event in enumerate(recent_events_to_show, 1):
                 if event.type == "chat":
                     continue
@@ -526,23 +539,19 @@ class EnvironmentInfo:
                     timestamp_str = ""
                     if event.timestamp:
                         try:
+                            from datetime import datetime
                             dt = datetime.fromtimestamp(event.timestamp)
                             timestamp_str = f"[{dt.strftime('%H:%M:%S')}]"
                         except (ValueError, OSError):
-                            # 如果时间戳转换失败，使用原始时间戳
                             timestamp_str = f"[{event.timestamp:.1f}s]"
-                    lines.append(f"  {i}. {timestamp_str} {event_desc}")
+                    lines.append(f"{timestamp_str}:{event_desc}")
         else:
             lines.append("  暂无最近事件记录")
-        lines.append("")
-        
-        lines.append("=" * 10)
-        
         return "\n".join(lines)
     
     def get_chat_str(self) -> str:
         """获取所有聊天事件的字符串表示"""
-        lines = ["【聊天记录】"]
+        lines = []
         
         if not self.recent_events:
             lines.append("暂无聊天记录")
@@ -562,27 +571,19 @@ class EnvironmentInfo:
         max_chats = 30
         chats_to_show = sorted_chat_events[-max_chats:] if len(sorted_chat_events) > max_chats else sorted_chat_events
         
-        lines.append(f"最近 {len(chats_to_show)} 条聊天记录 (总计: {len(chat_events)} 条):")
-        lines.append("")
+        # lines.append(f"最近 {len(chats_to_show)} 条聊天记录 (总计: {len(chat_events)} 条):")
         
         # 重新编号，确保最新的聊天记录在最下方且编号连续
         for i, event in enumerate(chats_to_show, 1):
             # 格式化时间戳
             timestamp_str = ""
             if event.timestamp:
+                from datetime import datetime
                 try:
-                    # 尝试将gameTick转换为可读时间
-                    # 假设1秒 = 20 ticks
-                    total_seconds = event.timestamp / 20
-                    minutes = int(total_seconds // 60)
-                    seconds = int(total_seconds % 60)
-                    
-                    # 对于Minecraft的gameTick，直接显示时间，不限制分钟数
-                    timestamp_str = f"[{minutes:02d}:{seconds:02d}]"
-                    
+                    dt = datetime.fromtimestamp(event.timestamp)
+                    timestamp_str = f"[{dt.strftime('%H:%M:%S')}]"
                 except (ValueError, OSError):
-                    # 如果转换失败，使用原始时间戳
-                    timestamp_str = f"[{event.timestamp}ticks]"
+                    timestamp_str = f"[{event.timestamp:.1f}s]"
             
             # 获取聊天内容
             chat_content = ""
@@ -595,11 +596,9 @@ class EnvironmentInfo:
             player_name = event.player_name or "未知玩家"
             
             # 构建聊天行
-            chat_line = f"  {i}. {timestamp_str} {player_name}: {chat_content}"
+            # chat_line = f"  {i}. {timestamp_str} {player_name}: {chat_content}"
+            chat_line = f"[{timestamp_str}]{player_name}: {chat_content}"
             lines.append(chat_line)
-        
-        lines.append("")
-        lines.append("=" * 10)
         
         return "\n".join(lines)
     
@@ -611,39 +610,43 @@ class EnvironmentInfo:
         
         # 获取玩家名称，优先使用事件中的玩家名称
         player_name = event.player_name or "未知玩家"
-        base_desc = f"{event.type} - {player_name}"
+        if player_name == global_config.bot.player_name:
+            base_desc = f"你({player_name})"
+        else:
+            base_desc = f"玩家{player_name}"
+        
         
         # 根据事件类型生成详细描述
-        if event.type == "playerMove" and event.old_position and event.new_position:
-            old_pos = event.old_position
-            new_pos = event.new_position
-            return f"{base_desc} 从 ({old_pos.x:.1f}, {old_pos.y:.1f}, {old_pos.z:.1f}) 移动到 ({new_pos.x:.1f}, {new_pos.y:.1f}, {new_pos.z:.1f})"
+        # if event.type == "playerMove" and event.old_position and event.new_position:
+        #     old_pos = event.old_position
+        #     new_pos = event.new_position
+        #     return f"{base_desc} 从 ({old_pos.x:.1f}, {old_pos.y:.1f}, {old_pos.z:.1f}) 移动到 ({new_pos.x:.1f}, {new_pos.y:.1f}, {new_pos.z:.1f})"
         
-        elif event.type == "blockBreak" and event.block:
-            block = event.block
-            pos = block.position
-            return f"{base_desc} 破坏了 {block.name} 在 ({pos.x:.1f}, {pos.y:.1f}, {pos.z:.1f})"
+        # elif event.type == "blockBreak" and event.block:
+        #     block = event.block
+        #     pos = block.position
+        #     return f"{base_desc} 破坏了 {block.name} 在 ({pos.x:.1f}, {pos.y:.1f}, {pos.z:.1f})"
         
-        elif event.type == "blockPlace" and event.block:
-            block = event.block
-            pos = block.position
-            return f"{base_desc} 放置了 {block.name} 在 ({pos.x:.1f}, {pos.y:.1f}, {pos.z:.1f})"
+        # elif event.type == "blockPlace" and event.block:
+        #     block = event.block
+        #     pos = block.position
+        #     return f"{base_desc} 放置了 {block.name} 在 ({pos.x:.1f}, {pos.y:.1f}, {pos.z:.1f})"
         
-        elif event.type == "experienceUpdate":
-            return f"{base_desc} 经验值更新: {event.experience}, 等级: {event.level}"
+        # elif event.type == "experienceUpdate":
+        #     return f"{base_desc} 经验值更新: {event.experience}, 等级: {event.level}"
         
-        elif event.type == "healthUpdate":
-            health_info = f"生命值: {event.health}"
-            food_info = f"饥饿值: {event.food}"
-            saturation_info = f"饱和度: {event.saturation}" if event.saturation is not None else ""
+        # elif event.type == "healthUpdate":
+        #     health_info = f"生命值: {event.health}"
+        #     food_info = f"饥饿值: {event.food}"
+        #     saturation_info = f"饱和度: {event.saturation}" if event.saturation is not None else ""
             
-            info_parts = [health_info, food_info]
-            if saturation_info:
-                info_parts.append(saturation_info)
+        #     info_parts = [health_info, food_info]
+        #     if saturation_info:
+        #         info_parts.append(saturation_info)
             
-            return f"{base_desc} 状态更新: {', '.join(info_parts)}"
+            # return f"{base_desc} 状态更新: {', '.join(info_parts)}"
         
-        elif event.type == "playerJoin":
+        if event.type == "playerJoin":
             return f"{base_desc} 加入了游戏"
         
         elif event.type == "playerLeave":

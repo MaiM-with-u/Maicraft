@@ -250,6 +250,8 @@ def parse_thinking(thinking: str) -> tuple[bool, str, dict, str]:
         json_before = json_before.replace("```json", "")
     if "```" in json_before:
         json_before = json_before.replace("```", "")
+        
+        
     
     return success, thinking, json_obj, json_before
 

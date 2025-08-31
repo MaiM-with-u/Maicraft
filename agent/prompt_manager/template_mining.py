@@ -103,21 +103,25 @@ def init_templates_mining() -> None:
 **当前需要执行的任务**：
 {task}
 
-**环境信息**：
+**环境信息**
 {environment}
 
-**位置信息**：
+**位置信息**
 {position}
 
-**周围方块的信息**：
+**周围方块的信息**
 {nearby_block_info}
 
-**玩家聊天记录**：
+**最近游戏事件**
+{event_str}
+
+**玩家聊天记录**
 {chat_str}
 
 **备忘录**：
 {memo_list}
 
+**当前模式：{mode}**
 **你正在进行采矿，你会自动的进行挖掘和收集，无需手动操作**
 **你可以根据情况，退出当前的采矿模式**
 
@@ -158,7 +162,7 @@ def init_templates_mining() -> None:
 规划后请使用动作，动作用json格式输出:
 """,
             description="采矿模式",
-            parameters=["goal", "task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
+            parameters=["event_str","goal", "task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
     ))
 
 

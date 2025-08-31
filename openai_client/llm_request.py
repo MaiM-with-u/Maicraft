@@ -7,6 +7,7 @@ from openai import AsyncOpenAI
 from PIL import Image
 from utils.logger import get_logger
 from openai_client.modelconfig import ModelConfig
+from openai_client.token_usage_manager import TokenUsageManager
 
         
 class LLMClient:
@@ -28,6 +29,9 @@ class LLMClient:
         )
         
         self.logger.info(f"LLM客户端初始化完成，模型: {self.model_config.model_name}")
+        
+        # 初始化token使用量管理器
+        self.token_manager = TokenUsageManager()
     
     def _infer_mime_from_bytes(self, data: bytes) -> str:
         """根据图片字节推断 MIME 类型，默认 image/png"""
@@ -156,7 +160,14 @@ class LLMClient:
                     for tool_call in response.choices[0].message.tool_calls
                 ]
             
-
+            # 记录token使用量
+            self.token_manager.record_usage(
+                model_name=response.model,
+                prompt_tokens=response.usage.prompt_tokens,
+                completion_tokens=response.usage.completion_tokens,
+                total_tokens=response.usage.total_tokens
+            )
+            
             return result
             
         except Exception as e:
@@ -242,7 +253,7 @@ class LLMClient:
             elif self.model_config.max_tokens:
                 request_params["max_tokens"] = self.model_config.max_tokens
 
-            self.logger.debug(f"发送VLM请求: {request_params}")
+            # self.logger.debug(f"发送VLM请求: {request_params}")
             response = await self.client.chat.completions.create(**request_params)
 
             result = {
@@ -296,4 +307,56 @@ class LLMClient:
             "max_tokens": self.model_config.max_tokens,
             "api_key_set": bool(self.model_config.api_key)
         }
+    
+    def get_token_usage_summary(self, model_name: Optional[str] = None) -> str:
+        """获取token使用量摘要
+        
+        Args:
+            model_name: 模型名称，如果为None则显示所有模型
+            
+        Returns:
+            token使用量摘要字符串
+        """
+        if model_name:
+            return self.token_manager.format_usage_summary(model_name)
+        else:
+            all_usage = self.token_manager.get_all_models_usage()
+            if not all_usage:
+                return "暂无任何模型的使用记录"
+            
+            summaries = []
+            for model, usage in all_usage.items():
+                summaries.append(self.token_manager.format_usage_summary(model))
+            
+            return "\n\n".join(summaries)
+    
+    def get_token_usage_data(self, model_name: Optional[str] = None) -> Dict[str, Any]:
+        """获取token使用量原始数据
+        
+        Args:
+            model_name: 模型名称，如果为None则返回所有模型数据
+            
+        Returns:
+            token使用量数据字典
+        """
+        if model_name:
+            return self.token_manager.get_usage_summary(model_name)
+        else:
+            return self.token_manager.get_all_models_usage()
+    
+    def get_total_cost_summary(self) -> str:
+        """获取所有模型的总费用摘要
+        
+        Returns:
+            总费用摘要字符串
+        """
+        return self.token_manager.format_total_cost_summary()
+    
+    def get_total_cost_data(self) -> Dict[str, Any]:
+        """获取所有模型的总费用数据
+        
+        Returns:
+            总费用数据字典
+        """
+        return self.token_manager.get_total_cost_summary()
 

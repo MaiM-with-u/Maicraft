@@ -16,13 +16,14 @@ from agent.environment.basic_info import Event, Player
 from agent.thinking_log import global_thinking_log
 from agent.mai_mode import mai_mode
 
+
 class EnvironmentUpdater:
     """环境信息定期更新器"""
     
     def __init__(self, 
-                 mcp_client,
-                 update_interval: int = 0.2,
-                 ):
+                mcp_client,
+                update_interval: int = 0.2,
+                ):
         """
         初始化环境更新器
         
@@ -182,7 +183,7 @@ class EnvironmentUpdater:
                     # 处理事件数据，映射字段到Event类
                     event_kwargs = {
                         "type": event_data_item.get("type", ""),
-                        "timestamp": event_data_item.get("gameTick", 0),  # 使用gameTick作为时间戳
+                        "timestamp": time.time(),  # 使用gameTick作为时间戳
                         "server_id": "",  # 新格式中没有serverId
                         "player_name": "",  # 稍后设置
                         "game_tick": event_data_item.get("gameTick"),
@@ -252,9 +253,8 @@ class EnvironmentUpdater:
                         if event.player_name != "Mai":
                             if "麦麦" in event.chat_text or "Mai" in event.chat_text or "mai" in event.chat_text:
                                 mai_mode.mode = "chat"
-                                global_thinking_log.add_thinking_log(f"时间：{time.strftime('%H:%M:%S', time.localtime())} 玩家 {event.player_name} 提到了你，使用chat进行回复")
-                        time_str = time.strftime("%H:%M:%S", time.localtime())
-                        global_thinking_log.add_thinking_log(f"时间：{time_str} 玩家 {event.player_name} 发送了消息：{event.chat_text}")
+                                global_thinking_log.add_thinking_log(f"玩家 {event.player_name} 提到了你，使用chat进行回复",type = "notice")
+                        global_thinking_log.add_thinking_log(f"玩家 {event.player_name} 发送了消息：{event.chat_text}",type = "notice")
                         
                     
                 except Exception as e:

@@ -19,7 +19,10 @@ def init_templates_chat() -> None:
 **当前需要执行的任务**：
 {task}
 
-**环境信息**：
+**你进行的动作记录**
+{thinking_list}
+
+**环境信息**
 {environment}
 
 **位置信息**：
@@ -28,37 +31,33 @@ def init_templates_chat() -> None:
 **周围方块的信息**：
 {nearby_block_info}
 
+**最近游戏事件**
+{event_str}
+
 **备忘录**：
 {memo_list}
 
 **玩家聊天记录**：
 {chat_str}
 
-**当前模式：{mode}**
-**发送聊天信息**
-在聊天框发送消息
-可以与其他玩家交流或者求助
-你可以积极参与其他玩家的聊天
-不要重复回复相同的内容
+
+**注意，你是Mai，也叫麦麦，现在想要发送聊天信息，回复其他玩家的新消息**
+请使用chat动作，发送聊天信息，**不要使用**其他动作
 **chat**
  {{
      "action_type":"chat",
      "message":"消息内容",
  }}
 
-你进行的动作记录：
-{thinking_list}
 
 **注意事项**
-1.请你根据聊天纪录，回复聊天内容。
+1.请你根据聊天记录，回复聊天内容
 2.请你**不要重复回复**已经回复过的消息，不要**重复回复相同的内容**
-3.请你根据聊天记录，当前任务，位置，备忘录等信息，输出新的规划
-4.请你使用chat动作，发送聊天信息，你必须发送消息
-
-规划内容是一段精简的平文本，不要分点
-聊天内容请你**不要重复回复**已经回复过的消息，不要**重复回复相同的内容**
-规划后请使用动作，动作用json格式输出:
+3.请你使用chat动作，发送聊天信息进行回复
+**注意**
+回复要求简短，可以参考微博，贴吧的语气，不要有太多额外符号
+请用json格式输出chat动作:
 """,
         description="聊天模式",
-        parameters=["mode","goal", "task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
+        parameters=["event_str","goal", "task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
     ))
