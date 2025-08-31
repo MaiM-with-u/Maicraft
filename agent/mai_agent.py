@@ -45,7 +45,7 @@ COLOR_MAP = {
     "chat_mode": "\033[38;5;51m",     # 青色
     "memo_mode": "\033[38;5;199m",    # 粉色
     "task_edit_mode": "\033[38;5;196m", # 红色
-    "use_block_mode": "\033[38;5;208m", # 紫色（与use_mode相同）
+    "use_block": "\033[38;5;208m", # 橙色
 }
 
 
@@ -262,7 +262,7 @@ class MaiAgent:
             if mai_mode.mode == "main_mode":
                 # 主模式，可以选择基础动作，和深入动作
                 prompt = prompt_manager.generate_prompt("minecraft_excute_task_thinking", **input_data)
-                # self.logger.info(f" 执行任务提示词: {prompt}")
+                self.logger.info(f" 执行任务提示词: {prompt}")
             elif mai_mode.mode == "task_edit":
                 prompt = prompt_manager.generate_prompt("minecraft_excute_task_action", **input_data)
                 # self.logger.info(f"\033[38;5;153m 执行任务提示词: {prompt}\033[0m")
@@ -272,6 +272,9 @@ class MaiAgent:
             elif mai_mode.mode == "use_block":
                 prompt = prompt_manager.generate_prompt("use_block_mode", **input_data)
                 # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
+            elif mai_mode.mode == "use_item":
+                prompt = prompt_manager.generate_prompt("use_item_mode", **input_data)
+                # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
             elif mai_mode.mode == "mining_mode":
                 prompt = prompt_manager.generate_prompt("minecraft_mining_nearby", **input_data)
                 # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
@@ -279,7 +282,7 @@ class MaiAgent:
                 prompt = prompt_manager.generate_prompt("memo_mode", **input_data)
                 # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
             elif mai_mode.mode == "chat":
-                prompt = prompt_manager.generate_prompt("mai_chat", **input_data)
+                prompt = prompt_manager.generate_prompt("chat_mode", **input_data)
                 # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
             else:
                 self.logger.warning(f" 不支持的模式: {mai_mode.mode}")
@@ -289,10 +292,10 @@ class MaiAgent:
             thinking = await self.llm_client.simple_chat(prompt)
             # self.logger.info(f" 原始输出: {thinking}")
             
-            json_obj, thinking_log = parse_thinking(thinking)
+            success, thinking, json_obj, thinking_log = parse_thinking(thinking)
             
             #出现意外的调试
-            if not json_obj:
+            if not success or not json_obj:
                 self.logger.warning(f" 思考结果中没有json对象: {thinking}")
                 return TaskResult()
             
@@ -320,7 +323,9 @@ class MaiAgent:
                 
                 
         except Exception as e:
+            asyncio.sleep(1)
             self.logger.error(f" 任务执行异常: {traceback.format_exc()}")
+            
         
         
         
@@ -333,17 +338,34 @@ class MaiAgent:
             return await self.excute_mining_mode(action_json)
         elif mai_mode.mode == "use_block":
             return await self.excute_use_mode(action_json)
+        elif mai_mode.mode == "use_item":
+            return await self.excute_use_item(action_json)
         elif mai_mode.mode == "memo":
             return await self.excute_memo(action_json)
-        elif mai_mode.mode == "chat":
-            return await self.excute_chat(action_json)
         elif mai_mode.mode == "task_edit":
             return await self.excute_task_edit(action_json)
+        elif mai_mode.mode == "chat":
+            return await self.excute_chat(action_json)
         else:
             self.logger.warning(f" {mai_mode.mode} 不支持的action_type: {action_json.get('action_type')}")
             return ThinkingJsonResult()
-            
-            
+        
+        
+    async def excute_chat(self,action_json) -> ThinkingJsonResult:
+        result = ThinkingJsonResult()
+        action_type = action_json.get("action_type")
+        if action_type == "chat":
+            message = action_json.get("message")
+            if message is not None:
+                message = message.strip().replace('\n', '').replace('\r', '')
+            args = {"message": message}
+            call_result = await global_mcp_client.call_tool_directly("chat", args)
+            is_success, result_content = parse_tool_result(call_result)
+            result.result_str += translate_chat_tool_result(result_content)
+        
+        mai_mode.mode = "main_mode"
+        return result
+        
     async def excute_main_mode(self,action_json) -> ThinkingJsonResult:
         result = ThinkingJsonResult()
         action_type = action_json.get("action_type")
@@ -392,6 +414,15 @@ class MaiAgent:
             call_result = await global_mcp_client.call_tool_directly("place_block", args)
             is_success, result_content = parse_tool_result(call_result)
             result.result_str += translate_place_block_tool_result(result_content,args)
+        elif action_type == "chat":
+            message = action_json.get("message")
+            if message is not None:
+                message = message.strip().replace('\n', '').replace('\r', '')
+            args = {"message": message}
+            call_result = await global_mcp_client.call_tool_directly("chat", args)
+            is_success, result_content = parse_tool_result(call_result)
+            result.result_str += translate_chat_tool_result(result_content)
+            return result
         elif action_type == "enter_move_mode":
             reason = action_json.get("reason")
             mai_mode.mode = "move_mode"
@@ -405,6 +436,11 @@ class MaiAgent:
             reason = action_json.get("reason")
             result.result_str = f"想要使用方块，进入use模式，原因是: {reason}\n"
             mai_mode.mode = "use_block"
+            return result
+        elif action_type == "enter_use_item_mode":
+            reason = action_json.get("reason")
+            result.result_str = f"想要使用物品，进入use_item模式，原因是: {reason}\n"
+            mai_mode.mode = "use_item"
             return result
         elif action_type == "enter_memo_mode":
             reason = action_json.get("reason")
@@ -425,29 +461,6 @@ class MaiAgent:
             self.logger.warning(f" {mai_mode.mode} 不支持的action_type: {action_type}")
             
             
-        return result
-
-    async def excute_chat(self,action_json) -> ThinkingJsonResult:
-        result = ThinkingJsonResult()
-        action_type = action_json.get("action_type")
-        if action_type == "chat":
-            message = action_json.get("message")
-            if message is not None:
-                message = message.strip().replace('\n', '').replace('\r', '')
-            args = {"message": message}
-            call_result = await global_mcp_client.call_tool_directly("chat", args)
-            is_success, result_content = parse_tool_result(call_result)
-            return result
-        elif action_type == "wait_player_message":
-            wait_time = action_json.get("wait_time")
-            result.result_str = f"等待玩家消息: \n等待时间: {wait_time}\n"
-            await asyncio.sleep(wait_time)
-            return result
-        elif action_type == "exit_chat_mode":
-            mai_mode.mode = "main_mode"
-            reason = action_json.get("reason")
-            result.result_str = f"退出聊天模式: \n原因: {reason}\n"
-            return result
         return result
     
     async def excute_move_mode(self,action_json) -> ThinkingJsonResult:
@@ -552,35 +565,35 @@ class MaiAgent:
         result = ThinkingJsonResult()
         action_type = action_json.get("action_type")
         
-        if action_type == "collect_smelted_items":
+        if action_type == "view_container":
+            position = action_json.get("position", {})
+            x = math.floor(float(position.get("x", 0)))
+            y = math.floor(float(position.get("y", 0)))
+            z = math.floor(float(position.get("z", 0)))
+            type = action_json.get("type")
+            args = {"x": x, "y": y, "z": z}
+            result.result_str = f"想要查看{type}: {x},{y},{z}\n"
+            result_content = await self.view_container.view_container(x, y, z, type)
+            result.result_str += result_content
+        elif action_type == "use_furnace":
             item = action_json.get("item")
+            type = action_json.get("type")
+            slot = action_json.get("slot")
+            count = action_json.get("count")
             position = action_json.get("position")
             x = math.floor(float(position.get("x")))
             y = math.floor(float(position.get("y")))
             z = math.floor(float(position.get("z")))
-            result.result_str = f"想要收集熔炼后的物品: {item}\n"
-            if x and y and z:
-                args = {"item": item, "x": x, "y": y, "z": z}
-            else:
-                args = {"item": item}
-            call_result = await global_mcp_client.call_tool_directly("collect_smelted_items", args)
+            result.result_str = f"想要使用熔炉: {item} 类型: {type} 槽位: {slot} 数量: {count}\n"
+            
+            items = [{"name": item, "count": count,"position": slot}]
+            
+            args = {"item": item, "action": type, "items": items, "x": x, "y": y, "z": z}
+            call_result = await global_mcp_client.call_tool_directly("use_furnace", args)
             is_success, result_content = parse_tool_result(call_result)
-            if is_success:
-                result.result_str += translate_collect_smelted_items_tool_result(result_content)
-            else:
-                result.result_str += f"收集熔炼物品失败: {result_content}"
-        elif action_type == "start_smelting":
-            item = action_json.get("item")
-            fuel = action_json.get("fuel")
-            count = action_json.get("count")
-            result.result_str = f"想要开始熔炼: {item} 燃料: {fuel} 数量: {count}\n"
-            args = {"item": item, "fuel": fuel, "count": count}
-            call_result = await global_mcp_client.call_tool_directly("start_smelting", args)
-            is_success, result_content = parse_tool_result(call_result)
-            if is_success:
-                result.result_str += translate_start_smelting_tool_result(result_content)
-            else:
-                result.result_str += f"开始熔炼失败: {result_content}"
+            # result.result_str += translate_use_furnace_tool_result(result_content)
+            self.logger.info(f"熔炉结果: {result_content}")
+            
         elif action_type == "place_block":
             block = action_json.get("block")
             position = action_json.get("position")
@@ -592,16 +605,6 @@ class MaiAgent:
             call_result = await global_mcp_client.call_tool_directly("place_block", args)
             is_success, result_content = parse_tool_result(call_result)
             result.result_str += translate_place_block_tool_result(result_content,args)
-        elif action_type == "view_container":
-            position = action_json.get("position", {})
-            x = math.floor(float(position.get("x", 0)))
-            y = math.floor(float(position.get("y", 0)))
-            z = math.floor(float(position.get("z", 0)))
-            type = action_json.get("type")
-            args = {"x": x, "y": y, "z": z}
-            result.result_str = f"想要查看{type}: {x},{y},{z}\n"
-            result_content = await self.view_container.view_container(x, y, z, type)
-            result.result_str += result_content
         elif action_type == "craft":
             item = action_json.get("item")
             count = action_json.get("count")
@@ -626,9 +629,9 @@ class MaiAgent:
             # 构建符合MCP工具期望的items格式
             items = [{"name": item, "count": count}]
 
-            if type == "in":
+            if type == "put":
                 args = {"items": items, "action": "store", "x": x, "y": y, "z": z}
-            elif type == "out":
+            elif type == "take":
                 args = {"items": items, "action": "withdraw", "x": x, "y": y, "z": z}
             
             call_result = await global_mcp_client.call_tool_directly("use_chest", args)
@@ -646,6 +649,44 @@ class MaiAgent:
             
         return result
             
+    async def excute_use_item(self,action_json) -> ThinkingJsonResult:
+        result = ThinkingJsonResult()
+        action_type = action_json.get("action_type")
+        if action_type == "eat":
+            item = action_json.get("item")
+            result.result_str = f"想要食用: {item}\n"
+            args = {"itemName": item, "useType":"consume"} #consume表示食用
+            call_result = await global_mcp_client.call_tool_directly("use_item", args)
+            is_success, result_content = parse_tool_result(call_result)
+            self.logger.info(f"食用结果: {result_content}")
+            # result.result_str += translate_eat_tool_result(result_content)
+        elif action_type == "use_item":
+            item = action_json.get("item")
+            result.result_str = f"想要使用: {item}\n"
+            args = {"itemName": item,"useType":"activate"} #activate表示激活
+            call_result = await global_mcp_client.call_tool_directly("use_item", args)
+            is_success, result_content = parse_tool_result(call_result)
+            self.logger.info(f"使用结果: {result_content}")
+            # result.result_str += translate_use_item_tool_result(result_content)
+        elif action_type == "use_item_on_entity":
+            item = action_json.get("item")
+            entity = action_json.get("entity")
+            result.result_str = f"想要使用: {item} 在: {entity}\n"
+            args = {"itemName": item, "targetEntityName": entity,"useType":"useOn"} #useOnEntity表示使用在实体上
+            call_result = await global_mcp_client.call_tool_directly("use_item_on_entity", args)
+            is_success, result_content = parse_tool_result(call_result)
+            self.logger.info(f"使用结果: {result_content}")
+            # result.result_str += translate_use_item_on_entity_tool_result(result_content)
+        elif action_type == "exit_use_item_mode":
+            reason = action_json.get("reason")
+            result.result_str = f"退出使用物品模式: \n原因: {reason}\n"
+            mai_mode.mode = "main_mode"
+        else:
+            self.logger.warning(f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}")
+            result.result_str = f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}\n"
+            mai_mode.mode = "main_mode"
+        return result
+    
     async def excute_memo(self,action_json) -> ThinkingJsonResult:
         result = ThinkingJsonResult()
         action_type = action_json.get("action_type")

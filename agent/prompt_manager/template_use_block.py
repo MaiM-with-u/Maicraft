@@ -34,6 +34,15 @@ def init_templates_use_block() -> None:
     "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
 }}
 
+**view_container**
+查看容器（chest/furnace/blast_furnace/smoker）的内容物，查看里面有什么物品
+查看熔炉的输入，燃料和输出
+{{
+    "action_type":"view_container",
+    "type":"容器类型，可选chest/furnace/blast_furnace/smoker",
+    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
+}}
+
 **craft**
 使用工作台或者背包进行合成物品
 能够进行工作台3x3合成
@@ -44,39 +53,26 @@ def init_templates_use_block() -> None:
     "count":"数量"
 }}
 
-**collect_smelted_items**
-从熔炉中收集已熔炼完成的物品，不指定就寻找最近的熔炉
-{{
-    "action_type":"collect_smelted_items",
-    "item":"物品名称，必填",
-    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
-}}
-
-**start_smelting**
+**use_furnace**
 打开熔炉，将物品放入熔炉并添加燃料，进行熔炼
+取出熔炉的原料，燃料和熔炼后的物品
 {{
-    "action_type":"start_smelting",
-    "item":"物品名称",
-    "fuel":"燃料名称",
-    "count":"数量",
-}}
-
-**view_container**
-查看容器（chest/furnace）的内容物，查看里面有什么物品
-{{
-    "action_type":"view_container",
-    "type":"容器类型，可选chest/furnace",
+    "action_type":"use_furnace",
     "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
+    "item":"需要放入或取出的物品名称",
+    "count":"数量",
+    "type":"put/take", //put表示放入，take表示取出
+    "slot":"input/fuel/output", //物品的位置，input表示原料，fuel表示燃料，output表示熔炼
 }}
 
 **use_chest**
-打开箱子，将物品放入箱子或从箱子中取出物品
+打开chest，将物品放入箱子或从箱子中取出物品
 {{
     "action_type":"use_chest",
     "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
-    "item":"某样物品名称",
+    "item":"需要放入或取出的物品名称",
     "count":"数量",
-    "type":"in/out", //in表示放入，out表示取出
+    "type":"put/take", //put表示放入，take表示取出
 }}
 
 **finish_using**

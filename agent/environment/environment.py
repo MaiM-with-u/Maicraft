@@ -385,6 +385,11 @@ class EnvironmentInfo:
         lines.append("【状态信息】")
         lines.append(f"  生命值: {self.health}/{self.health_max}")
         lines.append(f"  饥饿值: {self.food}/{self.food_max}")
+        if self.food/self.food_max < 0.5:
+            lines.append(f"  饥饿值: {self.food}/{self.food_max}，饥饿值较低，需要马上食用食物")
+        elif self.food/self.food_max < 0.8:
+            lines.append(f"  饥饿值: {self.food}/{self.food_max}，有条件最好食用食物")
+        
         if self.food_saturation > 0:
             lines.append(f"  饥饿饱和度: {self.food_saturation}")
         # lines.append(f"  经验值: {self.experience}")

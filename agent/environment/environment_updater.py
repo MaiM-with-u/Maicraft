@@ -13,7 +13,6 @@ from agent.environment.environment import global_environment
 import json
 from agent.block_cache.block_cache import global_block_cache
 from agent.environment.basic_info import Event, Player
-from agent.mai_chat import global_chat_manager
 from agent.thinking_log import global_thinking_log
 from agent.mai_mode import mai_mode
 
@@ -245,18 +244,15 @@ class EnvironmentUpdater:
                             # 更新事件的聊天相关字段
                             event.chat_text = chat_text
                             event.player_name = chat_username
-                            # 添加到聊天管理器
-                            global_chat_manager.add_message(chat_text, chat_username, event.type, event.timestamp)
-                        else:
-                            # 如果没有chatInfo，使用默认值
-                            global_chat_manager.add_message(event.chat_text or "", event.player_name, event.type, event.timestamp)
-
+                            
                     # 将Event对象添加到全局环境
                     global_environment.recent_events.append(event)
                     if event.type == "chat":
                         self.logger.info(f"[EnvironmentUpdater] 处理聊天事件: {event.chat_text}")
-                        if "麦麦" in event.chat_text or "Mai" in event.chat_text or "mai" in event.chat_text:
-                            mai_mode.mode = "chat"
+                        if event.player_name != "Mai":
+                            if "麦麦" in event.chat_text or "Mai" in event.chat_text or "mai" in event.chat_text:
+                                mai_mode.mode = "chat"
+                                global_thinking_log.add_thinking_log(f"时间：{time.strftime('%H:%M:%S', time.localtime())} 玩家 {event.player_name} 提到了你，使用chat进行回复")
                         time_str = time.strftime("%H:%M:%S", time.localtime())
                         global_thinking_log.add_thinking_log(f"时间：{time_str} 玩家 {event.player_name} 发送了消息：{event.chat_text}")
                         

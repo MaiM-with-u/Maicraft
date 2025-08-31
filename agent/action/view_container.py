@@ -24,8 +24,8 @@ class ViewContainer:
 
     async def view_furnace(self, x, y, z):
         block_cache = global_block_cache.get_block(x, y, z)
-        if block_cache.block_type != "furnace":
-            return f"位置{x},{y},{z}不是熔炉，无法查看{block_cache.block_type}"
+        if block_cache.block_type != "furnace" and block_cache.block_type != "blast_furnace" and block_cache.block_type != "smoker":
+            return f"位置{x},{y},{z}不是熔炉(furnace/blast_furnace/smoker)，无法查看{block_cache.block_type}"
         
         args = {"x": x, "y": y, "z": z,"includeContainerInfo": True}
         call_result = await self.mcp_client.call_tool_directly("query_block", args)
@@ -41,8 +41,8 @@ class ViewContainer:
     async def view_container(self, x, y, z, type):
         if type == "chest":
             return await self.view_chest(x, y, z)
-        elif type == "furnace":
+        elif type == "furnace" or type == "blast_furnace" or type == "smoker":
             return await self.view_furnace(x, y, z)
         else:
             # return await self.view_custom_container(x, y, z, type)
-            return f"方块{type}的位置{x},{y},{z}，不是箱子，也不是熔炉，无法查看"
+            return f"方块{type}的位置{x},{y},{z}，不是chest，也不是熔炉(furnace/blast_furnace/smoker)，无法查看"

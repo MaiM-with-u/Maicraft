@@ -5,6 +5,7 @@ from agent.prompt_manager.template_use_block import init_templates_use_block
 from agent.prompt_manager.template_move import init_templates_move
 from agent.prompt_manager.template_memo import init_templates_memo
 from agent.prompt_manager.template_chat import init_templates_chat
+from agent.prompt_manager.template_use_item import init_templates_use_item
 
 def init_templates() -> None:
     """初始化提示词模板"""
@@ -14,6 +15,7 @@ def init_templates() -> None:
     init_templates_move()
     init_templates_memo()
     init_templates_chat()
+    init_templates_use_item()
 
     prompt_manager.register_template(
         PromptTemplate(
@@ -52,13 +54,6 @@ def init_templates() -> None:
     "z":"挖掘z位置",
 }}
 
-**进入采矿/采掘模式**
-当你要进行采矿，进行大量挖掘，或进行大批量的采集，请进入采矿/采掘模式
-这个模式能够加快效率，减少思考时间
-{{
-    "action_type":"enter_mining_mode",
-}}
-
 **放置动作**
 能够放置方块
 {{
@@ -76,6 +71,24 @@ def init_templates() -> None:
     "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
 }}
 
+**发送聊天信息**
+在聊天框发送消息
+可以与其他玩家交流或者求助
+你可以积极参与其他玩家的聊天
+不要重复回复相同的内容
+ {{
+     "action_type":"chat",
+     "message":"消息内容",
+ }}
+ 
+**你可以进入的模式**
+**进入采矿/采掘模式**
+当你要进行采矿，进行大量挖掘，或进行大批量的采集，请进入采矿/采掘模式
+这个模式能够加快效率，减少思考时间
+{{
+    "action_type":"enter_mining_mode",
+}}
+
 **进入move模式**
 可以进行持续的移动，走到合适的地点
 {{
@@ -83,14 +96,15 @@ def init_templates() -> None:
     "reason":"移动的原因"
 }}
 
-**进入chat模式**
-与其他玩家交流或者求助，有任何需要的可以进入聊天模式
-当你需要其他玩家的帮助，或者想与其他玩家闲聊，或是有新发现，进入聊天模式
-当有人叫你名字时，进入聊天模式
- {{
-     "action_type":"enter_chat_mode",
-     "reason":"进入聊天模式的原因"
- }}
+**进入use_item模式**
+可以使用背包中的物品，但是你只能使用以下物品
+1.食用食物
+2.可激活的物品，例如药水等
+3.可对实体使用的物品，例如剪刀，栓绳等
+{{
+    "action_type":"enter_use_item_mode",
+    "reason":"使用物品的原因"
+}}
 
 **进入use_block模式**
 可以打开chest存取物品，打开furnace进行冶炼，或存取熔炼后的物品
@@ -105,6 +119,7 @@ def init_templates() -> None:
 1. 更新当前任务的进展
 2. 如果当前任务无法完成，需要前置任务，创建新任务
 3. 选择其他任务
+如果当前没有正在进行的任务，最好选择一个简单合适的任务
 {{
     "action_type":"enter_task_edit_mode",
     "reason":"修改任务列表的原因"
@@ -124,7 +139,6 @@ def init_templates() -> None:
 **模式**
 1.请你灵活使用采矿模式，备忘录模式，任务规划模式，chat模式，帮助你更高效的完成任务
 2.如果要存取物品，熔炼或使用方块，请你进入use_block模式
-2.如果要与其他玩家交流，请你进入chat模式
 3.如果要修改任务列表，请你进入task_edit模式
 4.如果要使用备忘录，请你进入memo模式
 5.如果要进行大量移动，请你进入move模式
@@ -183,12 +197,14 @@ def init_templates() -> None:
 1. 更新某个未完成的任务的进度
  {{
      "action_type":"update_task_progress",
-     "task_id":"任务id",
+     "task_id":"任务id，数字",
      "progress":"如果任务未完成，请更新目前任务的进展情况",
      "done":bool类型，true表示完成，false表示未完成
  }}
  
- 2. 如果当前任务无法完成，需要前置任务，创建一个新任务:
+ 2. 创建一个新任务
+ 如果当前没有任何任务
+ 如果当前任务无法完成，需要前置任务，创建一个新任务:
  {{
      "action_type":"create_new_task",
      "new_task":"前置任务的描述",
@@ -199,13 +215,13 @@ def init_templates() -> None:
  如果当前没有在执行任务，请选择一个合适的任务
  {{
      "action_type":"change_task",
-     "new_task_id":"任务id",
+     "new_task_id":"任务id，数字",
  }}
  
  4. 如果某个任务是无法完成，不合理的，请删除该任务
  {{
      "action_type":"delete_task",
-     "task_id":"任务id",
+     "task_id":"任务id，数字",
      "reason":"删除任务的原因",
  }}
  
@@ -215,6 +231,8 @@ def init_templates() -> None:
      "reason":"退出任务修改模式的原因",
  }}
  
+**请在task_id填写数字，不要填写其他内容**
+ 
 
  
  之前的思考和执行的记录：
@@ -223,6 +241,8 @@ def init_templates() -> None:
 **注意事项**
 1.先总结之前的思考和执行的记录，对执行结果进行分析，是否达成目的，是否需要调整任务或动作
 2.然后根据现有的**动作**，**任务**,**情景**，**物品栏**和**周围环境**，进行下一步规划，推进任务进度。
+3.如果已经进行了任务更新，请不要重复更新
+4.请在合适的时候退出任务修改模式，例如当任务无需修改的时候
 规划内容是一段平文本，不要分点
 规划后请使用动作，你**必须**从上述动作列表中选择一个动作，动作用json格式输出:
 """,

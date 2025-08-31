@@ -455,114 +455,66 @@ def translate_collect_smelted_items_tool_result(result: Any) -> str:
         return str(result)
 
 def translate_view_furnace_result(result: Any) -> str:
-    """
-    翻译view_furnace工具的执行结果，使其更可读
-    
-    Args:
-        result: view_furnace工具的执行结果，来自parse_tool_result的result_content
-        
-    Returns:
-        翻译后的可读文本
-    """
+    """翻译view_furnace工具的执行结果"""
     try:
-        # result应该是来自parse_tool_result的result_content字符串
         if not isinstance(result, str):
             return str(result)
         
-        # 解析JSON字符串
         try:
             result_data = json.loads(result)
         except json.JSONDecodeError:
             return str(result)
         
-        # 检查是否是view_furnace工具的结果
         if not isinstance(result_data, dict):
             return str(result)
         
-        # 提取关键信息
         ok = result_data.get("ok", False)
-        data = result_data.get("data", {})
-        
         if not ok:
-            return "查看熔炉失败，可能是熔炉不存在或无法访问"
+            return "查看熔炉失败"
         
-        # 提取熔炉信息
+        data = result_data.get("data", {})
         block = data.get("block", {})
         container_info = data.get("containerInfo", {})
         
         # 获取熔炉位置
         position = block.get("position", {})
-        x = position.get("x", 0)
-        y = position.get("y", 0)
-        z = position.get("z", 0)
+        x, y, z = position.get("x", 0), position.get("y", 0), position.get("z", 0)
         
-        # 获取熔炉类型和朝向
-        block_name = block.get("displayName", "熔炉")
+        # 获取熔炉状态
         properties = block.get("_properties", {})
-        facing = properties.get("facing", "未知")
         lit = properties.get("lit", False)
-        
-        # 获取容器统计信息
-        stats = container_info.get("stats", {})
-        total_slots = stats.get("totalSlots", 0)
-        occupied_slots = stats.get("occupiedSlots", 0)
-        empty_slots = stats.get("emptySlots", 0)
-        occupancy_rate = stats.get("occupancyRate", "0%")
         
         # 获取熔炉专用信息
         furnace_info = container_info.get("furnaceInfo", {})
-        input_item = furnace_info.get("inputItem")
-        fuel_item = furnace_info.get("fuelItem")
-        output_item = furnace_info.get("outputItem")
         fuel = furnace_info.get("fuel", 0)
         progress = furnace_info.get("progress", 0)
         
-        # 获取物品列表
+        # 获取物品列表并映射槽位
         slots = container_info.get("slots", [])
-        items = []
+        slot_names = {0: "input", 1: "fuel", 2: "output"}
         
-        for slot in slots:
-            if slot.get("name") != "air" and slot.get("count", 0) > 0:
-                item_name = slot.get("displayName", slot.get("name", "未知物品"))
-                count = slot.get("count", 1)
-                slot_num = slot.get("slot", 0)
-                
-                if count == 1:
-                    items.append(f"槽位{slot_num}: 1个{item_name}")
-                else:
-                    items.append(f"槽位{slot_num}: {count}个{item_name}")
-        
-        # 构建可读文本
-        readable_text = f"✅ 成功查看熔炉\n"
-        readable_text += f"位置: ({x}, {y}, {z})\n"
-        readable_text += f"类型: {block_name} (朝向: {facing})\n"
-        readable_text += f"状态: {'正在燃烧' if lit else '未燃烧'}\n"
-        readable_text += f"容量: {total_slots}格，已占用: {occupied_slots}格，空闲: {empty_slots}格 ({occupancy_rate})\n"
-        
-        # 添加熔炉专用信息
-        if input_item:
-            readable_text += f"输入物品: {input_item.get('displayName', input_item.get('name', '未知物品'))}\n"
-        if fuel_item:
-            readable_text += f"燃料: {fuel_item.get('displayName', fuel_item.get('name', '未知物品'))}\n"
-        if output_item:
-            readable_text += f"输出物品: {output_item.get('displayName', output_item.get('name', '未知物品'))}\n"
+        readable_text = f"✅ 熔炉 ({x}, {y}, {z})\n"
+        readable_text += f"状态: {'🔥 燃烧中' if lit else '❄️ 未燃烧'}\n"
         
         if fuel > 0:
-            readable_text += f"燃料剩余: {fuel}%\n"
+            readable_text += f"燃料: {fuel}%\n"
         if progress > 0:
-            readable_text += f"熔炼进度: {progress}%\n"
+            readable_text += f"进度: {progress}%\n"
         
-        if items:
-            readable_text += f"物品列表:\n"
-            for item in items:
-                readable_text += f"  {item}\n"
+        if slots:
+            for slot in slots:
+                if slot.get("name") != "air" and slot.get("count", 0) > 0:
+                    slot_num = slot.get("slot", 0)
+                    slot_name = slot_names.get(slot_num, f"槽位{slot_num}")
+                    item_name = slot.get("displayName", slot.get("name", "未知"))
+                    count = slot.get("count", 1)
+                    readable_text += f"{slot_name}: {count}个{item_name}\n"
         else:
             readable_text += "熔炉为空"
         
         return readable_text
         
     except Exception:
-        # 如果解析失败，返回原始结果
         return str(result)
 
 def translate_use_chest_tool_result(result: Any) -> str:
@@ -677,4 +629,47 @@ def translate_use_chest_tool_result(result: Any) -> str:
         
     except Exception:
         # 如果解析失败，返回原始结果
+        return str(result)
+
+def translate_use_furnace_tool_result(result: Any) -> str:
+    """翻译use_furnace工具的执行结果"""
+    try:
+        if isinstance(result, str):
+            try:
+                result_data = json.loads(result)
+            except json.JSONDecodeError:
+                return str(result)
+        else:
+            result_data = result
+        
+        if not isinstance(result_data, dict):
+            return str(result)
+        
+        ok = result_data.get("ok", False)
+        if not ok:
+            return "熔炉操作失败"
+        
+        data = result_data.get("data", {})
+        operation_results = data.get("operationResults", [])
+        container_contents = data.get("containerContents", [])
+        
+        # 槽位映射
+        slot_names = {0: "input", 1: "fuel", 2: "output"}
+        
+        readable_text = "✅ 熔炉操作成功\n"
+        
+        if operation_results:
+            readable_text += f"{operation_results[0]}\n"
+        
+        if container_contents:
+            for item in container_contents:
+                slot = item.get("slot", 0)
+                slot_name = slot_names.get(slot, f"槽位{slot}")
+                item_name = item.get("name", "未知")
+                count = item.get("count", 1)
+                readable_text += f"{slot_name}: {count}个{item_name}\n"
+        
+        return readable_text
+        
+    except Exception:
         return str(result)

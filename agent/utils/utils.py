@@ -192,7 +192,7 @@ def format_executed_goals(goal_list: list[tuple[str, str, str]]) -> str:
     
     return "\n".join(lines)
 
-def parse_thinking(thinking: str) -> tuple[str, str, dict, str]:
+def parse_thinking(thinking: str) -> tuple[bool, str, dict, str]:
     """
     解析思考结果
     1. 先解析thinking中有没有json，如果有，就获取第一个json的完整内容
@@ -218,12 +218,30 @@ def parse_thinking(thinking: str) -> tuple[str, str, dict, str]:
     json_obj = None
     json_str, json_start, json_end = find_first_json(thinking)
     json_before = ""
+    success = False
+    
     if json_str:
         json_before = thinking[:json_start].strip()
         try:
             json_obj = parse_json(json_str)
-        except Exception:
-            logger.error(f"[MaiAgent] 解析思考结果时异常: {json_str}")
+            success = True
+        except Exception as e:
+            logger.error(f"[MaiAgent] 解析思考结果时异常: {json_str}, 错误: {e}")
+            # 尝试修复不完整的JSON
+            try:
+                # 如果JSON不完整，尝试添加缺失的大括号
+                if not json_str.strip().endswith('}'):
+                    # 计算缺失的大括号数量
+                    open_braces = json_str.count('{')
+                    close_braces = json_str.count('}')
+                    missing_braces = open_braces - close_braces
+                    if missing_braces > 0:
+                        fixed_json = json_str + '}' * missing_braces
+                        json_obj = parse_json(fixed_json)
+                        success = True
+                        logger.info(f"[MaiAgent] 修复了不完整的JSON: {fixed_json}")
+            except Exception as fix_e:
+                logger.error(f"[MaiAgent] 修复JSON失败: {fix_e}")
     else:
         json_before = thinking.strip()
 
@@ -233,8 +251,7 @@ def parse_thinking(thinking: str) -> tuple[str, str, dict, str]:
     if "```" in json_before:
         json_before = json_before.replace("```", "")
     
-    
-    return json_obj, json_before
+    return success, thinking, json_obj, json_before
 
 
 

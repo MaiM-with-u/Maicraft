@@ -393,9 +393,6 @@ class MCPToolsBrowser:
                         tool_info = tools_info[tool_id - 1]
                         print(f"\n✅ 找到工具 (编号 {tool_id}):")
                         self.display_tool_details(tool_info)
-                        # 询问是否执行该工具
-                        if self._ask_execute_tool():
-                            await self._execute_single_tool(tool_info)
                         
                         # 询问是否继续查看其他工具
                         if not self._ask_continue_viewing():

@@ -66,9 +66,9 @@ class ToDoList:
         if match:
             new_id = match.group(0)
             
-        for item in self.items:
-            if item.id == new_id:
-                return item
+            for item in self.items:
+                if item.id == new_id:
+                    return item
             
         return None
 
