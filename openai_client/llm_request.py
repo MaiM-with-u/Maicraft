@@ -265,7 +265,9 @@ class LLMClient:
                     "completion_tokens": response.usage.completion_tokens,
                     "total_tokens": response.usage.total_tokens
                 },
-                "finish_reason": response.choices[0].finish_reason
+                "finish_reason": response.choices[0].finish_reason,
+                # 添加推理链内容解析
+                "reasoning_content": getattr(response.choices[0].message, 'reasoning_content', None)
             }
             return result
         except Exception as e:

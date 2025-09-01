@@ -81,7 +81,9 @@ class VLMSpeedTester:
                 # 添加模型回复内容记录
                 "model_response": response.get("content", "") if response.get("success") else None,
                 "model_name_used": response.get("model", config["model_name"]) if response.get("success") else None,
-                "finish_reason": response.get("finish_reason", None) if response.get("success") else None
+                "finish_reason": response.get("finish_reason", None) if response.get("success") else None,
+                # 添加推理链记录
+                "reasoning_content": response.get("reasoning_content", None) if response.get("success") else None
             }
             
             return result
@@ -101,7 +103,9 @@ class VLMSpeedTester:
                 # 添加模型回复内容记录（失败时为None）
                 "model_response": None,
                 "model_name_used": None,
-                "finish_reason": None
+                "finish_reason": None,
+                # 添加推理链记录（失败时为None）
+                "reasoning_content": None
             }
     
     async def test_vlm_multiple_runs(
@@ -291,6 +295,18 @@ class VLMSpeedTester:
                 print(f"  {vlm_name}:")
                 print(f"    平均回复长度: {avg_length:.0f} 字符")
                 print(f"    回复完成原因: {finish_reasons}")
+                
+                # 添加推理链统计
+                reasoning_results = [r for r in successful_results if r.get("reasoning_content")]
+                if reasoning_results:
+                    print(f"    推理链可用: 是 ({len(reasoning_results)}/{len(successful_results)})")
+                    # 计算平均推理链长度
+                    reasoning_lengths = [len(r.get("reasoning_content", "")) for r in reasoning_results if r.get("reasoning_content")]
+                    if reasoning_lengths:
+                        avg_reasoning_length = statistics.mean(reasoning_lengths)
+                        print(f"    平均推理链长度: {avg_reasoning_length:.0f} 字符")
+                else:
+                    print(f"    推理链可用: 否")
         
         print(f"\n📁 详细结果已保存到: {self.log_file}")
         
@@ -309,12 +325,21 @@ class VLMSpeedTester:
                 for i, result in enumerate(successful_results, 1):
                     prompt = result.get("prompt", "")
                     response = result.get("model_response", "")
+                    reasoning = result.get("reasoning_content", "")
                     response_time = result.get("response_time", 0)
                     
                     print(f"\n第 {i} 次测试:")
                     print(f"提示词: {prompt}")
                     print(f"响应时间: {response_time:.2f}秒")
-                    print(f"回答内容:")
+                    
+                    # 显示推理链（如果有的话）
+                    if reasoning:
+                        print(f"推理链:")
+                        print(f"{reasoning}")
+                        print(f"最终回答:")
+                    else:
+                        print(f"回答内容:")
+                    
                     print(f"{response}")
                     print("-" * 40)
 
