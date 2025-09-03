@@ -785,6 +785,13 @@ class MaiAgent:
         """以后台线程启动方块缓存预览窗口。"""
         if self._viewer_started:
             return
+
+        # 检查是否被禁用（当3D渲染器启用时）
+        import os
+        if os.environ.get('DISABLE_2D_VIEWER') == '1':
+            self.logger.info(" 2D预览窗口已被禁用（3D渲染器启用时避免pygame冲突）")
+            return
+
         try:
             self.block_cache_viewer = BlockCacheViewer(update_interval_seconds=0.6)
             # 在单独线程中运行pygame，防止阻塞主线程
