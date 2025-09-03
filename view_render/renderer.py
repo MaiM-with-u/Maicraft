@@ -12,7 +12,7 @@ from io import BytesIO
 import base64
 import colorsys
 
-from agent.block_cache.block_cache import BlockCache, CachedBlock, global_block_cache
+from agent.block_cache.block_cache import BlockCache, Block, global_block_cache
 
 
 @dataclass
@@ -20,7 +20,7 @@ class RenderConfig:
     image_width: int = 1024
     image_height: int = 768
     background_color: Tuple[int, int, int, int] = (180, 210, 255, 255)  # 淡蓝色背景
-    block_size: int = 16  # 单位立方体基准尺寸（像素）
+    block_size: int = 36  # 单位立方体基准尺寸（像素）
     draw_grid: bool = False
     face_colors: Dict[str, Tuple[int, int, int, int]] = None  # top, left, right
     vertical_scale: float = 1.0  # 垂直高度像素（每上升1格的像素高度 = block_size * vertical_scale）
@@ -131,7 +131,7 @@ class BlockCacheRenderer:
     # === 内部方法 ===
     def _collect_blocks(self,
                         center: Optional[Tuple[float, float, float]],
-                        radius: Optional[float]) -> List[CachedBlock]:
+                        radius: Optional[float]) -> List[Block]:
         if center is not None and radius is not None:
             cx, cy, cz = center
             blocks = self.cache.get_blocks_in_range(cx, cy, cz, radius)
@@ -140,7 +140,7 @@ class BlockCacheRenderer:
             blocks = list(self.cache._position_cache.values())  # 受控访问，仅用于渲染预览
 
         # 过滤掉空气与排除类型
-        filtered: List[CachedBlock] = []
+        filtered: List[Block] = []
         for b in blocks:
             bt = b.block_type
             if bt in self.config.exclude_types:
@@ -151,7 +151,7 @@ class BlockCacheRenderer:
             filtered.append(b)
         return filtered
 
-    def _render_blocks(self, blocks: Iterable[CachedBlock], auto_center: bool) -> Image.Image:
+    def _render_blocks(self, blocks: Iterable[Block], auto_center: bool) -> Image.Image:
         cfg = self.config
         img = Image.new("RGBA", (cfg.image_width, cfg.image_height), cfg.background_color)
         draw = ImageDraw.Draw(img, "RGBA")
@@ -163,7 +163,7 @@ class BlockCacheRenderer:
         for _b in blocks:
             occupied.add((int(_b.position.x), int(_b.position.y), int(_b.position.z)))
 
-        visible_blocks: List[CachedBlock] = []
+        visible_blocks: List[Block] = []
         for _b in blocks:
             _x, _y, _z = int(_b.position.x), int(_b.position.y), int(_b.position.z)
             if (
@@ -175,7 +175,7 @@ class BlockCacheRenderer:
             visible_blocks.append(_b)
 
         # 将世界坐标直接投影到等距坐标（不在世界坐标中做平移），避免小数平移引起的 round 抖动
-        projected_raw: List[Tuple[int, int, float, CachedBlock]] = []
+        projected_raw: List[Tuple[int, int, float, Block]] = []
         min_px = 10**9
         max_px = -10**9
         min_py = 10**9

@@ -1,5 +1,4 @@
 from agent.environment.basic_info import BlockPosition
-import math
 
 class Basement:
     """游戏基地坐标"""

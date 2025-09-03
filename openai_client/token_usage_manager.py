@@ -1,4 +1,3 @@
-import os
 import json
 import time
 from typing import Dict, Any, Optional
@@ -107,7 +106,7 @@ class TokenUsageManager:
             "price_out": price_out,
             "cost_in": cost_in,
             "cost_out": cost_out,
-            "message": f"费用计算成功"
+            "message": "费用计算成功"
         }
     
     def _get_logger(self):

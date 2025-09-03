@@ -1,15 +1,17 @@
 import json
 import os
-from typing import Any
+from typing import Any, List
 from collections import Counter
 from utils.logger import get_logger
-from ..name_map import ITEM_NAME_MAP
+from .name_map import ITEM_NAME_MAP
+from agent.environment.inventory_utils import Item
 from .recipe_class import RawRecipe
+from mcp_server.client import global_mcp_client
 
 
 class RecipeFinder:
-    def __init__(self, mcp_client=None):
-        self.mcp_client = mcp_client
+    def __init__(self):
+        self.mcp_client = global_mcp_client
         self.logger = get_logger("RecipeFinder")
         
         # 物品别名映射表，将常用别名映射成标准名称
@@ -151,7 +153,7 @@ class RecipeFinder:
         return payload
     
     
-    async def _get_missing_materials_info(self, target_item: str, quantity: int, has_table_nearby: bool, inventory: list) -> str:
+    async def _get_missing_materials_info(self, target_item: str, quantity: int, has_table_nearby: bool, inventory: List[Item]) -> str:
         """
         获取合成失败时的具体材料缺失信息，分析所有可能的合成配方
         """
@@ -159,10 +161,8 @@ class RecipeFinder:
             # 构建库存计数器
             bag = Counter()
             for it in inventory or []:
-                if isinstance(it, dict):
-                    name = self._normalize_item_name(it.get("name", ""))
-                    if name:
-                        bag[name] += int(it.get("count", 0))
+                name = self._normalize_item_name(it.name)
+                bag[name] += int(it.count)
 
             # 获取所有可能的配方（包括工作台和手工配方）
             all_recipes = []
@@ -308,7 +308,7 @@ class RecipeFinder:
                 report_lines.append(f"\n配方{i}：")
                 if recipe.get("status") == "材料充足":
                     # report_lines.append(f"  ✓ 材料充足，每批次产出：{recipe['per_batch']}，需要批次：{recipe['batches']}")
-                    report_lines.append(f"  ✓ 材料充足")
+                    report_lines.append("  ✓ 材料充足")
                 else:
                     report_lines.append(f"  ✗ 缺少材料：{', '.join(recipe['missing'])}")
                     # report_lines.append(f"    每批次产出：{recipe['per_batch']}，需要批次：{recipe['batches']}")
@@ -319,7 +319,7 @@ class RecipeFinder:
             return f"分析材料需求时出错：{e}"
     
     
-    async def _plan_crafting_steps(self, target_item: str, quantity: int, has_table_nearby: bool, inventory: list) -> list[tuple[str, int, bool, dict]]:
+    async def _plan_crafting_steps(self, target_item: str, quantity: int, has_table_nearby: bool, inventory: List[Item]) -> list[tuple[str, int, bool, dict]]:
         """
         基于当前库存生成递归合成计划（简单可靠版本）。
         返回步骤列表 [(item, count, use_crafting_table)]。
@@ -406,10 +406,8 @@ class RecipeFinder:
                 # 每次检查都从头开始计算库存，防止前面的步骤影响
                 current_bag = Counter()
                 for it in inventory or []:
-                    if isinstance(it, dict):
-                        name = self._normalize_item_name(it.get("name", ""))
-                        if name:
-                            current_bag[name] += int(it.get("count", 0))
+                    name = self._normalize_item_name(it.name)
+                    current_bag[name] += int(it.count)
 
                 # 优先物品：如果该物品属于转化对，且本身是优先项，则直接视为叶子物品（不递归）
                 if self._is_priority_item(item):
@@ -464,10 +462,8 @@ class RecipeFinder:
                 # 每次检查都从头开始计算库存，防止前面的步骤影响
                 current_bag = Counter()
                 for it in inventory or []:
-                    if isinstance(it, dict):
-                        name = self._normalize_item_name(it.get("name", ""))
-                        if name:
-                            current_bag[name] += int(it.get("count", 0))
+                    name = self._normalize_item_name(it.name)
+                    current_bag[name] += int(it.count)
                 
                 self.logger.info(f"[DEBUG] 检查材料 {ing_name}: 需要 {ing_count}, 库存 {current_bag.get(ing_name, 0)}")
 
@@ -517,27 +513,38 @@ class RecipeFinder:
                         continue
                     
                     self.logger.info(f"[DEBUG] 尝试替代配方: {ings}")
-                    
-                    # 检查替代配方的材料
+
+                    # 计算该替代配方的单次产量与批次数
+                    try:
+                        alt_per_batch_out = int(getattr(getattr(rr, "result", None), "count", 1)) if rr else 1
+                        if alt_per_batch_out <= 0:
+                            alt_per_batch_out = 1
+                    except Exception:
+                        alt_per_batch_out = 1
+                    import math
+                    alt_batches_needed = int(math.ceil(need / alt_per_batch_out))
+                    self.logger.info(f"[DEBUG] 替代配方单次产量={alt_per_batch_out}，需要批次={alt_batches_needed}")
+
+                    # 检查替代配方的材料（按批次需求折算）
                     alt_can_craft = True
                     for ing in ings:
                         if isinstance(ing, dict):
                             ing_name = self._normalize_item_name(ing.get("name", "未知材料"))
-                            ing_count = int(ing.get("count", 1)) * need
+                            per_ing = int(ing.get("count", 1))
                         else:
                             ing_name = self._normalize_item_name(ing)
-                            ing_count = 1 * need
-                        
+                            per_ing = 1
+
+                        ing_count = per_ing * alt_batches_needed
+
                         # 每次检查都从头开始计算库存，防止前面的步骤影响
                         current_bag = Counter()
                         for it in inventory or []:
-                            if isinstance(it, dict):
-                                name = self._normalize_item_name(it.get("name", ""))
-                                if name:
-                                    current_bag[name] += int(it.get("count", 0))
-                        
+                            name = self._normalize_item_name(it.name)
+                            current_bag[name] += int(it.count)
+
                         self.logger.info(f"[DEBUG] 替代配方材料 {ing_name}: 需要 {ing_count}, 库存 {current_bag.get(ing_name, 0)}")
-                        
+
                         if current_bag.get(ing_name, 0) < ing_count:
                             # 尝试递归合成
                             missing_qty = ing_count - current_bag.get(ing_name, 0)
@@ -578,7 +585,7 @@ class RecipeFinder:
         # 规划失败返回空列表，避免上层对 None 取 len 报错
         return []
 
-    async def craft_item_smart(self, item: str, count: int, inventory: list, block_position: Any) -> tuple[bool, str]:
+    async def craft_item_smart(self, item: str, count: int, inventory: List[Item], block_position: Any) -> tuple[bool, str]:
         """
         智能合成：根据周围是否有工作台与材料情况，决定合成与返回总结。
         返回 (是否成功, 总结字符串)

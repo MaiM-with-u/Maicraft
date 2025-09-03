@@ -6,7 +6,7 @@
 import asyncio
 import time
 import traceback
-from typing import Callable, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from datetime import datetime
 from utils.logger import get_logger
 from agent.environment.environment import global_environment
@@ -15,13 +15,13 @@ from agent.block_cache.block_cache import global_block_cache
 from agent.environment.basic_info import Event, Player
 from agent.thinking_log import global_thinking_log
 from agent.mai_mode import mai_mode
+from mcp_server.client import global_mcp_client
 
 
 class EnvironmentUpdater:
     """环境信息定期更新器"""
     
     def __init__(self, 
-                mcp_client,
                 update_interval: int = 0.2,
                 ):
         """
@@ -32,7 +32,7 @@ class EnvironmentUpdater:
             update_interval: 更新间隔（秒），默认3秒
             auto_start: 是否自动开始更新，默认False
         """
-        self.mcp_client = mcp_client
+        self.mcp_client = global_mcp_client
         self.update_interval = update_interval
         self.logger = get_logger("EnvironmentUpdater")
         
@@ -252,7 +252,7 @@ class EnvironmentUpdater:
                         self.logger.info(f"[EnvironmentUpdater] 处理聊天事件: {event.chat_text}")
                         if event.player_name != "Mai":
                             if "麦麦" in event.chat_text or "Mai" in event.chat_text or "mai" in event.chat_text:
-                                mai_mode.mode = "chat"
+                                mai_mode.need_chat = True
                                 global_thinking_log.add_thinking_log(f"玩家 {event.player_name} 提到了你，使用chat进行回复",type = "notice")
                         global_thinking_log.add_thinking_log(f"玩家 {event.player_name} 发送了消息：{event.chat_text}",type = "notice")
                         
@@ -406,7 +406,7 @@ class EnvironmentUpdater:
     async def _call_tool(self, tool_name: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """调用工具"""
         try:
-            result = await self.mcp_client.call_tool_directly(tool_name, params)
+            result = await global_mcp_client.call_tool_directly(tool_name, params)
             if not result.is_error and result.content:
                 content_text = result.content[0].text
                 return json.loads(content_text)

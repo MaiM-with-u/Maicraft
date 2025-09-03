@@ -15,10 +15,13 @@ def init_templates_task() -> None:
 {to_do_list}
 
 **任务执行记录**：
-{task_done_list}
+{task_list}
 
 **环境信息**
 {environment}
+
+**物品信息**
+{inventory_str}
 
 **位置信息**
 {position}
@@ -33,7 +36,7 @@ def init_templates_task() -> None:
 {chat_str}
 
 **备忘录**：
-{memo_list}
+{location_list}
 
 **当前模式：{mode}**
 **动作列表：任务规划动作**
@@ -89,7 +92,7 @@ def init_templates_task() -> None:
 规划后请使用动作，你**必须**从上述动作列表中选择一个动作，动作用json格式输出:
 """,
         description="任务-任务动作",
-        parameters=["event_str","goal", "to_do_list", "task_done_list", "task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
+        parameters=["event_str","goal", "to_do_list", "task_list", "task", "environment", "thinking_list", "nearby_block_info", "position", "location_list", "chat_str", "inventory_str"],
     ))
     
 

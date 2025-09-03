@@ -5,10 +5,8 @@ Prompt Manager - 智能提示词模板管理器
 """
 
 import re
-import json
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
-from pathlib import Path
 import logging
 
 
@@ -27,7 +25,7 @@ class PromptTemplate:
     
     def _extract_parameters(self) -> List[str]:
         """从模板中提取参数名"""
-        param_pattern = r'\{([^}:]+)(?::[^}]+)?\}'
+        param_pattern = r'\{([a-zA-Z_][a-zA-Z0-9_]*)(?::[^}]+)?\}'
         params = re.findall(param_pattern, self.template)
         return list(set(params))
     

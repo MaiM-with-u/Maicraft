@@ -8,7 +8,6 @@ MCP工具浏览器脚本
 import asyncio
 import json
 import sys
-import os
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
@@ -204,7 +203,7 @@ class MCPToolsBrowser:
         optional_fields = tool_info["optional_fields"]
         
         if properties:
-            print(f"\n参数信息:")
+            print("\n参数信息:")
             print(f"必需参数 ({len(required_fields)} 个):")
             for field in required_fields:
                 if field in properties:
@@ -221,7 +220,7 @@ class MCPToolsBrowser:
         # 显示示例
         examples = tool_info["examples"]
         if examples:
-            print(f"\n参数示例:")
+            print("\n参数示例:")
             for i, example in enumerate(examples, 1):
                 print(f"\n{i}. {example['type']}:")
                 params_json = json.dumps(example['params'], ensure_ascii=False, indent=2)
@@ -650,7 +649,7 @@ class MCPToolsBrowser:
         required_fields = tool_info["required_fields"]
         
         if properties:
-            print(f"\n参数信息:")
+            print("\n参数信息:")
             print(f"必需参数 ({len(required_fields)} 个):")
             for field in required_fields:
                 if field in properties:
@@ -677,7 +676,7 @@ class MCPToolsBrowser:
                 params_json = json.dumps(example['params'], ensure_ascii=False, indent=2)
                 print(f"   {params_json}")
         
-        print(f"\n请输入参数 (JSON格式):")
+        print("\n请输入参数 (JSON格式):")
         print("提示: 输入 'example' 使用第一个示例参数，输入 'min' 使用最小参数")
         
         while True:
@@ -734,6 +733,13 @@ class MCPToolsBrowser:
             
             # 使用工具适配器执行工具
             result = await global_mcp_client.call_tool_directly(tool_info['name'], parsed_params)
+            
+            print(f"执行结果: {result}")
+            print(type(result))
+            print(result.is_error)
+            print(result.content)
+            print(result.structured_content)
+            print(result.data)
             
             # 展示执行结果
             await self._display_tool_result(tool_info['name'], result)

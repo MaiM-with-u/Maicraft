@@ -1,5 +1,4 @@
 import asyncio
-import time
 import math
 from typing import List, Any, Optional
 from langchain_core.tools import BaseTool
@@ -13,33 +12,41 @@ from agent.prompt_manager.prompt_manager import prompt_manager
 from agent.block_cache.block_cache import global_block_cache
 from agent.prompt_manager.template import init_templates
 from agent.utils.utils import (
-    parse_json, convert_mcp_tools_to_openai_format, parse_tool_result, filter_action_tools,
-    parse_thinking,
-)
+    convert_mcp_tools_to_openai_format, parse_tool_result, filter_action_tools,
+    parse_thinking, parse_json,extract_code_from_markdown
+)   
 from agent.to_do_list import ToDoList
-from agent.action.craft_action.craft_action import recipe_finder
+from agent.smart_craft.craft_action import recipe_finder
 import traceback
 from agent.block_cache.nearby_block import NearbyBlockManager
 from view_render.block_cache_viewer import BlockCacheViewer
-from agent.action.place_action import PlaceAction
-from agent.action.move_action import MoveAction
+from agent.fixed_actions.place_action import place_action
+from agent.fixed_actions.move_action import move_action
+from agent.fixed_actions.use_chest_action import use_chest as fixed_use_chest
+from agent.fixed_actions.use_furnace_action import use_furnace as fixed_use_furnace
 from agent.utils.utils_tool_translation import (
     translate_move_tool_result, 
-    translate_mine_nearby_tool_result, 
     translate_mine_block_tool_result, 
     translate_place_block_tool_result, 
     translate_chat_tool_result,
-    translate_start_smelting_tool_result,
-    translate_collect_smelted_items_tool_result,
-    translate_use_chest_tool_result
+    translate_use_chest_tool_result,
+    translate_eat_tool_result
 )
-from agent.action.view_container import ViewContainer
+from agent.fixed_actions.view_container_action import view_container as fixed_view_container
 from mcp_server.client import global_mcp_client
+from agent.code_runner import code_runner
 from agent.thinking_log import global_thinking_log
 from agent.mai_mode import mai_mode
 from agent.environment.basement import global_basement
 from agent.environment.locations import global_location_points
 from agent.environment.basic_info import BlockPosition
+import os
+import datetime
+import ast
+import re
+import json
+from agent.action_learner import action_learner
+from agent.actions_manager import ActionsManager
 
 COLOR_MAP = {
     "main_mode": "\033[32m",        # 绿色
@@ -60,7 +67,6 @@ class ThinkingJsonResult:
         self.new_task = ""
         self.new_task_id = ""
         self.progress = ""
-        self.rewrite = ""
         self.task_id = ""
         
         
@@ -80,53 +86,40 @@ class MaiAgent:
 
         # 初始化LLM客户端
         self.llm_client: Optional[LLMClient] = None
-        self.llm_client_fast: Optional[LLMClient] = None
         
-        self.vlm: Optional[LLMClient] = None
-        
-
         # 初始化LLM和工具适配器
         # 延迟初始化
         self.tools: Optional[List[BaseTool]] = None
 
         # 环境更新器
         self.environment_updater: Optional[EnvironmentUpdater] = None
-        
-        # 延迟初始化NearbyBlockManager，确保在EnvironmentUpdater启动后再创建
         self.nearby_block_manager: Optional[NearbyBlockManager] = None
 
-        self.place_action: Optional[PlaceAction] = None
-        self.move_action: Optional[MoveAction] = None
-        self.view_container: Optional[ViewContainer] = None
+        # 视图容器查看改为固定动作函数
         # 初始化状态
         self.initialized = False
         
-        
-        
-        self.goal_list: list[tuple[str, str, str]] = []  # (goal, status, details)
-
         self.goal = global_config.game.goal
-
-        self.memo_list: list[str] = []
         
         self.on_going_task_id = ""
         
-        
         self.to_do_list: ToDoList = ToDoList()
-        self.task_done_list: list[tuple[bool, str, str]] = []
+        
+        # 动作管理器
+        self.actions_manager: ActionsManager = ActionsManager()
         
         # 方块缓存预览窗口
         self.block_cache_viewer: Optional[BlockCacheViewer] = None
         self._viewer_started: bool = False
         self.exec_task: Optional[asyncio.Task] = None
-        # 不再需要_viewer_task，因为现在使用线程
+
+
+        self.input_data = {}
         
         
     async def initialize(self):
         """异步初始化"""
         try:
-            self.logger.info(" 开始初始化")
-            
             init_templates()
             
             # 初始化LLM客户端
@@ -137,25 +130,9 @@ class MaiAgent:
                 max_tokens=global_config.llm.max_tokens,
                 temperature=global_config.llm.temperature
             )
-            
-            
             self.llm_client = LLMClient(model_config)
-            
-            model_config = ModelConfig(
-                model_name=global_config.vlm.model,
-                api_key=global_config.vlm.api_key,
-                base_url=global_config.vlm.base_url,
-                max_tokens=global_config.vlm.max_tokens,
-                temperature=global_config.vlm.temperature
-            )
-            
-            self.vlm = LLMClient(model_config)
-            global_environment.set_vlm(self.vlm)
-            
-            
-            self.logger.info(" LLM客户端初始化成功")
-            
-            
+
+
             self.tools = await global_mcp_client.get_tools_metadata()
             self.action_tools = filter_action_tools(self.tools)
             self.logger.info(f" 获取到 {len(self.action_tools)} 个可用工具")
@@ -165,13 +142,10 @@ class MaiAgent:
             
             # 创建并启动环境更新器
             self.environment_updater = EnvironmentUpdater(
-                mcp_client = global_mcp_client,
                 update_interval=0.1,  # 默认5秒更新间隔
             )
             
-            self.place_action = PlaceAction()
-            self.move_action = MoveAction()
-            self.view_container = ViewContainer(global_mcp_client)
+            # 固定动作无需实例化
             # 启动环境更新器
             if self.environment_updater.start():
                 self.logger.info(" 环境更新器启动成功")
@@ -187,16 +161,52 @@ class MaiAgent:
             self.initialized = True
             self.logger.info(" 初始化完成")
 
-            # 启动方块缓存预览窗口（后台，不阻塞事件循环）
-            
-            self.inventory_old:List[Any] = []
-            
+
+            await self.environment_updater.perform_update()
+            environment_info = global_environment.get_summary()
+            nearby_block_info = await self.nearby_block_manager.get_block_details_mix_str(global_environment.block_position,distance=8)
+            self.input_data = {
+                "task": "",
+                "environment": environment_info,
+                "thinking_list": global_thinking_log.get_thinking_log(),
+                "nearby_block_info": nearby_block_info,
+                "position": global_environment.get_position_str(),
+                "location_list": global_location_points.all_location_str(),
+                "chat_str": global_environment.get_chat_str(),
+                "event_str": global_environment.get_event_str(),
+                "to_do_list": self.to_do_list.__str__(),
+                "task_list": self.to_do_list.__str__(),
+                "goal": self.goal,
+                "mode": mai_mode.mode,
+                "inventory_str": global_environment.get_inventory_str(),
+                "self_str": global_environment.get_self_str(),
+                "retrieved_skills": self.actions_manager.get_all_learnt_actions_string(),
+            }
             
 
         except Exception as e:
             self.logger.error(f" 初始化失败: {e}")
             raise
-                
+        
+    async def update_input_data(self):
+        await self.environment_updater.perform_update()
+        environment_info = global_environment.get_summary()
+        nearby_block_info = await self.nearby_block_manager.get_block_details_mix_str(global_environment.block_position,distance=8)
+        self.input_data["environment"] = environment_info
+        self.input_data["thinking_list"] = global_thinking_log.get_thinking_log()
+        self.input_data["nearby_block_info"] = nearby_block_info
+        self.input_data["position"] = global_environment.get_position_str()
+        self.input_data["location_list"] = global_location_points.all_location_str()
+        self.input_data["chat_str"] = global_environment.get_chat_str()
+        self.input_data["event_str"] = global_environment.get_event_str()
+        self.input_data["to_do_list"] = self.to_do_list.__str__()
+        self.input_data["task_list"] = self.to_do_list.__str__()
+        self.input_data["goal"] = self.goal
+        self.input_data["mode"] = mai_mode.mode
+        self.input_data["inventory_str"] = global_environment.get_inventory_str()
+        self.input_data["self_str"] = global_environment.get_self_str()
+        self.input_data["retrieved_skills"] = self.actions_manager.get_all_learnt_actions_string()
+      
     async def run_execute_loop(self):
         """
         运行执行循环
@@ -205,25 +215,6 @@ class MaiAgent:
         mai_mode.mode = "main_mode"
         while True:
             await self.next_thinking()
-    
-    def _format_task_done_list(self) -> str:
-        """将任务执行记录翻译成可读文本，只取最近10条。
-
-        任务记录为 (success: bool, task_id: str, message: str)
-        """
-        if not self.task_done_list:
-            return "暂无任务执行记录"
-
-        lines: list[str] = []
-        # 仅取最近10条
-        for success, task_id, message in self.task_done_list[-10:]:
-            status_text = "成功" if success else "失败"
-            # 规避 None/空值
-            safe_task_id = str(task_id) if task_id is not None else ""
-            safe_message = str(message) if message is not None else ""
-            lines.append(f"任务ID {safe_task_id}：{status_text}（{safe_message}）")
-
-        return "\n".join(lines)
 
 
     async def next_thinking(self) -> TaskResult:
@@ -232,143 +223,172 @@ class MaiAgent:
         返回: (执行结果, 执行状态)
         """
         try:
-            
-            task = self.to_do_list.get_task_by_id(self.on_going_task_id)
-            if task:
-                self.logger.info(f"执行任务:\n {task}")
-                task_str = task.__str__()
-            else:
-                self.logger.debug("没有任务")
-                task_str = "当前没有选择明确的任务"
-            
-            # 获取当前环境信息
-            await self.environment_updater.perform_update()
-            environment_info = global_environment.get_summary()
-            nearby_block_info = await self.nearby_block_manager.get_block_details_mix_str(global_environment.block_position)
 
-            input_data = {
-                "task": task_str,
-                "environment": environment_info,
-                "thinking_list": global_thinking_log.get_thinking_log(),
-                "nearby_block_info": nearby_block_info,
-                "position": global_environment.get_position_str(),
-                "memo_list": "\n".join(self.memo_list) if self.memo_list else "没有备忘录条目",
-                "chat_str": global_environment.get_chat_str(),
-                "event_str": global_environment.get_event_str(),
-                "to_do_list": self.to_do_list.__str__(),
-                "task_done_list": self._format_task_done_list(),
-                "goal": self.goal,
-                "mode": mai_mode.mode
-            }
+            # await self.update_input_data()
             
-            basic_info_prompt = prompt_manager.generate_prompt("basic_info", **input_data)
+            # if mai_mode.need_chat:
+            #     prompt = prompt_manager.generate_prompt("chat_mode", **self.input_data)
+            #     thinking = await self.llm_client.simple_chat(prompt)
+            #     # self.logger.info(f" 原始输出: {thinking}")            
+            #     self.logger.info(f"\033[38;5;208m chat提示词: {prompt}\033[0m")
+            #     result = await self.excute_chat(thinking)
+            #     global_thinking_log.add_thinking_log(f"你使用chat进行了发言：{result.result_str}",type = "notice")
+            #     self.logger.info(f" 你的发言: {result.result_str}")
+            #     mai_mode.need_chat = False
+            #     return TaskResult()
             
             
-            # 根据不同的模式，给予不同的工具
-            if mai_mode.mode == "main_mode":
-                # 主模式，可以选择基础动作，和深入动作
-                mode_prompt = prompt_manager.generate_prompt("main_thinking", **input_data)
-                prompt = basic_info_prompt + mode_prompt
-                self.logger.info(f" 执行任务提示词: {prompt}")
-            elif mai_mode.mode == "task_edit":
-                prompt = prompt_manager.generate_prompt("minecraft_excute_task_action", **input_data)
-                # self.logger.info(f"\033[38;5;153m 执行任务提示词: {prompt}\033[0m")
-            elif mai_mode.mode == "move_mode":
-                prompt = prompt_manager.generate_prompt("move_mode", **input_data)
-                # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
-            elif mai_mode.mode == "use_block":
-                prompt = prompt_manager.generate_prompt("use_block_mode", **input_data)
-                # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
-            elif mai_mode.mode == "use_item":
-                prompt = prompt_manager.generate_prompt("use_item_mode", **input_data)
-                # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
-            elif mai_mode.mode == "mining_mode":
-                prompt = prompt_manager.generate_prompt("minecraft_mining_nearby", **input_data)
-                # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
-            elif mai_mode.mode == "memo":
-                prompt = prompt_manager.generate_prompt("memo_mode", **input_data)
-                # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
-            elif mai_mode.mode == "chat":
-                prompt = prompt_manager.generate_prompt("chat_mode", **input_data)
-                # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
-            else:
-                self.logger.warning(f" 不支持的模式: {mai_mode.mode}")
-                return
+            await self.update_input_data()
+            plan_prompt = prompt_manager.generate_prompt("plan_task", **self.input_data)
+            plan_thinking = await self.llm_client.simple_chat(plan_prompt)
+            
+            self.logger.info(f" 规划提示词: {plan_prompt}")
+            self.logger.info(f" 规划结果: {plan_thinking}")
+            
+            success_plan, plan_thinking, plan_json, plan_before = parse_thinking(plan_thinking)
+            
+            # self.logger.info(f" 规划结果: {plan_json}")
+            task = self.to_do_list.add_task(plan_json.get("target"), plan_json.get("reson"), plan_json.get("evaluation"))
             
             
-            thinking = await self.llm_client.simple_chat(prompt)
-            # self.logger.info(f" 原始输出: {thinking}")
             
-            success, thinking, json_obj, thinking_log = parse_thinking(thinking)
+            self.input_data["task"] = task.__str__()       
+            self.input_data["adjust_reason"] = ""
+            self.input_data["retrieved_skills"] = self.actions_manager.get_all_learnt_actions_string()
+            self.input_data["code_last_run"] = ""
+            self.input_data["output_last_run"] = ""
+            self.input_data["error_last_run"] = ""
             
-            #出现意外的调试
-            if not success or not json_obj:
-                self.logger.warning(f" 思考结果中没有json对象: {thinking}")
-                return TaskResult()
-            
-            action_type = json_obj.get("action_type")
-            if not action_type:
-                self.logger.warning(f" 思考结果中没有action_type: {thinking}")
-                return TaskResult()
+            await self.update_input_data()
+            game_info_before = prompt_manager.generate_prompt("game_info", **self.input_data)
+            self.input_data["game_info_before"] = game_info_before
             
             
-            color_prefix = COLOR_MAP.get(mai_mode.mode, "\033[0m")
-            
-            if thinking_log:
-                global_thinking_log.add_thinking_log(thinking_log,type = "thinking")
+            task_finished = False
+            max_try = 5
+            try_count = 0
+            while not task_finished:
+                code, success, output, error, traceback = await self.excute_code_generate(self.input_data)
+                if success:
+                    self.input_data["code_last_run"] = code
+                    self.input_data["output_last_run"] = output
+                    self.input_data["error_last_run"] = "代码执行成功"
+                else:
+                    self.input_data["code_last_run"] = code
+                    self.input_data["output_last_run"] = output
+                    self.input_data["error_last_run"] = error + "\n" + traceback
+                    continue
+                    # 重新生成
+
+                await self.update_input_data()
+                game_info_after = prompt_manager.generate_prompt("game_info", **self.input_data)
+                self.input_data["game_info_after"] = game_info_after                
                 
-            self.logger.info(f"{color_prefix} 想法{mai_mode.mode}: {thinking_log}\033[0m")
+                await self.update_input_data()
+                reviewer_prompt = prompt_manager.generate_prompt("reviewer", **self.input_data)
+                reviewer_thinking = await self.llm_client.simple_chat(reviewer_prompt)
+                # self.logger.info(f" 审查提示词: {reviewer_prompt}")
+                self.logger.info(f" 审查结果: {reviewer_thinking}")
+                revier_json = parse_json(reviewer_thinking)
+                success_task = revier_json.get("success")
+                if success_task:
+                    # 任务成功，保存学到的动作代码
+                    try:
+                        await action_learner.save_learnt_action_code(code)
+                    except Exception:
+                        self.logger.error(f" 保存学到的动作代码失败: {traceback.format_exc()}")
+                    task_finished = True
+                    task.done = True
+                else:
+                    self.input_data["adjust_reason"] = revier_json.get("reason")
+                    
+                try_count +=1
+                if try_count > max_try:
+                    self.logger.error(f" 任务执行失败，重试次数超过{max_try}次")
+                    task.done = False
+                    break
             
-            if json_obj:
-                self.logger.info(f"{color_prefix} 动作: {json_obj}\033[0m")
-                global_thinking_log.add_thinking_log(f"执行动作：{json_obj}",type = "action")
-                result = await self.excute_action(json_obj)
-                global_thinking_log.add_thinking_log(f"执行结果：{result.result_str}",type = "notice")
+
+            # basic_info_prompt = prompt_manager.generate_prompt("basic_info", **input_data)
+            # mode_prompt = prompt_manager.generate_prompt("main_thinking", **input_data)
+            # prompt = basic_info_prompt + mode_prompt
+            # self.logger.info(f" 执行任务提示词: {prompt}")
+
+            
+            # thinking = await self.llm_client.simple_chat(prompt)
+            # # self.logger.info(f" 原始输出: {thinking}")                
+            
+            # success, thinking, json_obj, thinking_log = parse_thinking(thinking)
+            
+            # #出现意外的调试
+            # if not success or not json_obj:
+            #     self.logger.warning(f" 思考结果中没有json对象: {thinking}")
+            #     return TaskResult()
+            
+            # action_type = json_obj.get("action_type")
+            # if not action_type:
+            #     self.logger.warning(f" 思考结果中没有action_type: {thinking}")
+            #     return TaskResult()
+            
+            
+            # color_prefix = COLOR_MAP.get(mai_mode.mode, "\033[0m")
+            
+            # if thinking_log:
+            #     global_thinking_log.add_thinking_log(thinking_log,type = "thinking")
                 
-                self.logger.info(f" 执行结果: {result.result_str}")
+            # self.logger.info(f"{color_prefix} 想法{mai_mode.mode}: {thinking_log}\033[0m")
+            
+            # if json_obj:
+            #     self.logger.info(f"{color_prefix} 动作: {json_obj}\033[0m")
+            #     global_thinking_log.add_thinking_log(f"执行动作：{json_obj}",type = "action")
+            #     result = await self.excute_main_mode(json_obj)
+            #     global_thinking_log.add_thinking_log(f"执行结果：{result.result_str}",type = "notice")
+                
+            #     self.logger.info(f" 执行结果: {result.result_str}")
                 
                 
-        except Exception as e:
-            asyncio.sleep(1)
+        except Exception:
+            await asyncio.sleep(1)
             self.logger.error(f" 任务执行异常: {traceback.format_exc()}")
             
         
+    async def excute_code_generate(self,input_data:dict):
+        await self.update_input_data()
+        prompt = prompt_manager.generate_prompt("code_generate", **input_data)
+        code_and_plan = await self.llm_client.simple_chat(prompt)
+        self.logger.info(f" 代码生成提示词: {prompt}")
+        self.logger.info(f" 代码生成结果: {code_and_plan}")
+        # 解析代码块
+        extracted_code = extract_code_from_markdown(code_and_plan)
         
+        # 运行解析出的代码（支持异步函数）
+        execution_result = None
+        if extracted_code:
+            # self.logger.info(f"开始运行生成的代码:\n{extracted_code}")
+            execution_result = await code_runner.run_code_async(extracted_code)
+            
+            if execution_result["success"]:
+                self.logger.info("代码执行成功")
+                if execution_result["output"]:
+                    self.logger.info(f"代码输出: {execution_result['output']}")
+            else:
+                self.logger.error(f"代码执行失败: {execution_result['error']}")
+                if execution_result["traceback"]:
+                    self.logger.error(f"错误堆栈: {execution_result['traceback']}")
+
+
+        return extracted_code,execution_result["success"],execution_result['output'],execution_result['error'],execution_result["traceback"]
+
+
+
         
-    async def excute_action(self,action_json) -> ThinkingJsonResult:
-        if mai_mode.mode == "main_mode":
-            return await self.excute_main_mode(action_json)
-        elif mai_mode.mode == "move_mode":
-            return await self.excute_move_mode(action_json)
-        elif mai_mode.mode == "mining_mode":
-            return await self.excute_mining_mode(action_json)
-        elif mai_mode.mode == "use_block":
-            return await self.excute_use_mode(action_json)
-        elif mai_mode.mode == "use_item":
-            return await self.excute_use_item(action_json)
-        elif mai_mode.mode == "memo":
-            return await self.excute_memo(action_json)
-        elif mai_mode.mode == "task_edit":
-            return await self.excute_task_edit(action_json)
-        elif mai_mode.mode == "chat":
-            return await self.excute_chat(action_json)
-        else:
-            self.logger.warning(f" {mai_mode.mode} 不支持的action_type: {action_json.get('action_type')}")
-            return ThinkingJsonResult()
-        
-        
-    async def excute_chat(self,action_json) -> ThinkingJsonResult:
+    async def excute_chat(self,thinking_str) -> ThinkingJsonResult:
+        message = thinking_str.strip().replace('\n', '').replace('\r', '')
+        args = {"message": message}
+        call_result = await global_mcp_client.call_tool_directly("chat", args)
+        is_success, result_content = parse_tool_result(call_result)
         result = ThinkingJsonResult()
-        action_type = action_json.get("action_type")
-        if action_type == "chat":
-            message = action_json.get("message")
-            if message is not None:
-                message = message.strip().replace('\n', '').replace('\r', '')
-            args = {"message": message}
-            call_result = await global_mcp_client.call_tool_directly("chat", args)
-            is_success, result_content = parse_tool_result(call_result)
-            result.result_str += translate_chat_tool_result(result_content)
-        
+        result.result_str += translate_chat_tool_result(result_content)
         mai_mode.mode = "main_mode"
         return result
         
@@ -390,6 +410,7 @@ class MaiAgent:
             x = math.floor(float(action_json.get("x")))
             y = math.floor(float(action_json.get("y")))
             z = math.floor(float(action_json.get("z")))
+            move_and_collet = action_json.get("move_and_collet")
             block_cache = global_block_cache.get_block(x, y, z)
             if not block_cache:
                 result.result_str += f"位置{x},{y},{z}太远，无法挖掘\n"
@@ -400,8 +421,8 @@ class MaiAgent:
             if block_cache.block_type == "water" or block_cache.block_type == "lava" or block_cache.block_type == "bedrock":
                 result.result_str += f"位置{x},{y},{z}是{block_cache.block_type}，无法破坏\n"
                 return result
-            args = {"x": x, "y": y, "z": z,"digOnly": True}
-            result.result_str = f"尝试破坏位置：{x},{y},{z}\n"
+            args = {"x": x, "y": y, "z": z,"digOnly": not move_and_collet}
+            result.result_str = f"尝试破坏位置：{x},{y},{z}，并前往搜集\n"
             call_result = await global_mcp_client.call_tool_directly("mine_block", args)
             is_success, result_content = parse_tool_result(call_result)
             if is_success:
@@ -413,13 +434,10 @@ class MaiAgent:
             x = action_json.get("x")
             y = action_json.get("y")
             z = action_json.get("z")
-            result_str, args = await self.place_action.place_action(block, x, y, z)            
+            
+            result_str = await place_action(block, x, y, z)
             result.result_str = result_str
-            if not args:
-                return result
-            call_result = await global_mcp_client.call_tool_directly("place_block", args)
-            is_success, result_content = parse_tool_result(call_result)
-            result.result_str += translate_place_block_tool_result(result_content,args)
+            return result
         elif action_type == "chat":
             message = action_json.get("message")
             if message is not None:
@@ -429,226 +447,25 @@ class MaiAgent:
             is_success, result_content = parse_tool_result(call_result)
             result.result_str += translate_chat_tool_result(result_content)
             return result
-        elif action_type == "enter_move_mode":
-            reason = action_json.get("reason")
-            mai_mode.mode = "move_mode"
-            result.result_str = f"想要移动，进入move模式，原因是: {reason}\n"
-            return result
-        elif action_type == "enter_mining_mode":
-            mai_mode.mode = "mining_mode"
-            result.result_str = "进入采矿/采掘模式\n"
-            return result
+        elif action_type == "eat":
+            item = action_json.get("item")
+            result.result_str = f"想要食用: {item}\n"
+            args = {"itemName": item, "useType":"consume"} #consume表示食用
+            call_result = await global_mcp_client.call_tool_directly("use_item", args)
+            is_success, result_content = parse_tool_result(call_result)
+            self.logger.info(f"食用结果: {result_content}")
+            result.result_str += translate_eat_tool_result(result_content)
         elif action_type == "enter_use_block_mode":
             reason = action_json.get("reason")
             result.result_str = f"进入use_block模式，原因是: {reason}\n"
             mai_mode.mode = "use_block"
             return result
-        elif action_type == "enter_use_item_mode":
-            reason = action_json.get("reason")
-            result.result_str = f"进入use_item模式，原因是: {reason}\n"
-            mai_mode.mode = "use_item"
-            return result
-        elif action_type == "enter_memo_mode":
-            reason = action_json.get("reason")
-            result.result_str = f"想要使用备忘录，进入memo模式，原因是: {reason}\n"
-            mai_mode.mode = "memo"
-            return result
-        elif action_type == "enter_task_edit_mode":
-            mai_mode.mode = "task_edit"
-            reason = action_json.get("reason")
-            result.result_str = f"选择进行修改任务列表: \n原因: {reason}\n"
-            return result
         else:
             self.logger.warning(f" {mai_mode.mode} 不支持的action_type: {action_type}")
             
             
         return result
-    
-    async def excute_move_mode(self,action_json) -> ThinkingJsonResult:
-        result = ThinkingJsonResult()
-        action_type = action_json.get("action_type")
-        if action_type == "move_action":
-            position = action_json.get("position", {})
-            x = math.floor(float(position.get("x", 0)))
-            y = math.floor(float(position.get("y", 0)))
-            z = math.floor(float(position.get("z", 0)))
-            args = {"x": x, "y": y, "z": z, "type": "coordinate"}
-            result.result_str = f"尝试移动到：{x},{y},{z}\n"
-            call_result = await global_mcp_client.call_tool_directly("move", args)
-            is_success, result_content = parse_tool_result(call_result)
-            result.result_str += translate_move_tool_result(result_content, args)
-        elif action_type == "exit_move_mode":
-            mai_mode.mode = "main_mode"
-            reason = action_json.get("reason")
-            result.result_str = f"退出移动模式: \n原因: {reason}\n"
-            return result
-        else:
-            self.logger.warning(f" {mai_mode.mode} 不支持的action_type: {action_type}")
-            result.result_str = f"当前模式{mai_mode.mode}不支持的action_type: {action_type}\n"
-        
-        return result
-    
-    async def excute_mining_mode(self,action_json) -> ThinkingJsonResult:
-        result = ThinkingJsonResult()
-        action_type = action_json.get("action_type")
-        if action_type == "mine_nearby":
-            name = action_json.get("name")
-            count = action_json.get("count")
-            result.result_str = f"想要批量挖掘: {name} 数量: {count}\n"
-            args = {"name": name, "count": count}
-            call_result = await global_mcp_client.call_tool_directly("mine_block", args)
-            is_success, result_content = parse_tool_result(call_result)
-            if is_success:
-                result.result_str += translate_mine_nearby_tool_result(result_content)
-            else:
-                result.result_str += f"批量挖掘失败: {result_content}"
-        elif action_type == "mine_block":
-            positions = action_json.get("position")
-            for position in positions:
-                x = math.floor(float(position.get("x")))
-                y = math.floor(float(position.get("y")))
-                z = math.floor(float(position.get("z")))
-                block_cache = global_block_cache.get_block(x, y, z)
-                if not block_cache:
-                    result.result_str += f"位置{x},{y},{z}不存在方块，无法挖掘\n"
-                    return result
-                if block_cache.block_type == "air":
-                    result.result_str += f"位置{x},{y},{z}不存在方块，无法挖掘\n"
-                    return result
-                if block_cache.block_type == "water" or block_cache.block_type == "lava" or block_cache.block_type == "bedrock":
-                    result.result_str += f"位置{x},{y},{z}是{block_cache.block_type}，无法挖掘\n"
-                    return result
-                
-                args = {"x": x, "y": y, "z": z,"digOnly": True}
-                result.result_str += f"尝试挖掘位置：{x},{y},{z}\n"
-                call_result = await global_mcp_client.call_tool_directly("mine_block", args)
-                is_success, result_content = parse_tool_result(call_result)
-                if is_success:
-                    result.result_str += translate_mine_block_tool_result(result_content)
-                else:
-                    result.result_str += f"挖掘失败: {result_content}"
-        elif action_type == "place_block":
-            block = action_json.get("block")
-            position = action_json.get("position")
-            x = math.floor(float(position.get("x")))
-            y = math.floor(float(position.get("y")))
-            z = math.floor(float(position.get("z")))
-            
-            result_str, args = await self.place_action.place_action(block, x, y, z)            
-            result.result_str = result_str
 
-            if not args:
-                return result
-            
-            call_result = await global_mcp_client.call_tool_directly("place_block", args)
-            is_success, result_content = parse_tool_result(call_result)
-            result.result_str += translate_place_block_tool_result(result_content,args)
-        elif action_type == "move":
-            position = action_json.get("position")
-            x = math.floor(float(position.get("x")))
-            y = math.floor(float(position.get("y")))
-            z = math.floor(float(position.get("z")))
-            args = {"x": x, "y": y, "z": z, "type": "coordinate"}
-            result.result_str = f"尝试移动到：{x},{y},{z}。\n"
-            
-            call_result = await global_mcp_client.call_tool_directly("move", args)
-            is_success, result_content = parse_tool_result(call_result)
-            result.result_str += translate_move_tool_result(result_content, args)
-            return result
-        elif action_type == "exit_mining_mode":
-            mai_mode.mode = "main_mode"
-            result.result_str = "退出采矿/采掘模式\n"
-            return result
-        
-        return result
-    
-    async def excute_use_mode(self,action_json) -> ThinkingJsonResult:
-        result = ThinkingJsonResult()
-        action_type = action_json.get("action_type")
-        
-        if action_type == "view_container":
-            position = action_json.get("position", {})
-            x = math.floor(float(position.get("x", 0)))
-            y = math.floor(float(position.get("y", 0)))
-            z = math.floor(float(position.get("z", 0)))
-            type = action_json.get("type")
-            args = {"x": x, "y": y, "z": z}
-            result.result_str = f"想要查看{type}: {x},{y},{z}\n"
-            result_content = await self.view_container.view_container(x, y, z, type)
-            result.result_str += result_content
-        elif action_type == "use_furnace":
-            item = action_json.get("item")
-            type = action_json.get("type")
-            slot = action_json.get("slot")
-            count = action_json.get("count")
-            position = action_json.get("position")
-            x = math.floor(float(position.get("x")))
-            y = math.floor(float(position.get("y")))
-            z = math.floor(float(position.get("z")))
-            result.result_str = f"想要使用熔炉: {item} 类型: {type} 槽位: {slot} 数量: {count}\n"
-            
-            items = [{"name": item, "count": count,"position": slot}]
-            
-            args = {"item": item, "action": type, "items": items, "x": x, "y": y, "z": z}
-            call_result = await global_mcp_client.call_tool_directly("use_furnace", args)
-            is_success, result_content = parse_tool_result(call_result)
-            # result.result_str += translate_use_furnace_tool_result(result_content)
-            self.logger.info(f"熔炉结果: {result_content}")
-            
-        elif action_type == "place_block":
-            block = action_json.get("block")
-            position = action_json.get("position")
-            x = math.floor(float(position.get("x")))
-            y = math.floor(float(position.get("y")))
-            z = math.floor(float(position.get("z")))
-            result.result_str = f"想要放置方块: {block} 位置: {x},{y},{z}\n"
-            args = {"block": block, "x": x, "y": y, "z": z}
-            call_result = await global_mcp_client.call_tool_directly("place_block", args)
-            is_success, result_content = parse_tool_result(call_result)
-            result.result_str += translate_place_block_tool_result(result_content,args)
-        elif action_type == "craft":
-            item = action_json.get("item")
-            count = action_json.get("count")
-            result.result_str = f"想要合成: {item} 数量: {count}\n"
-            self.inventory_old = global_environment.inventory
-            
-            ok, summary = await recipe_finder.craft_item_smart(item, count, global_environment.inventory, global_environment.block_position)
-            if ok:
-                result.result_str = f"合成成功：{item} x{count}\n{summary}\n"
-            else:
-                result.result_str = f"合成未完成：{item} x{count}\n{summary}\n"
-        elif action_type == "use_chest":
-            item = action_json.get("item")
-            count = action_json.get("count", 1)
-            type = action_json.get("type")
-            position = action_json.get("position")
-            x = math.floor(float(position.get("x")))
-            y = math.floor(float(position.get("y")))
-            z = math.floor(float(position.get("z")))
-            result.result_str = f"想要使用箱子: {item} 类型: {type}\n"
-            
-            # 构建符合MCP工具期望的items格式
-            items = [{"name": item, "count": count}]
-
-            if type == "put":
-                args = {"items": items, "action": "store", "x": x, "y": y, "z": z}
-            elif type == "take":
-                args = {"items": items, "action": "withdraw", "x": x, "y": y, "z": z}
-            
-            call_result = await global_mcp_client.call_tool_directly("use_chest", args)
-            is_success, result_content = parse_tool_result(call_result) 
-            translated_result = translate_use_chest_tool_result(result_content)
-            result.result_str += translated_result
-        elif action_type == "finish_using":
-            reason = action_json.get("reason")
-            result.result_str = f"结束使用方块模式: \n原因: {reason}\n"
-            mai_mode.mode = "main_mode"
-        else:
-            self.logger.warning(f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}")
-            result.result_str = f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}\n"
-            mai_mode.mode = "main_mode"
-            
-        return result
             
     async def excute_use_item(self,action_json) -> ThinkingJsonResult:
         result = ThinkingJsonResult()
@@ -686,99 +503,6 @@ class MaiAgent:
             self.logger.warning(f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}")
             result.result_str = f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}\n"
             mai_mode.mode = "main_mode"
-        return result
-    
-    async def excute_memo(self,action_json) -> ThinkingJsonResult:
-        result = ThinkingJsonResult()
-        action_type = action_json.get("action_type")
-        if action_type == "exit_memo_mode":
-            mai_mode.mode = "main_mode"
-        elif action_type == "add_memo":
-            memo = action_json.get("memo")
-            result.result_str = f"添加备忘录: {memo}\n"
-            self.memo_list.append(memo)
-        elif action_type == "remove_memo":
-            memo = action_json.get("memo")
-            result.result_str = f"移除备忘录: {memo}\n"
-            self.memo_list.remove(memo)
-        elif action_type == "set_basement":
-            info = action_json.get("info")
-            position_json = action_json.get("position")
-            x = math.floor(float(position_json.get("x")))
-            y = math.floor(float(position_json.get("y")))
-            z = math.floor(float(position_json.get("z")))
-            position = BlockPosition(x, y, z)
-            result.result_str = f"设置基地: {info} {x},{y},{z}\n"
-            global_basement.add_basement_info(info, position)
-        elif action_type == "add_location":
-            name = action_json.get("name")
-            info = action_json.get("info")
-            position_json = action_json.get("position")
-            x = math.floor(float(position_json.get("x")))
-            y = math.floor(float(position_json.get("y")))
-            z = math.floor(float(position_json.get("z")))
-            position = BlockPosition(x, y, z)
-            result.result_str = f"添加坐标点: {name} {info} {x},{y},{z}\n"
-            global_location_points.add_location(name, info, position)
-        elif action_type == "remove_location":
-            position_json = action_json.get("position")
-            x = math.floor(float(position_json.get("x")))
-            y = math.floor(float(position_json.get("y")))
-            z = math.floor(float(position_json.get("z")))
-            position = BlockPosition(x, y, z)
-            result.result_str = f"移除坐标点: {x},{y},{z}\n"
-            global_location_points.remove_location(position)
-        else:
-            result.result_str = f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}\n"
-            self.logger.warning(f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}")
-            mai_mode.mode = "main_mode"
-            
-        return result
-
-    async def excute_task_edit(self, action_json) -> ThinkingJsonResult:
-        """
-        执行json
-        返回: ThinkingJsonResult
-        """
-        result = ThinkingJsonResult()
-        action_type = action_json.get("action_type")
-            
-        if action_type == "change_task":
-            new_task_id = action_json.get("new_task_id")
-            reason  = action_json.get("reason")
-            result.new_task_id = new_task_id
-            result.result_str = f"选择更换到任务: {new_task_id},原因是: {reason}\n"
-            self.on_going_task_id = new_task_id
-            return result
-        elif action_type == "delete_task":
-            task_id = action_json.get("task_id")
-            reason = action_json.get("reason")
-            self.to_do_list.del_task_by_id(task_id)
-            result.result_str = f"删除任务: {task_id},原因是: {reason}\n"
-            return result
-        elif action_type == "update_task_progress":
-            progress = action_json.get("progress")
-            done = action_json.get("done")
-            task_id = action_json.get("task_id")
-            result.task_id = task_id
-            if done:
-                result.done = done
-                result.progress = progress
-                result.result_str = f"任务({task_id})已完成"
-                return result
-            result.result_str = f"任务({task_id})进度已更新: {progress}"
-            result.progress = progress
-        elif action_type == "create_new_task":
-            new_task = action_json.get("new_task")
-            new_task_criteria = action_json.get("new_task_criteria")
-            self.result_str = f"创建新任务: {new_task},原因: {new_task_criteria}\n"
-            self.to_do_list.add_task(new_task, new_task_criteria)
-        elif action_type == "exit_task_edit_mode":
-            reason = action_json.get("reason")
-            result.result_str = f"退出任务修改模式，原因是: {reason}\n"
-            mai_mode.mode = "main_mode"
-            return result
-        
         return result
     
     async def _start_block_cache_viewer(self) -> None:
