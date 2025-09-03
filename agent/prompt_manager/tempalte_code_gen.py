@@ -148,8 +148,9 @@ Code：
 输出结果：{output_last_run}
 报错信息: {error_last_run}
 
-调整标准：{adjust_reason}
-
+上一次执行结果评估：{last_run_result}
+原因：{adjust_reason}
+调整建议：{suggestion}
 --------------------------------
 **环境信息**
 {environment}
@@ -193,6 +194,6 @@ async def yourMainFunctionName(bot) {{
 ```
 """,
             description="代码生成",
-            parameters=["adjust_reason","retrieved_skills","code_last_run","output_last_run","error_last_run","event_str","goal", "task", "environment", "thinking_list", "nearby_block_info", "position", "location_list", "chat_str", "inventory_str"],
+            parameters=["last_run_result","adjust_reason","suggestion","retrieved_skills","code_last_run","output_last_run","error_last_run","event_str","goal", "task", "environment", "thinking_list", "nearby_block_info", "position", "location_list", "chat_str", "inventory_str"],
         )
     )

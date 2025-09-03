@@ -166,7 +166,7 @@ class MaiAgent:
             environment_info = global_environment.get_summary()
             nearby_block_info = await self.nearby_block_manager.get_block_details_mix_str(global_environment.block_position,distance=8)
             self.input_data = {
-                "task": "",
+                "task": "还未执行任务",
                 "environment": environment_info,
                 "thinking_list": global_thinking_log.get_thinking_log(),
                 "nearby_block_info": nearby_block_info,
@@ -181,6 +181,9 @@ class MaiAgent:
                 "inventory_str": global_environment.get_inventory_str(),
                 "self_str": global_environment.get_self_str(),
                 "retrieved_skills": self.actions_manager.get_all_learnt_actions_string(),
+                "last_run_result": "还未开始执行",
+                "adjust_reason": "无",
+                "suggestion": "无",
             }
             
 
@@ -281,13 +284,10 @@ class MaiAgent:
                     # 重新生成
 
                 await self.update_input_data()
-                game_info_after = prompt_manager.generate_prompt("game_info", **self.input_data)
-                self.input_data["game_info_after"] = game_info_after                
-                
-                await self.update_input_data()
+                self.input_data["game_info_after"] = prompt_manager.generate_prompt("game_info", **self.input_data)                
                 reviewer_prompt = prompt_manager.generate_prompt("reviewer", **self.input_data)
                 reviewer_thinking = await self.llm_client.simple_chat(reviewer_prompt)
-                # self.logger.info(f" 审查提示词: {reviewer_prompt}")
+                self.logger.info(f" 审查提示词: {reviewer_prompt}")
                 self.logger.info(f" 审查结果: {reviewer_thinking}")
                 revier_json = parse_json(reviewer_thinking)
                 success_task = revier_json.get("success")
@@ -299,8 +299,11 @@ class MaiAgent:
                         self.logger.error(f" 保存学到的动作代码失败: {traceback.format_exc()}")
                     task_finished = True
                     task.done = True
+                    task.done_criteria = f"已完成，{revier_json.get('reason')}"
                 else:
                     self.input_data["adjust_reason"] = revier_json.get("reason")
+                    self.input_data["suggestion"] = revier_json.get("suggestion")
+                    self.input_data["last_run_result"] = "任务未完成"
                     
                 try_count +=1
                 if try_count > max_try:
