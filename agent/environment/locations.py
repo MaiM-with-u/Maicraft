@@ -10,7 +10,10 @@ class LocationPoints:
         
     def remove_location(self, position: BlockPosition):
         self.location_list = [location for location in self.location_list if location[2] != position]
-        
+    
+    def get_location(self, position: BlockPosition):
+        return [location for location in self.location_list if location[2] == position]
+    
     def all_location_str(self) -> str:
         if self.location_list:
             return "\n".join([f"坐标点: [{location[0]}] {location[1]} x={location[2].x},y={location[2].y},z={location[2].z}" for location in self.location_list])

@@ -10,7 +10,7 @@ import time
 import json
 import statistics
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 import sys
 import os
 
@@ -243,7 +243,7 @@ class VLMSpeedTester:
             key=lambda x: x[1].get("avg_response_time", float('inf'))
         )
         
-        print(f"\n🏆 性能排名 (按平均响应时间排序):")
+        print("\n🏆 性能排名 (按平均响应时间排序):")
         print("-" * 60)
         
         for rank, (vlm_name, stats) in enumerate(sorted_tests, 1):
@@ -265,7 +265,7 @@ class VLMSpeedTester:
             total_runs += stats.get("total_runs", 0)
         
         if all_times:
-            print(f"\n📊 总体统计:")
+            print("\n📊 总体统计:")
             print(f"   总测试次数: {total_runs}")
             print(f"   成功次数: {total_successful}")
             print(f"   总体成功率: {total_successful/total_runs:.1%}")
@@ -274,7 +274,7 @@ class VLMSpeedTester:
             print(f"   平均响应: {statistics.mean(all_times):.2f}秒")
         
         # 添加模型回复内容统计
-        print(f"\n💬 模型回复内容统计:")
+        print("\n💬 模型回复内容统计:")
         print("-" * 60)
         
         for vlm_name, stats in successful_tests.items():
@@ -306,12 +306,12 @@ class VLMSpeedTester:
                         avg_reasoning_length = statistics.mean(reasoning_lengths)
                         print(f"    平均推理链长度: {avg_reasoning_length:.0f} 字符")
                 else:
-                    print(f"    推理链可用: 否")
+                    print("    推理链可用: 否")
         
         print(f"\n📁 详细结果已保存到: {self.log_file}")
         
         # 完整输出不同模型的回答内容
-        print(f"\n🔍 完整模型回答内容对比:")
+        print("\n🔍 完整模型回答内容对比:")
         print("=" * 80)
         
         for vlm_name, stats in successful_tests.items():
@@ -334,11 +334,11 @@ class VLMSpeedTester:
                     
                     # 显示推理链（如果有的话）
                     if reasoning:
-                        print(f"推理链:")
+                        print("推理链:")
                         print(f"{reasoning}")
-                        print(f"最终回答:")
+                        print("最终回答:")
                     else:
-                        print(f"回答内容:")
+                        print("回答内容:")
                     
                     print(f"{response}")
                     print("-" * 40)
@@ -356,7 +356,7 @@ async def main():
             missing_keys.append(vlm_name)
     
     if missing_keys:
-        print(f"⚠️  以下VLM缺少有效的API密钥:")
+        print("⚠️  以下VLM缺少有效的API密钥:")
         for name in missing_keys:
             print(f"   - {name}")
         print("\n请在 vlm_test_config.py 中配置有效的API密钥后再运行测试。")

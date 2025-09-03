@@ -31,7 +31,7 @@ def setup_logging(level: Optional[str] = None) -> None:
             enqueue=False,
             backtrace=False,
             diagnose=False,
-            format="<green>{time:HH:mm:ss.SSS}</green> | <level>{level: <1}</level> | <cyan>{extra[module]}</cyan> - <level>{message}</level>",
+            format="<green>{time:HH:mm:ss}</green>|<level>{level.name[0]}</level>|<cyan>{extra[module]}</cyan>|<level>{message}</level>",
         )
     except Exception:
         # 出现异常时保持默认配置

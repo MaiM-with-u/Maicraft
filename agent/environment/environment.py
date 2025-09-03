@@ -3,18 +3,20 @@ Minecraft环境信息存储类
 用于存储和管理游戏环境数据
 """
 
-from dataclasses import field
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from utils.logger import get_logger
-from agent.environment.basic_info import Player, Position, Entity, Event, BlockPosition
+from agent.environment.basic_info import Player, Position, Entity, Event, BlockPosition, Item
 from agent.block_cache.block_cache import global_block_cache
-from openai_client.llm_request import LLMClient
 from agent.environment.basement import global_basement
 from agent.environment.locations import global_location_points
-from config import global_config
+from agent.environment.events_utils import get_event_description
+from agent.environment.inventory_utils import review_all_tools
 
 logger = get_logger("EnvironmentInfo")
+
+
+
 
 class EnvironmentInfo:
     """Minecraft环境信息存储类"""
@@ -63,7 +65,7 @@ class EnvironmentInfo:
         self.overview_str = ""
         
         # 物品栏
-        self.inventory: List[Any] = []
+        self.inventory: List[Item] = []
         
         self.occupied_slot_count: int = 0
         self.empty_slot_count: int = 0
@@ -82,20 +84,12 @@ class EnvironmentInfo:
         # 附近实体
         self.nearby_entities: List[Entity] = []
         
-        
         # 最近事件
         self.recent_events: List[Event] = []
-        
-        # 系统状态
-        self.status: str = ""
-        self.request_id: str = ""
-        self.elapsed_ms: int = 0
         
         # 时间戳
         self.last_update: Optional[datetime] = None
         
-    def set_vlm(self, vlm: LLMClient):
-        self.vlm = vlm
         
     async def get_overview_str(self) -> str:
         if not self.vlm:
@@ -231,13 +225,14 @@ class EnvironmentInfo:
             for slot_data in slots:
                 if isinstance(slot_data, dict):
                     # 构建标准化的物品信息
-                    item_info = {
-                        'slot': slot_data.get('slot', 0),
-                        'count': slot_data.get('count', 0),
-                        'name': slot_data.get('name', ''),
-                        'displayName': slot_data.get('name', '')  # 使用name作为displayName
-                    }
-                    self.inventory.append(item_info)
+                    item = Item(
+                        name=slot_data.get('name', ''),
+                        count=slot_data.get('count', 0),
+                        slot=slot_data.get('slot', 0),
+                        durability=slot_data.get('durability', 0),
+                        max_durability=slot_data.get('maxDurability', 0),
+                    )
+                    self.inventory.append(item)
         
         # 记录物品栏统计信息
         self.occupied_slot_count = inventory_data.get('fullSlotCount', 0)
@@ -344,10 +339,6 @@ class EnvironmentInfo:
                         print(f"错误详情: {traceback.format_exc()}")
                         continue
         
-        # 更新请求信息
-        self.request_id = observation_data.get("request_id", "")
-        self.elapsed_ms = observation_data.get("elapsed_ms", 0)
-        
         # 更新时间戳
         self.last_update = datetime.now()
         
@@ -368,65 +359,14 @@ class EnvironmentInfo:
 {block_on_feet_str}
         """
         
-        if global_basement.set:
-            base_str = f"""你的基地坐标是：x={global_basement.position.x}, y={global_basement.position.y}, z={global_basement.position.z}
-基地信息：{global_basement.basement_info}，距离你{global_basement.distance_from_player(self.block_position)}方块"""
-        else:
-            base_str = "你还未设置基地，请在合适的地点，选择备忘录模式，设立基地"
-        
-        location_list = global_location_points.all_location_str()
-        
-        final_str = f"""{position_str}
-{base_str}
-{location_list}
-        """
-        
-        return final_str
+        return position_str
+    
 
-    def get_summary(self) -> str:
-        """以可读文本形式返回所有环境信息"""
+        
+    
+    def get_inventory_str(self) -> str:
+        """获取物品栏信息"""
         lines = []
-        
-        # 玩家信息
-        if self.player_name:
-            lines.append("【自身信息】")
-            lines.append(f"  用户名: {self.player_name}")
-            lines.append(f"  游戏模式: {self.gamemode}")
-            # lines.append(f"  显示名: {self.player.display_name}")
-            # lines.append(f"  游戏模式: {self._get_gamemode_name(self.player.gamemode)}")
-            lines.append("")
-        
-        # 状态信息
-        lines.append("【状态信息】")
-        lines.append(f"  生命值: {self.health}/{self.health_max}")
-        lines.append(f"  饥饿值: {self.food}/{self.food_max}")
-        if self.food/self.food_max < 0.5:
-            lines.append(f"  饥饿值: {self.food}/{self.food_max}，饥饿值较低，需要马上食用食物")
-        elif self.food/self.food_max < 0.8:
-            lines.append(f"  饥饿值: {self.food}/{self.food_max}，有条件最好食用食物")
-            
-        # lines.append(f"  经验值: {self.experience}")
-        lines.append(f"  等级: {self.level}")
-        lines.append(f"  是否在地面上: {self.on_ground}")
-        # lines.append(f"  是否在睡觉: {self.is_sleeping}")
-        # lines.append(f"  氧气: {self.oxygen}")
-        
-        # 视角信息
-        # if self.yaw != 0.0 or self.pitch != 0.0:
-        #     lines.append(f"  视角: Yaw={self.yaw:.2f}°, Pitch={self.pitch:.2f}°")
-
-        
-        # 光标信息
-        # if self.block_at_cursor:
-        #     block_name = self.block_at_cursor.get("displayName", self.block_at_cursor.get("name", "未知方块"))
-        #     block_pos = self.block_at_cursor.get("position", {})
-        #     if block_pos:
-        #         lines.append(f"  光标指向: {block_name} 在 ({block_pos.get('x', 0)}, {block_pos.get('y', 0)}, {block_pos.get('z', 0)})")
-        
-        # if self.entity_at_cursor:
-        #     entity_name = self.entity_at_cursor.get("displayName", self.entity_at_cursor.get("name", "未知实体"))
-        #     lines.append(f"  光标指向实体: {entity_name}")
-        
         # 装备信息
         if self.equipment:
             equipped_items = []
@@ -436,8 +376,6 @@ class EnvironmentInfo:
                     equipped_items.append(f"{slot}: {item_name}")
             if equipped_items:
                 lines.append(f"  装备: {', '.join(equipped_items)}")
-        
-        lines.append("")
         
         lines.append("【装备】")
         lines.append(f"  护甲值: {self.armor}")
@@ -458,6 +396,9 @@ class EnvironmentInfo:
                 lines.append(f"    耐久度: {remaining_durability}/{durability}")
             if self.using_held_item:
                 lines.append("    正在使用中")
+                
+        lines.append("【工具】")
+        lines.append(review_all_tools(self.inventory))
         
         # 物品栏
         lines.append("【物品栏】")
@@ -467,31 +408,48 @@ class EnvironmentInfo:
             else:
                 lines.append(f"物品栏有{self.empty_slot_count}个空槽位")
             # 按槽位排序显示物品
-            sorted_inventory = sorted(self.inventory, key=lambda x: x.get('slot', 0) if isinstance(x, dict) else 0)
+            sorted_inventory = sorted(self.inventory, key=lambda x: x.slot)
             
             for item in sorted_inventory:
                 # 构建更可读的物品信息
                 item_info = []
-                
-                # 添加类型检查，确保item是字典类型
-                if isinstance(item, dict):
-                    if 'name' in item and item['name']:
-                        item_info.append(item['name'])
-                    if 'count' in item and item['count'] > 0:
-                        item_info.append(f"x{item['count']} ")
-                elif isinstance(item, str):
-                    # 如果item是字符串，直接显示
-                    item_info.append(item)
-                else:
-                    # 其他类型，转换为字符串显示
-                    item_info.append(str(item))
-                
-                # 组合物品信息
+                item_info.append(item.name)
+                item_info.append(f"x{item.count} ")
                 item_str = " ".join(item_info)
-                lines.append(f"  {item_str}")
+                lines.append(f"{item_str}")
         else:
             lines.append("  物品栏为空")
         lines.append("")
+        
+        
+        return "\n".join(lines)
+    
+    def get_self_str(self) -> str:
+        """获取自身信息"""
+        lines = []
+        lines.append("【自身信息】")
+        lines.append(f"  用户名: {self.player_name}")
+        lines.append(f"  游戏模式: {self.gamemode}")
+        return "\n".join(lines)
+
+    def get_summary(self) -> str:
+        """以可读文本形式返回所有环境信息"""
+        lines = []
+        
+        # 状态信息
+        lines.append("【状态信息】")
+        lines.append(f"  生命值: {self.health}/{self.health_max}")
+        lines.append(f"  饥饿值: {self.food}/{self.food_max}")
+        if self.food/self.food_max < 0.5:
+            lines.append(f"  饥饿值: {self.food}/{self.food_max}，饥饿值较低，需要马上食用食物")
+        elif self.food/self.food_max < 0.8:
+            lines.append(f"  饥饿值: {self.food}/{self.food_max}，有条件最好食用食物")
+            
+
+        lines.append(f"  等级: {self.level}")
+        lines.append(f"  是否在地面上: {self.on_ground}")
+        # lines.append(f"  是否在睡觉: {self.is_sleeping}")
+        # lines.append(f"  氧气: {self.oxygen}")
         
         # 附近玩家
         lines.append("【附近玩家】")
@@ -533,7 +491,7 @@ class EnvironmentInfo:
             for i, event in enumerate(recent_events_to_show, 1):
                 if event.type == "chat":
                     continue
-                event_desc = self._get_event_description(event)
+                event_desc = get_event_description(event)
                 # 添加格式化的时间戳信息
                 if event:
                     timestamp_str = ""
@@ -601,143 +559,8 @@ class EnvironmentInfo:
             lines.append(chat_line)
         
         return "\n".join(lines)
-    
-    
-    def _get_event_description(self, event: Event) -> str:
-        """获取事件描述"""
-        
-        # logger.info(f"事件: {event}")
-        
-        # 获取玩家名称，优先使用事件中的玩家名称
-        player_name = event.player_name or "未知玩家"
-        if player_name == global_config.bot.player_name:
-            base_desc = f"你({player_name})"
-        else:
-            base_desc = f"玩家{player_name}"
-        
-        
-        # 根据事件类型生成详细描述
-        # if event.type == "playerMove" and event.old_position and event.new_position:
-        #     old_pos = event.old_position
-        #     new_pos = event.new_position
-        #     return f"{base_desc} 从 ({old_pos.x:.1f}, {old_pos.y:.1f}, {old_pos.z:.1f}) 移动到 ({new_pos.x:.1f}, {new_pos.y:.1f}, {new_pos.z:.1f})"
-        
-        # elif event.type == "blockBreak" and event.block:
-        #     block = event.block
-        #     pos = block.position
-        #     return f"{base_desc} 破坏了 {block.name} 在 ({pos.x:.1f}, {pos.y:.1f}, {pos.z:.1f})"
-        
-        # elif event.type == "blockPlace" and event.block:
-        #     block = event.block
-        #     pos = block.position
-        #     return f"{base_desc} 放置了 {block.name} 在 ({pos.x:.1f}, {pos.y:.1f}, {pos.z:.1f})"
-        
-        # elif event.type == "experienceUpdate":
-        #     return f"{base_desc} 经验值更新: {event.experience}, 等级: {event.level}"
-        
-        # elif event.type == "healthUpdate":
-        #     health_info = f"生命值: {event.health}"
-        #     food_info = f"饥饿值: {event.food}"
-        #     saturation_info = f"饱和度: {event.saturation}" if event.saturation is not None else ""
-            
-        #     info_parts = [health_info, food_info]
-        #     if saturation_info:
-        #         info_parts.append(saturation_info)
-            
-            # return f"{base_desc} 状态更新: {', '.join(info_parts)}"
-        
-        if event.type == "playerJoin":
-            return f"{base_desc} 加入了游戏"
-        
-        elif event.type == "playerLeave":
-            return f"{base_desc} 离开了游戏"
-        
-        elif event.type == "playerDeath":
-            return f"{base_desc} 死亡了"
-        
-        elif event.type == "playerRespawn":
-            if event.new_position:
-                pos = event.new_position
-                return f"{base_desc} 重生于 ({pos.x:.1f}, {pos.y:.1f}, {pos.z:.1f})"
-            else:
-                return f"{base_desc} 重生了"
-        
-        elif event.type == "playerKick":
-            if hasattr(event, 'kick_reason') and event.kick_reason:
-                return f"{base_desc} 被踢出游戏: {event.kick_reason}"
-            else:
-                return f"{base_desc} 被踢出游戏"
-        
-        elif event.type == "entityHurt":
-            if hasattr(event, 'entity_name') and event.entity_name:
-                entity_name = event.entity_name
-                if hasattr(event, 'damage') and event.damage is not None:
-                    return f"{base_desc} 对 {entity_name} 造成了 {event.damage} 点伤害"
-                else:
-                    return f"{base_desc} 攻击了 {entity_name}"
-            else:
-                return f"{base_desc} 攻击了实体"
-        
-        elif event.type == "entityDeath":
-            if hasattr(event, 'entity_name') and event.entity_name:
-                entity_name = event.entity_name
-                if hasattr(event, 'entity_position') and event.entity_position:
-                    pos = event.entity_position
-                    return f"{base_desc} 击杀了 {entity_name} 在 ({pos.x:.1f}, {pos.y:.1f}, {pos.z:.1f})"
-                else:
-                    return f"{base_desc} 击杀了 {entity_name}"
-            else:
-                return f"{base_desc} 击杀了实体"
-        
-        elif event.type == "weatherChange":
-            if hasattr(event, 'weather') and event.weather:
-                return f"{base_desc} 天气变为: {event.weather}"
-            else:
-                return f"{base_desc} 天气发生了变化"
-        
-        elif event.type == "spawnPointReset":
-            return f"{base_desc} 重置了出生点"
-        
-        else:
-            return ""
 
-    def get_held_item_info(self) -> str:
-        """获取手持物品的详细信息"""
-        if not self.held_item:
-            return "没有手持物品"
-        
-        item_name = self.held_item.get("displayName", self.held_item.get("name", "未知物品"))
-        item_count = self.held_item.get("count", 1)
-        durability = self.held_item.get("maxDurability", 0)
-        
-        info_lines = [f"手持物品: {item_name} x{item_count}"]
-        
-        # 添加耐久度信息
-        if durability > 1:
-            current_damage = 0
-            if self.held_item.get("components"):
-                for component in self.held_item["components"]:
-                    if component.get("type") == "damage":
-                        current_damage = component.get("data", 0)
-                        break
-            
-            remaining_durability = durability - current_damage
-            info_lines.append(f"耐久度: {remaining_durability}/{durability}")
-            
-            # 添加耐久度百分比
-            if durability > 0:
-                durability_percent = (remaining_durability / durability) * 100
-                info_lines.append(f"耐久度百分比: {durability_percent:.1f}%")
-        
-        # 添加物品类型信息
-        if self.held_item.get("material"):
-            info_lines.append(f"挖掘工具: {self.held_item['material']}")
-        
-        # 添加是否正在使用的状态
-        if self.using_held_item:
-            info_lines.append("状态: 正在使用中")
-        
-        return "\n".join(info_lines)
+
 
     def get_cursor_info(self) -> str:
         """获取光标指向的信息"""

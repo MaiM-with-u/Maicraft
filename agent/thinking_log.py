@@ -93,7 +93,6 @@ class ThinkingLog:
                     break
                 try:
                     self.save_to_data_dir()
-                    print("思考记录已自动保存")
                 except Exception as e:
                     print(f"自动保存思考记录失败: {e}")
         

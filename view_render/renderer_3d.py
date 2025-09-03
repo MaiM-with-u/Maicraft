@@ -16,7 +16,7 @@ except ImportError:
 import time
 import numpy as np
 
-from agent.block_cache.block_cache import BlockCache, CachedBlock, global_block_cache
+from agent.block_cache.block_cache import BlockCache, Block, global_block_cache
 from agent.environment.environment import global_environment
 from utils.logger import get_logger
 
@@ -68,9 +68,9 @@ class Renderer3D:
         }
         
         # 缓存的方块数据
-        self.cached_blocks: List[CachedBlock] = []
+        self.cached_blocks: List[Block] = []
         # 方块位置快速查找字典（用于面剔除）
-        self.block_positions: Dict[Tuple[int, int, int], CachedBlock] = {}
+        self.block_positions: Dict[Tuple[int, int, int], Block] = {}
         
         # 字体和文本相关
         self.font = None
@@ -473,7 +473,7 @@ class Renderer3D:
         if self.show_labels:
             self._render_all_labels(sorted_blocks)
     
-    def _render_block(self, block: CachedBlock):
+    def _render_block(self, block: Block):
         """渲染单个方块（不包含标签）"""
         x, y, z = block.position.x, block.position.y, block.position.z
         block_type = str(block.block_type).lower()
@@ -498,7 +498,7 @@ class Renderer3D:
         glPopMatrix()
         # 注意：标签渲染已移至 _render_all_labels()
     
-    def _render_block_only(self, block: CachedBlock):
+    def _render_block_only(self, block: Block):
         """只渲染方块几何体，不渲染标签"""
         x, y, z = block.position.x, block.position.y, block.position.z
         block_type = str(block.block_type).lower()
@@ -551,7 +551,7 @@ class Renderer3D:
             glPopAttrib()
             glPopMatrix()
     
-    def _get_visible_faces(self, block: CachedBlock) -> Set[str]:
+    def _get_visible_faces(self, block: Block) -> Set[str]:
         """检查方块的哪些面是可见的（面剔除）"""
         x, y, z = int(block.position.x), int(block.position.y), int(block.position.z)
         visible_faces = set()
@@ -785,7 +785,7 @@ class Renderer3D:
         # 重新启用光照
         glEnable(GL_LIGHTING)
     
-    def _render_block_label(self, block: CachedBlock, x: float, y: float, z: float):
+    def _render_block_label(self, block: Block, x: float, y: float, z: float):
         """直接在方块的顶面渲染标签（3D空间中）"""
         if self.font is None:
             logger.debug("字体未初始化，跳过文字标签渲染")

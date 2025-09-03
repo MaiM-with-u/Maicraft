@@ -40,6 +40,15 @@ class BlockPosition:
     z: int
 
     def __init__(self, pos: Position|dict|tuple|list = None, x: int = None, y: int = None, z: int = None):
+        # 检查是否直接传入了三个位置参数
+        if pos is not None and x is not None and y is not None and z is None:
+            # 如果 pos 是数字，x 是数字，y 是数字，z 是 None，说明是直接传入三个参数
+            if isinstance(pos, (int, float)) and isinstance(x, (int, float)) and isinstance(y, (int, float)):
+                self.x = int(pos)
+                self.y = int(x)
+                self.z = int(y)
+                return
+        
         if pos is not None:
             if isinstance(pos, dict):
                 self.x = pos["x"]
@@ -49,17 +58,19 @@ class BlockPosition:
                 self.x = int(pos[0])
                 self.y = int(pos[1])
                 self.z = int(pos[2])
-            else:
+            elif isinstance(pos, Position):
                 # 假设是 Position 对象
                 self.x = math.floor(pos.x)
                 self.y = math.floor(pos.y)
                 self.z = math.floor(pos.z)
+            else:
+                raise ValueError("必须提供Position对象或dict,tuple,list")
         elif x is not None and y is not None and z is not None:
-            self.x = int(x)
-            self.y = int(y)
-            self.z = int(z)
+            self.x = math.floor(x)
+            self.y = math.floor(y)
+            self.z = math.floor(z)
         else:
-            raise ValueError("必须提供位置参数或 x, y, z 坐标")
+            raise ValueError("必须提供Position对象或dict,tuple,list或 x, y, z 坐标")
 
     def __hash__(self):
         return hash((self.x, self.y, self.z))
@@ -92,15 +103,55 @@ class BlockPosition:
             return math.sqrt(dx*dx + dy*dy + dz*dz)
         else:
             raise TypeError("other 必须是包含 x, y, z 属性的位置对象")
+        
+    def __str__(self) -> str:
+        return f"x={self.x}, y={self.y}, z={self.z}"
 
 
 @dataclass
-class Block:
+class EventBlock:
     """方块信息"""
     type: int
     name: str
-    position: Position
+    position: BlockPosition
+    
+    
 
+TOOL_TAG = ["pickaxe", "axe", "shovel", "hoe", "sword"]
+MATERIAL_TAG = [
+    (1,"wooden"),
+    (2,"golden"),
+    (3,"stone"),
+    (4,"iron"),
+    (5,"diamond"),
+    (6,"netherite")
+]
+class Item:
+    """物品信息"""
+    def __init__(self, name: str, count: int, slot: int, durability: int = 0, max_durability: int = 0):
+        self.name = name
+        self.count = count
+        self.slot = slot
+        self.durability = durability
+        self.max_durability = max_durability
+        
+        #对工具的判断
+        self.tool_type:str = ""
+        self.tool_material:str = ""
+        self.tool_material_level:int = 0
+        
+        for tag in TOOL_TAG:
+            if tag in self.name:
+                self.tool_type = tag
+                break   
+        for tag in MATERIAL_TAG:    
+            if tag[1] in self.name:
+                self.tool_material = tag[1]
+                self.tool_material_level = tag[0]
+                break
+            
+    def __str__(self) -> str:
+        return f"{self.name} x{self.count}"
 
 @dataclass
 class Event:
@@ -112,7 +163,7 @@ class Event:
     player: Optional[Player] = None
     old_position: Optional[Position] = None
     new_position: Optional[Position] = None
-    block: Optional[Block] = None
+    block: Optional[EventBlock] = None
     experience: Optional[int] = None
     level: Optional[int] = None
     health: Optional[int] = None

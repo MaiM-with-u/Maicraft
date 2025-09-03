@@ -1,9 +1,6 @@
 import asyncio
 import os
-from typing import Any, Dict
-import tomli
 
-from mcp_server.client import MCPClient
 from config import global_config
 from mcp_server.client import global_mcp_client
 from utils.logger import setup_logging, get_logger
@@ -33,17 +30,11 @@ async def main() -> None:
 
     # 延迟导入以避免模块顶层导入顺序告警
     from agent.mai_agent import MaiAgent
-    from agent.action.craft_action.craft_action import recipe_finder
 
     connected = await global_mcp_client.connect()
     if not connected:
         print("[启动] 无法连接 MCP 服务器，退出")
         return
-
-
-
-    # 让配方系统可用
-    recipe_finder.mcp_client = global_mcp_client
 
     agent = MaiAgent()
     await agent.initialize()

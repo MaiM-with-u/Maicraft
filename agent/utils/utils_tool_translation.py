@@ -2,6 +2,7 @@ import json
 from typing import Any
 
 
+
 def translate_move_tool_result(result: Any, arguments: Any = None) -> str:
     """
     翻译move工具的执行结果，使其更可读
@@ -370,13 +371,13 @@ def translate_view_chest_result(result: Any) -> str:
                     items.append(f"{count}个{item_name}")
         
         # 构建可读文本
-        readable_text = f"✅ 成功查看箱子\n"
+        readable_text = "✅ 成功查看箱子\n"
         readable_text += f"位置: ({x}, {y}, {z})\n"
         readable_text += f"类型: {block_name} (朝向: {facing})\n"
         readable_text += f"容量: {total_slots}格，已占用: {occupied_slots}格，空闲: {empty_slots}格 ({occupancy_rate})\n"
         
         if items:
-            readable_text += f"物品列表:\n"
+            readable_text += "物品列表:\n"
             for item in items:
                 readable_text += f"  {item}\n"
         else:
@@ -572,7 +573,7 @@ def translate_use_chest_tool_result(result: Any) -> str:
                     if withdraw_match:
                         item_name = withdraw_match.group(1)
                         needed_count = withdraw_match.group(2)
-                        readable_text = f"❌ 附近箱子物品不足\n"
+                        readable_text = "❌ 附近箱子物品不足\n"
                         readable_text += f"需要取出: {item_name} ({needed_count}个)\n"
                         readable_text += f"访问了 {chest_count} 个箱子，但都没有足够的{item_name}"
                         return readable_text
@@ -672,4 +673,60 @@ def translate_use_furnace_tool_result(result: Any) -> str:
         return readable_text
         
     except Exception:
+        return str(result)
+
+def translate_eat_tool_result(result: Any) -> str:
+    """
+    翻译eat工具的执行结果，使其更可读
+    
+    Args:
+        result: eat工具的执行结果
+        
+    Returns:
+        翻译后的可读文本
+    """
+    try:
+        # 如果结果是字符串，尝试解析JSON
+        if isinstance(result, str):
+            try:
+                result_data = json.loads(result)
+            except json.JSONDecodeError:
+                return str(result)
+        else:
+            result_data = result
+        
+        # 检查是否是eat工具的结果
+        if not isinstance(result_data, dict):
+            return str(result)
+        
+        # 提取关键信息
+        ok = result_data.get("ok", False)
+        data = result_data.get("data", {})
+        
+        if not ok:
+            # 处理食用失败的情况
+            error_msg = result_data.get("error_message", "未知错误")
+            error_code = result_data.get("error_code", "")
+            return f"食用失败: {error_msg}"
+        
+        # 提取食用信息
+        item_name = data.get("itemName", "未知物品")
+        use_type = data.get("useType", "")
+        item_count_before = data.get("itemCountBefore", 0)
+        item_count_after = data.get("itemCountAfter", 0)
+        item_count = data.get("itemCount", 0)
+        
+        # 计算消耗的数量
+        consumed_count = item_count_before - item_count_after
+        
+        # 构建可读文本
+        if consumed_count > 0:
+            readable_text = f"成功食用{item_name}，消耗了{consumed_count}个，剩余{item_count_after}个"
+        else:
+            readable_text = f"食用{item_name}，当前拥有{item_count}个"
+        
+        return readable_text
+        
+    except Exception:
+        # 如果解析失败，返回原始结果
         return str(result)

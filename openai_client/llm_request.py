@@ -123,6 +123,8 @@ class LLMClient:
                 request_params["tools"] = tools
                 request_params["tool_choice"] = "auto"
             
+
+            
             if max_tokens:
                 request_params["max_tokens"] = max_tokens
             elif self.model_config.max_tokens:

@@ -4,7 +4,6 @@
 支持位置更新、查询和统计功能
 """
 import json
-import os
 import asyncio
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Set, Any
@@ -16,7 +15,7 @@ from agent.environment.basic_info import BlockPosition, Position
 logger = get_logger("BlockCache")
 
 
-class CachedBlock:
+class Block:
     """缓存的方块信息"""
     def __init__(self, block_type: str, position: BlockPosition, last_seen: datetime, first_seen: datetime, seen_count: int = 1) -> None:
         self.block_type = block_type
@@ -36,11 +35,11 @@ class CachedBlock:
         }
     
     @classmethod
-    def from_dict(cls, data: dict) -> 'CachedBlock':
+    def from_dict(cls, data: dict) -> 'Block':
         """从字典创建对象"""
         return cls(
             block_type=data["block_type"],
-            position=BlockPosition(data["position"]),
+            position=BlockPosition(pos=data["position"]),
             last_seen=datetime.fromisoformat(data["last_seen"]),
             first_seen=datetime.fromisoformat(data["first_seen"]),
             seen_count=data["seen_count"]
@@ -52,7 +51,7 @@ class CachedBlock:
     
     def __eq__(self, other):
         """比较两个方块是否在同一位置"""
-        if not isinstance(other, CachedBlock):
+        if not isinstance(other, Block):
             return False
         return (self.position.x, self.position.y, self.position.z) == (other.position.x, other.position.y, other.position.z)
 
@@ -107,7 +106,7 @@ class BlockCache:
             auto_save_interval: 自动保存间隔（秒），如果为None则从配置文件读取或使用默认值30秒
         """
         # 主缓存：位置 -> 方块信息
-        self._position_cache: Dict[BlockPosition, CachedBlock] = dict()
+        self._position_cache: Dict[BlockPosition, Block] = dict()
         
         # 类型索引：方块类型 -> 位置集合
         self._type_index: Dict[str, Set[BlockPosition]] = defaultdict(set)
@@ -209,10 +208,10 @@ class BlockCache:
                     try:
                         # 解析位置键 "x,y,z"
                         x, y, z = map(int, pos_key.split(','))
-                        position = BlockPosition({"x": x, "y": y, "z": z})
+                        position = BlockPosition(pos={"x": x, "y": y, "z": z})
                         
                         # 创建缓存方块对象
-                        cached_block = CachedBlock.from_dict(block_data)
+                        cached_block = Block.from_dict(block_data)
                         
                         # 添加到缓存
                         self._position_cache[position] = cached_block
@@ -304,7 +303,6 @@ class BlockCache:
         """尝试修复损坏的缓存文件"""
         try:
             import shutil
-            from pathlib import Path
             
             # 备份原文件
             backup_path = self._cache_file.with_suffix('.json.backup')
@@ -612,7 +610,7 @@ class BlockCache:
             return 0
         
     
-    def add_block(self, block_type: str, position: BlockPosition) -> CachedBlock:
+    def add_block(self, block_type: str, position: BlockPosition) -> Block:
         """
         添加或更新方块信息
         
@@ -642,7 +640,7 @@ class BlockCache:
             return existing_block
         else:
             # 添加新方块
-            new_block = CachedBlock(
+            new_block = Block(
                 block_type=block_type,
                 position=position,
                 last_seen=now,
@@ -657,7 +655,7 @@ class BlockCache:
             
             return new_block
     
-    def get_block(self, x: int, y: int, z: int) -> Optional[CachedBlock]:
+    def get_block(self, x: int, y: int, z: int) -> Optional[Block]:
         """
         获取指定位置的方块信息
         
@@ -667,7 +665,7 @@ class BlockCache:
         Returns:
             方块信息，如果不存在则返回None
         """
-        position = BlockPosition({"x": x, "y": y, "z": z})
+        position = BlockPosition(pos={"x": x, "y": y, "z": z})
         
         if position in self._position_cache:
             self._stats["cache_hits"] += 1
@@ -676,7 +674,7 @@ class BlockCache:
             self._stats["cache_misses"] += 1
             return None
     
-    def get_blocks_by_type(self, block_type: str) -> List[CachedBlock]:
+    def get_blocks_by_type(self, block_type: str) -> List[Block]:
         """
         获取指定类型的所有方块
         
@@ -689,8 +687,30 @@ class BlockCache:
         positions = self._type_index.get(block_type, set())
         return [self._position_cache[pos] for pos in positions if pos in self._position_cache]
     
+    def find_blocks_in_range(self, block_type: str, center_x: float, center_y: float, center_z: float, 
+                           radius: float) -> List[Block]:
+        """
+        获取指定范围内的所有方块
+        """
+        radius_squared = radius * radius
+        blocks_in_range = []
+        for block in self._position_cache.values():
+            if block.block_type != block_type:
+                continue
+            dx = block.position.x - center_x
+            dy = block.position.y - center_y
+            dz = block.position.z - center_z
+            distance_squared = dx*dx + dy*dy + dz*dz
+            if distance_squared <= radius_squared:
+                blocks_in_range.append(block)
+        # 按与中心点的距离从小到大排序
+        blocks_in_range.sort(key=lambda b: (b.position.x - center_x) * (b.position.x - center_x) +
+                                           (b.position.y - center_y) * (b.position.y - center_y) +
+                                           (b.position.z - center_z) * (b.position.z - center_z))
+        return blocks_in_range
+    
     def get_blocks_in_range(self, center_x: float, center_y: float, center_z: float, 
-                           radius: float) -> List[CachedBlock]:
+                           radius: float) -> List[Block]:
         """
         获取指定范围内的所有方块
         
@@ -757,7 +777,7 @@ class BlockCache:
             "player_position_count": len(self._player_position_cache)
         }
     
-    def _update_indices(self, block: CachedBlock, new_type: str):
+    def _update_indices(self, block: Block, new_type: str):
         """更新索引信息"""
         old_type = block.block_type
         
