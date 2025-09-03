@@ -1,14 +1,10 @@
 [
   {
-    "name": "digSafeMineShaftToY12.py/digSafeMineShaftToY12",
-    "detail": "挖掘一条通往地下的安全矿井，从当前地面层向下至少到达Y=12"
+    "name": "digDownAndEnterFirstUndergroundLayer.py/digDownAndEnterFirstUndergroundLayer",
+    "detail": "# 向下挖掘并进入地下第一层，自动放置火把照明\n# 函数首先检查玩家脚下方块是否存在且非空气，若为空则终止\n# 挖掘脚下的方块并尝试向下移动一格，进入新位置\n# 成功移动后，尝试在周围的侧面方块上方放置火把照明，若侧面不可行则尝试在头顶放置\n# 全部操作成功后发送完成消息\n# 返回值为bool，表示是否成功完成整个流程：包括挖掘、移动和放置火把"
   },
   {
-    "name": "moveToSurfaceAndFindLogs.py/moveToSurfaceAndFindLogs",
-    "detail": "await moveToSurfaceAndFindLogs(bot) -> None:\n描述：\n# 移动至地表并寻找自然生成的树木以获取原木\n# 首先检查当前位置是否在地表（通过Y坐标和周围草方块判断），然后在半径32格内搜索草方块和橡树原木\n# 若背包中已有原木，则直接返回完成消息\n# 否则尝试采集最近的原木\n# 返回值为None，函数通过聊天消息反馈执行结果，主要功能是完成从地下到地表的探索并获取原木资源"
-  },
-  {
-    "name": "craftStonePickaxe.py/craftStonePickaxe",
-    "detail": "await craftStonePickaxe(bot) -> bool:\n描述：\n# 合成石镐，检查玩家物品栏中是否有足够的圆石（至少3个）和木棍（至少2个），若材料不足则发送聊天消息并返回False\n# 若材料充足，则尝试调用bot.craft_item合成石镐\n# 合成成功后会检查物品栏中是否确实存在石镐，确保合成结果正确\n# 返回值为bool，表示合成是否成功并获得石镐，成功返回True，否则返回False"
+    "name": "digDownToY50WithTorches.py/digDownToY50WithTorches",
+    "detail": "# 向下挖掘至Y=50并沿途放置火把以确保照明\n# 函数自动检查当前Y坐标，若已低于或等于50则直接完成；否则向下挖掘，每下降2格（从Y=64开始）在侧面或头顶放置火把，确保竖井照明安全\n# 挖掘前会检查库存火把数量，若不足则尝试使用煤炭和木棍合成火把，必要时递归合成所需材料（如木板、木棍）\n# 支持自动清理头顶障碍物并安全下落，避免窒息或卡住\n# 最终验证Y=50至Y=64区间内是否每两格均有火把照明，若大部分层级已覆盖则返回成功\n# 返回值为bool，表示是否成功抵达Y=50且照明满足基本要求"
   }
 ]

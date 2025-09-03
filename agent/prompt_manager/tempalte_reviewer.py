@@ -8,9 +8,7 @@ def init_templates_reviewer() -> None:
             name="reviewer",
             template="""
 你需要编写程序来完成一个Minecraft游戏任务：
-<task>
 {task}
-</task>
 
 **自身信息**
 {self_str}
@@ -30,6 +28,9 @@ def init_templates_reviewer() -> None:
 **坐标点信息**：
 {location_list}
 --------------------
+运行程序
+{code_last_run}
+
 
 程序的结果输出：
 {output_last_run}
@@ -38,14 +39,19 @@ def init_templates_reviewer() -> None:
 现在请你分析任务的执行结果，是否完成task任务目标，请用json格式输出结果：
 如果完成，则success为true，并输出理由
 如果未完成，则success为false，并输出理由
+评估标准
+1.分清任务的主要目的和具体标准，不用太严格的判定，同时遵循二八定律，完成80%以上就算完成
+2.如果任务没有达到目的，进行反思性的思考，考虑程序的问题，并提出修改建议
+
 {{
   "success": bool,
   "reason": str
+  "suggestion": str
 }}
 请你输出json，不要输出其他内容
 """,
             description="代码审查",
-            parameters=["self_str","event_str","chat_str","location_list","game_info_before","game_info_after","output_last_run","goal", "task", "environment", "thinking_list", "nearby_block_info", "position", "location_list", "chat_str", "inventory_str"],
+            parameters=["self_str","event_str","chat_str","location_list","game_info_before","game_info_after","output_last_run","goal", "task", "environment", "thinking_list", "nearby_block_info", "position", "location_list", "chat_str", "inventory_str", "code_last_run"],
         )
     )
     

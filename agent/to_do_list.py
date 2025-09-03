@@ -12,7 +12,7 @@ class ToDoItem:
         
     def __str__(self):
         if self.done:
-            return f"（已完成）详情：{self.details}\n"
+            return f"（已完成）详情：{self.details}\n{self.done_criteria}"
         return f"（未完成）详情：{self.details}\n原因：{self.reason}\n完成条件：{self.done_criteria}\n"
 
 class ToDoList:
