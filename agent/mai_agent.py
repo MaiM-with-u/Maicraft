@@ -164,7 +164,7 @@ class MaiAgent:
 
             await self.environment_updater.perform_update()
             environment_info = global_environment.get_summary()
-            nearby_block_info = await self.nearby_block_manager.get_block_details_mix_str(global_environment.block_position,distance=8)
+            nearby_block_info = await self.nearby_block_manager.get_block_details_mix_str(global_environment.block_position,distance=16)
             self.input_data = {
                 "task": "还未执行任务",
                 "environment": environment_info,
@@ -194,7 +194,7 @@ class MaiAgent:
     async def update_input_data(self):
         await self.environment_updater.perform_update()
         environment_info = global_environment.get_summary()
-        nearby_block_info = await self.nearby_block_manager.get_block_details_mix_str(global_environment.block_position,distance=8)
+        nearby_block_info = await self.nearby_block_manager.get_block_details_mix_str(global_environment.block_position,distance=16)
         self.input_data["environment"] = environment_info
         self.input_data["thinking_list"] = global_thinking_log.get_thinking_log()
         self.input_data["nearby_block_info"] = nearby_block_info
@@ -262,15 +262,12 @@ class MaiAgent:
             self.input_data["output_last_run"] = ""
             self.input_data["error_last_run"] = ""
             
-            await self.update_input_data()
-            game_info_before = prompt_manager.generate_prompt("game_info", **self.input_data)
-            self.input_data["game_info_before"] = game_info_before
-            
-            
             task_finished = False
-            max_try = 5
+            max_try = 10
             try_count = 0
             while not task_finished:
+                await self.update_input_data()
+                self.input_data["game_info_before"] = prompt_manager.generate_prompt("game_info", **self.input_data)
                 code, success, output, error, traceback = await self.excute_code_generate(self.input_data)
                 if success:
                     self.input_data["code_last_run"] = code
@@ -301,6 +298,12 @@ class MaiAgent:
                     task.done = True
                     task.done_criteria = f"已完成，{revier_json.get('reason')}"
                 else:
+                    if revier_json.get("change_task"):
+                        self.input_data["adjust_reason"] = revier_json.get("reason")
+                        self.input_data["suggestion"] = revier_json.get("suggestion")
+                        self.input_data["last_run_result"] = "任务未完成"
+                        task.done_criteria = f"更改任务，{revier_json.get('reason')}"
+                        break
                     self.input_data["adjust_reason"] = revier_json.get("reason")
                     self.input_data["suggestion"] = revier_json.get("suggestion")
                     self.input_data["last_run_result"] = "任务未完成"
@@ -356,7 +359,6 @@ class MaiAgent:
             
         
     async def excute_code_generate(self,input_data:dict):
-        await self.update_input_data()
         prompt = prompt_manager.generate_prompt("code_generate", **input_data)
         code_and_plan = await self.llm_client.simple_chat(prompt)
         self.logger.info(f" 代码生成提示词: {prompt}")

@@ -377,25 +377,25 @@ class EnvironmentInfo:
             if equipped_items:
                 lines.append(f"  装备: {', '.join(equipped_items)}")
         
-        lines.append("【装备】")
-        lines.append(f"  护甲值: {self.armor}")
-        if self.held_item:
-            item_name = self.held_item.get("displayName", self.held_item.get("name", "未知物品"))
-            item_count = self.held_item.get("count", 1)
-            durability = self.held_item.get("maxDurability", 0)
-            current_damage = 0
-            if self.held_item.get("components"):
-                for component in self.held_item["components"]:
-                    if component.get("type") == "damage":
-                        current_damage = component.get("data", 0)
-                        break
+        # lines.append("【装备】")
+        # lines.append(f"  护甲值: {self.armor}")
+        # if self.held_item:
+        #     item_name = self.held_item.get("displayName", self.held_item.get("name", "未知物品"))
+        #     item_count = self.held_item.get("count", 1)
+        #     durability = self.held_item.get("maxDurability", 0)
+        #     current_damage = 0
+        #     if self.held_item.get("components"):
+        #         for component in self.held_item["components"]:
+        #             if component.get("type") == "damage":
+        #                 current_damage = component.get("data", 0)
+        #                 break
             
-            lines.append(f"  手持物品: {item_name} x{item_count}")
-            if durability > 1:
-                remaining_durability = durability - current_damage
-                lines.append(f"    耐久度: {remaining_durability}/{durability}")
-            if self.using_held_item:
-                lines.append("    正在使用中")
+        #     lines.append(f"  手持物品: {item_name} x{item_count}")
+        #     if durability > 1:
+        #         remaining_durability = durability - current_damage
+        #         lines.append(f"    耐久度: {remaining_durability}/{durability}")
+        #     if self.using_held_item:
+        #         lines.append("    正在使用中")
                 
         lines.append("【工具】")
         lines.append(review_all_tools(self.inventory))

@@ -46,13 +46,17 @@ class ActionBot:
     @property
     async def inventory(self):
         # 始终返回当前的全局背包引用
+        print("inventory")
         await self.environment_updater.perform_update()
+        print("inventory2")
         return global_environment.inventory
 
     @property
     async def position(self):
         # 始终返回当前的全局位置对象
+        print("position")
         await self.environment_updater.perform_update()
+        print("position2")
         return global_environment.block_position
 
 

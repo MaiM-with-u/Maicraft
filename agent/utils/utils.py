@@ -1,9 +1,13 @@
 import json
+import re
 from json_repair import repair_json
 from typing import List, Dict, Any
-from loguru import logger
-import re
 from mcp_server.client import CallToolResult
+from utils.logger import get_logger
+from agent.environment.basic_info import BlockPosition
+import math
+
+logger = get_logger("agent.utils.utils")
 
 def parse_json(text: str) -> dict:
     """解析json字符串"""
@@ -80,6 +84,10 @@ def convert_mcp_tools_to_openai_format(mcp_tools) -> List[Dict[str, Any]]:
     
     return openai_tools
 
+def calculate_distance(position1: BlockPosition, position2: BlockPosition) -> float:
+    """计算两个位置之间的距离"""
+    return math.sqrt((position1.x - position2.x)**2 + (position1.y - position2.y)**2 + (position1.z - position2.z)**2)
+
 def parse_tool_result(result: CallToolResult) -> tuple[bool, str]:
     """解析工具执行结果，判断是否真的成功
     
@@ -95,6 +103,8 @@ def parse_tool_result(result: CallToolResult) -> tuple[bool, str]:
             return False, f"MCP错误: {result.content}"
     
         result_json = result.structured_content
+        
+        logger.info(f"工具执行结果: {result_json}")
     
         # 检查ok字段
         if "ok" in result_json:

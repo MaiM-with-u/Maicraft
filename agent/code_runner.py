@@ -84,8 +84,21 @@ class CodeRunner:
     
     def reload_learnt_functions(self):
         """重新加载学到的函数"""
+        old_functions = set(self.learnt_functions.keys())
         self.learnt_functions.clear()
         self._load_learnt_functions()
+        new_functions = set(self.learnt_functions.keys())
+        
+        # 打印加载的函数信息（用于调试）
+        if new_functions:
+            print(f"[CodeRunner] 已加载学到的函数: {list(new_functions)}")
+        if new_functions != old_functions:
+            added = new_functions - old_functions
+            removed = old_functions - new_functions
+            if added:
+                print(f"[CodeRunner] 新增函数: {list(added)}")
+            if removed:
+                print(f"[CodeRunner] 移除函数: {list(removed)}")
     
     def get_learnt_functions(self):
         """获取已加载的学到的函数列表"""
@@ -117,6 +130,9 @@ class CodeRunner:
                 "result": None,
                 "traceback": ""
             }
+        
+        # 每次执行前重新加载学到的函数，确保获取最新的函数
+        self.reload_learnt_functions()
         
         # 创建新的命名空间，预导入bot对象
         namespace = {
@@ -246,7 +262,7 @@ class CodeRunner:
                                                 'isinstance', 'hasattr', 'getattr', 'setattr',
                                                 'dir', 'range', 'enumerate', 'zip', 'map',
                                                 'filter', 'sum', 'max', 'min', 'abs', 'round',
-                                                'sorted', 'reversed', 'any', 'all']:
+                                                'sorted', 'reversed', 'any', 'all', 'asyncio', 'sleep']:
                 continue
                 
             # 检查是否是函数
@@ -309,6 +325,9 @@ class CodeRunner:
                 "result": None,
                 "traceback": ""
             }
+        
+        # 每次执行前重新加载学到的函数，确保获取最新的函数
+        self.reload_learnt_functions()
         
         # 创建新的命名空间
         namespace = {
@@ -423,6 +442,9 @@ class CodeRunner:
                 "result": None,
                 "traceback": ""
             }
+        
+        # 每次执行前重新加载学到的函数，确保获取最新的函数
+        self.reload_learnt_functions()
 
         namespace = {
             "__builtins__": __builtins__,
@@ -484,24 +506,8 @@ class CodeRunner:
                 function_results = []
                 function_error_lines = []
                 
-                # 优先执行学到的函数
-                for name, obj in self.learnt_functions.items():
-                    try:
-                        if inspect.iscoroutinefunction(obj):
-                            # 学到的异步函数，传入bot参数
-                            r = await obj(self.bot)
-                            function_results.append(f"执行学到的异步函数 {name}(bot): {r}")
-                        else:
-                            # 学到的同步函数，传入bot参数
-                            r = obj(self.bot)
-                            function_results.append(f"执行学到的函数 {name}(bot): {r}")
-                    except Exception as e:
-                        err_line = f"执行学到的函数 {name} 时出错: {str(e)}"
-                        function_results.append(err_line)
-                        function_error_lines.append(err_line)
-                        # 收集完整的 traceback
-                        tb = traceback.format_exc()
-                        function_error_lines.append(f"学到的函数 {name} 的完整错误堆栈:\n{tb}")
+                # 学到的函数只作为工具函数提供，不自动执行
+                # 它们会在代码中被显式调用时才执行
                 
                 # 然后执行其他定义的函数
                 for name, obj in list(namespace.items()):
@@ -510,7 +516,7 @@ class CodeRunner:
                                                          'isinstance', 'hasattr', 'getattr', 'setattr',
                                                          'dir', 'range', 'enumerate', 'zip', 'map',
                                                          'filter', 'sum', 'max', 'min', 'abs', 'round',
-                                                         'sorted', 'reversed', 'any', 'all']:
+                                                         'sorted', 'reversed', 'any', 'all', 'asyncio', 'sleep']:
                         continue
                     
                     # 跳过学到的函数，已经处理过了

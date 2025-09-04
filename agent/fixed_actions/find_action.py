@@ -10,8 +10,8 @@ from agent.block_cache.block_cache import global_block_cache
 from agent.environment.environment import global_environment
 
 async def find_blocks(block_type: str, radius: float) -> tuple[bool,list[Block]]:
-    if radius > 32:
-        radius = 32
+    if radius > 64:
+        radius = 64
     position =global_environment.block_position
     blocks = global_block_cache.find_blocks_in_range(block_type, position.x, position.y, position.z, radius)
     result_str = ""

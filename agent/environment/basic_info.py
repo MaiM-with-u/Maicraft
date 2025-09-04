@@ -128,7 +128,7 @@ MATERIAL_TAG = [
 ]
 class Item:
     """物品信息"""
-    def __init__(self, name: str, count: int, slot: int, durability: int = 0, max_durability: int = 0):
+    def __init__(self, name: str, count: int, slot: int = None, durability: int = 0, max_durability: int = 0):
         self.name = name
         self.count = count
         self.slot = slot

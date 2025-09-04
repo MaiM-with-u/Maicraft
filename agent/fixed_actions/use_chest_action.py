@@ -5,7 +5,7 @@ from agent.utils.utils_tool_translation import translate_use_chest_tool_result
 from agent.environment.basic_info import Item
 
 
-async def use_chest(x: int, y: int, z: int, action: str, item:str ,count:int) -> Tuple[bool, List[Item], int, str]:
+async def use_chest(x: int, y: int, z: int, action: str, item:str ,count:int) -> Tuple[bool, List[Item], int]:
     """
     对指定坐标的箱子进行存取操作。
     参数:
@@ -82,6 +82,6 @@ async def use_chest(x: int, y: int, z: int, action: str, item:str ,count:int) ->
         except Exception:
             pass
 
-    return ok, items_out, remaining_slots, text
+    return ok, items_out, remaining_slots
 
 

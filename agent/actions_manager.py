@@ -24,9 +24,11 @@ class ActionsManager:
         # 生成以描述为主体的展示文本
         lines = []
         for item in records:
-            name = item.get("name","").strip()
-            lines.append(f"{name}")
-            detail = item.get("detail","").strip()
+            name = item.get("name", "").strip()
+            # 获取/分割后的后一段
+            name_last = name.split("/")[-1] if "/" in name else name
+            lines.append(f"await {name_last}(bot)")
+            detail = item.get("detail", "").strip()
             if detail:
                 lines.append(f"#{detail}")
             lines.append("\n")
