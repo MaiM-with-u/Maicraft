@@ -15,7 +15,6 @@ except ImportError:
     OPENGL_AVAILABLE = False
 import time
 import os
-import numpy as np
 import atexit
 import signal
 import base64

@@ -5,10 +5,8 @@ Prompt Manager - 智能提示词模板管理器
 """
 
 import re
-import json
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
-from pathlib import Path
 import logging
 
 

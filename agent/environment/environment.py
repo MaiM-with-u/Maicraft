@@ -3,7 +3,6 @@ Minecraft环境信息存储类
 用于存储和管理游戏环境数据
 """
 
-from dataclasses import field
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from utils.logger import get_logger
@@ -12,6 +11,13 @@ from agent.block_cache.block_cache import global_block_cache
 from openai_client.llm_request import LLMClient
 from agent.environment.locations import global_location_points
 from config import global_config
+from agent.thinking_log import global_thinking_log
+from agent.mai_mode import mai_mode
+from agent.block_cache.nearby_block import nearby_block_manager
+from agent.to_do_list import mai_goal, mai_to_do_list
+from agent.utils.utils import format_task_done_list
+from agent.prompt_manager.prompt_manager import prompt_manager
+
 
 logger = get_logger("EnvironmentInfo")
 
@@ -395,7 +401,7 @@ class EnvironmentInfo:
             equipped_items = []
             for slot, item in self.equipment.items():
                 if item:
-                    item_name = item.get("displayName", item.get("name", "未知物品"))
+                    item_name = item.get("name", "未知物品")
                     equipped_items.append(f"{slot}: {item_name}")
             if equipped_items:
                 lines.append(f"  装备: {', '.join(equipped_items)}")
@@ -405,7 +411,7 @@ class EnvironmentInfo:
     def get_held_item_info(self) -> str:
         lines = []
         if self.held_item:
-            item_name = self.held_item.get("displayName", self.held_item.get("name", "未知物品"))
+            item_name = self.held_item.get("name", "未知物品")
             item_count = self.held_item.get("count", 1)
             durability = self.held_item.get("maxDurability", 0)
             current_damage = 0
@@ -582,7 +588,7 @@ class EnvironmentInfo:
             
             # 构建聊天行
             # chat_line = f"  {i}. {timestamp_str} {player_name}: {chat_content}"
-            chat_line = f"[{timestamp_str}]{player_name}: {chat_content}"
+            chat_line = f"{timestamp_str}{player_name}: {chat_content}"
             lines.append(chat_line)
         
         return "\n".join(lines)
@@ -594,7 +600,11 @@ class EnvironmentInfo:
         # logger.info(f"事件: {event}")
         
         # 获取玩家名称，优先使用事件中的玩家名称
-        player_name = event.player_name or "未知玩家"
+        if event.player_name:
+            player_name = event.player_name
+        else:
+            return ""
+        
         if player_name == global_config.bot.player_name:
             base_desc = f"你({player_name})"
         else:
@@ -691,7 +701,7 @@ class EnvironmentInfo:
         if not self.held_item:
             return "没有手持物品"
         
-        item_name = self.held_item.get("displayName", self.held_item.get("name", "未知物品"))
+        item_name = self.held_item.get("name", "未知物品")
         item_count = self.held_item.get("count", 1)
         durability = self.held_item.get("maxDurability", 0)
         
@@ -724,66 +734,42 @@ class EnvironmentInfo:
         
         return "\n".join(info_lines)
 
-    def get_cursor_info(self) -> str:
-        """获取光标指向的信息"""
-        info_lines = ["【光标信息】"]
-        
-        if self.block_at_cursor:
-            block_name = self.block_at_cursor.get("displayName", self.block_at_cursor.get("name", "未知方块"))
-            block_pos = self.block_at_cursor.get("position", {})
-            
-            info_lines.append(f"指向方块: {block_name}")
-            if block_pos:
-                info_lines.append(f"位置: ({block_pos.get('x', 0)}, {block_pos.get('y', 0)}, {block_pos.get('z', 0)})")
-            
-            # 添加方块属性信息
-            if self.block_at_cursor.get("hardness") is not None:
-                info_lines.append(f"硬度: {self.block_at_cursor['hardness']}")
-            
-            if self.block_at_cursor.get("material"):
-                info_lines.append(f"挖掘工具: {self.block_at_cursor['material']}")
-            
-            if self.block_at_cursor.get("transparent") is not None:
-                info_lines.append(f"透明: {'是' if self.block_at_cursor['transparent'] else '否'}")
-            
-            if self.block_at_cursor.get("diggable") is not None:
-                info_lines.append(f"可挖掘: {'是' if self.block_at_cursor['diggable'] else '否'}")
-        
-        if self.entity_at_cursor:
-            entity_name = self.entity_at_cursor.get("displayName", self.entity_at_cursor.get("name", "未知实体"))
-            info_lines.append(f"指向实体: {entity_name}")
-            
-            # 添加实体属性信息
-            if self.entity_at_cursor.get("health") is not None:
-                max_health = self.entity_at_cursor.get("maxHealth", 0)
-                if max_health > 0:
-                    info_lines.append(f"生命值: {self.entity_at_cursor['health']}/{max_health}")
-                else:
-                    info_lines.append(f"生命值: {self.entity_at_cursor['health']}")
-        
-        if not self.block_at_cursor and not self.entity_at_cursor:
-            info_lines.append("光标没有指向任何方块或实体")
-        
-        return "\n".join(info_lines)
-
-    def get_movement_info(self) -> str:
-        """获取移动相关信息"""
-        info_lines = ["【移动信息】"]
-        
-        if self.velocity:
-            speed = (self.velocity.x**2 + self.velocity.y**2 + self.velocity.z**2)**0.5
-            info_lines.append(f"当前速度: {speed:.2f} 方块/秒")
-            info_lines.append(f"速度向量: X={self.velocity.x:.2f}, Y={self.velocity.y:.2f}, Z={self.velocity.z:.2f}")
+    
+    async def get_all_data(self) -> dict:
+        if self.food/self.food_max < 0.8:
+            eat_action = """**eat**
+食用某样物品回复饱食度
+食用背包中的物品
+{
+    "action_type":"eat",
+    "item":"食物名称",
+}"""
         else:
-            info_lines.append("当前速度: 静止")
+            eat_action = ""
         
-        info_lines.append(f"是否在地面上: {'是' if self.on_ground else '否'}")
-        info_lines.append(f"是否在睡觉: {'是' if self.is_sleeping else '否'}")
         
-        if self.position:
-            info_lines.append(f"当前位置: X={self.position.x:.2f}, Y={self.position.y:.2f}, Z={self.position.z:.2f}")
+        input_data = {
+            "self_info": self.get_self_info(),
+            "basic_info": "",
+            "task": "当前没有选择明确的任务",
+            "environment": self.get_summary(),
+            "thinking_list": global_thinking_log.get_thinking_log(),
+            "nearby_block_info": await nearby_block_manager.get_block_details_mix_str(self.block_position,distance=32),
+            "position": self.get_position_str(),
+            "chat_str": self.get_chat_str(),
+            "event_str": self.get_event_str(),
+            "to_do_list": mai_to_do_list.__str__(),
+            "task_done_list": format_task_done_list(),
+            "goal": mai_goal.goal,
+            "mode": mai_mode.mode,
+            "eat_action": eat_action
+        }
         
-        return "\n".join(info_lines)
+        basic_info = prompt_manager.generate_prompt("basic_info", **input_data)
+        input_data["basic_info"] = basic_info
+        
+        
+        return input_data
 
 
 # 全局环境信息实例

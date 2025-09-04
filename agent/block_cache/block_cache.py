@@ -4,7 +4,6 @@
 支持位置更新、查询和统计功能
 """
 import json
-import os
 import asyncio
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Set, Any
@@ -304,7 +303,6 @@ class BlockCache:
         """尝试修复损坏的缓存文件"""
         try:
             import shutil
-            from pathlib import Path
             
             # 备份原文件
             backup_path = self._cache_file.with_suffix('.json.backup')

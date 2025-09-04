@@ -9,6 +9,8 @@ __pycache__/
 usage
 config.toml
 mcp_servers.json
+mcp_servers_1.json
+mcp_servers_2.json
 # Distribution / packaging
 .Python
 build/

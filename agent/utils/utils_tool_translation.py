@@ -1,6 +1,8 @@
 import json
 from typing import Any
+from utils.logger import get_logger
 
+logger = get_logger("UtilsToolTranslation")
 
 def translate_move_tool_result(result: Any, arguments: Any = None) -> str:
     """
@@ -345,7 +347,7 @@ def translate_view_chest_result(result: Any) -> str:
         z = position.get("z", 0)
         
         # 获取箱子类型和朝向
-        block_name = block.get("displayName", "箱子")
+        block_name = block.get("name", "箱子")
         properties = block.get("_properties", {})
         facing = properties.get("facing", "未知")
         
@@ -361,19 +363,15 @@ def translate_view_chest_result(result: Any) -> str:
         items = []
         
         for slot in slots:
+            # logger.info(f"箱子物品: {slot}")
             if slot.get("name") != "air" and slot.get("count", 0) > 0:
-                item_name = slot.get("displayName", slot.get("name", "未知物品"))
+                item_name = slot.get("name", "未知物品")
                 count = slot.get("count", 1)
                 
-                if count == 1:
-                    items.append(f"1个{item_name}")
-                else:
-                    items.append(f"{count}个{item_name}")
+                items.append(f"{item_name} x {count}")
         
         # 构建可读文本
-        readable_text = "✅ 成功查看箱子\n"
-        readable_text += f"位置: ({x}, {y}, {z})\n"
-        readable_text += f"类型: {block_name} (朝向: {facing})\n"
+        readable_text = "箱子chest({x}, {y}, {z})的内容：\n"
         readable_text += f"容量: {total_slots}格，已占用: {occupied_slots}格，空闲: {empty_slots}格 ({occupancy_rate})\n"
         
         if items:
@@ -390,70 +388,6 @@ def translate_view_chest_result(result: Any) -> str:
         return str(result)
 
 
-def translate_collect_smelted_items_tool_result(result: Any) -> str:
-    """
-    翻译collect_smelted_items工具的执行结果，使其更可读
-    
-    Args:
-        result: collect_smelted_items工具的执行结果
-        
-    Returns:
-        翻译后的可读文本
-    """
-    try:
-        # 如果结果是字符串，尝试解析JSON
-        if isinstance(result, str):
-            try:
-                result_data = json.loads(result)
-            except json.JSONDecodeError:
-                return str(result)
-        else:
-            result_data = result
-        
-        # 检查是否是collect_smelted_items工具的结果
-        if not isinstance(result_data, dict):
-            return str(result)
-        
-        # 提取关键信息
-        ok = result_data.get("ok", False)
-        data = result_data.get("data", {})
-        
-        if not ok:
-            return "收集熔炼物品失败"
-        
-        # 提取收集信息
-        items = data.get("items", [])
-        total_count = data.get("totalCount", 0)
-        furnace_position = data.get("furnacePosition", {})
-        
-        # 格式化熔炉位置信息
-        x = furnace_position.get("x", 0)
-        y = furnace_position.get("y", 0)
-        z = furnace_position.get("z", 0)
-        
-        if not items:
-            return f"从熔炉位置 ({x}, {y}, {z}) 收集物品，但没有收集到任何物品"
-        
-        # 构建物品列表文本
-        item_texts = []
-        for item in items:
-            item_name = item.get("name", "未知物品")
-            item_count = item.get("count", 1)
-            if item_count == 1:
-                item_texts.append(f"1个{item_name}")
-            else:
-                item_texts.append(f"{item_count}个{item_name}")
-        
-        items_str = "、".join(item_texts)
-        
-        # 构建可读文本
-        readable_text = f"成功从熔炉位置 ({x}, {y}, {z}) 收集到：{items_str}，总计：{total_count}个物品"
-        
-        return readable_text
-        
-    except Exception:
-        # 如果解析失败，返回原始结果
-        return str(result)
 
 def translate_view_furnace_result(result: Any) -> str:
     """翻译view_furnace工具的执行结果"""
@@ -512,7 +446,7 @@ def translate_view_furnace_result(result: Any) -> str:
                 if slot.get("name") != "air" and slot.get("count", 0) > 0:
                     slot_num = slot.get("slot", 0)
                     slot_name = slot_names.get(slot_num, f"槽位{slot_num}")
-                    item_name = slot.get("displayName", slot.get("name", "未知"))
+                    item_name = slot.get("name", "未知")
                     count = slot.get("count", 1)
                     readable_text += f"{slot_name}: {count}个{item_name}\n"
         else:

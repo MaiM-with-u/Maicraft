@@ -1,10 +1,11 @@
 import json
 import math
 from json_repair import repair_json
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from utils.logger import get_logger
 from mcp_server.client import CallToolResult
 from agent.environment.basic_info import BlockPosition
+from agent.to_do_list import mai_done_list
 
 logger = get_logger("Utils")
 
@@ -166,6 +167,26 @@ def format_executed_goals(goal_list: list[tuple[str, str, str]]) -> str:
     
     return "\n".join(lines)
 
+
+def format_task_done_list() -> str:
+    """将任务执行记录翻译成可读文本，只取最近10条。
+
+    任务记录为 (success: bool, task_id: str, message: str)
+    """
+    if not mai_done_list:
+        return "暂无任务执行记录"
+
+    lines: list[str] = []
+    # 仅取最近10条
+    for success, task_id, message in mai_done_list[-10:]:
+        status_text = "成功" if success else "失败"
+        # 规避 None/空值
+        safe_task_id = str(task_id) if task_id is not None else ""
+        safe_message = str(message) if message is not None else ""
+        lines.append(f"任务ID {safe_task_id}：{status_text}（{safe_message}）")
+
+    return "\n".join(lines)
+
 def parse_thinking(thinking: str) -> tuple[bool, str, dict, str]:
     """
     解析思考结果
@@ -237,6 +258,77 @@ def parse_thinking(thinking: str) -> tuple[bool, str, dict, str]:
     return success, thinking, json_obj, json_before
 
 
+async def parse_take_items_actions(thinking: str, execute_action_func) -> tuple[bool, str, list, str]:
+    """
+    解析思考结果中的存取动作 (take_items 和 put_items)
+    1. 识别所有符合存取动作格式的 JSON 对象
+    2. 按顺序执行这些动作，每个动作间等待 0.3 秒
+    3. 返回: (是否成功, 思考结果, 存取动作列表, 非JSON内容)
+    """
+    import asyncio
+    
+    # 匹配所有JSON对象（支持嵌套大括号）
+    def find_all_json_objects(text):
+        json_objects = []
+        stack = []
+        start = None
+        
+        for i, c in enumerate(text):
+            if c == '{':
+                if not stack:
+                    start = i
+                stack.append('{')
+            elif c == '}':
+                if stack:
+                    stack.pop()
+                    if not stack and start is not None:
+                        json_str = text[start:i+1]
+                        json_objects.append((json_str, start, i+1))
+                        start = None
+        
+        return json_objects
+    
+    # 查找所有JSON对象
+    json_objects = find_all_json_objects(thinking)
+    chest_actions = []
+    non_json_content = thinking
+    success = True
+    
+    # 处理每个JSON对象
+    for json_str, start, end in json_objects:
+        try:
+            json_obj = parse_json(json_str)
+            if json_obj and json_obj.get("action_type") in ["take_items", "put_items"]:
+                chest_actions.append(json_obj)
+                # 从非JSON内容中移除这个JSON
+                non_json_content = non_json_content.replace(json_str, "").strip()
+        except Exception as e:
+            logger.error(f"[Utils] 解析存取动作 JSON时异常: {json_str}, 错误: {e}")
+            success = False
+    
+    # 清理非JSON内容
+    non_json_content = non_json_content.replace("```json", "").replace("```", "").strip()
+    
+    # 按顺序执行所有存取动作
+    if chest_actions and execute_action_func:
+        logger.info(f"[Utils] 发现 {len(chest_actions)} 个存取动作，开始执行...")
+        
+        for i, action in enumerate(chest_actions):
+            try:
+                action_type = action.get("action_type")
+                logger.info(f"[Utils] 执行第 {i+1} 个 {action_type} 动作: {action}")
+                result = await execute_action_func(action)
+                logger.info(f"[Utils] 第 {i+1} 个动作执行结果: {result.result_str if hasattr(result, 'result_str') else str(result)}")
+                
+                # 等待 0.3 秒（除了最后一个动作）
+                if i < len(chest_actions) - 1:
+                    await asyncio.sleep(0.3)
+                    
+            except Exception as e:
+                logger.error(f"[Utils] 执行第 {i+1} 个存取动作时异常: {e}")
+                success = False
+    
+    return success, thinking, chest_actions, non_json_content
 
 
 def compare_inventories(old_inventory: List[Dict[str, Any]], new_inventory: List[Dict[str, Any]]) -> Dict[str, Any]:

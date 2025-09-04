@@ -319,3 +319,5 @@ class NearbyBlockManager:
         # 选择字符最短的表示
         best = min(candidates, key=len)
         return best
+    
+nearby_block_manager = NearbyBlockManager()

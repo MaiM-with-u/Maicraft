@@ -1,12 +1,8 @@
 import asyncio
-import os
-from typing import Any, Dict
-import tomli
 
-from mcp_server.client import MCPClient
 from config import global_config
 from mcp_server.client import global_mcp_client
-from utils.logger import setup_logging, get_logger
+from utils.logger import setup_logging
 
 
 

@@ -308,7 +308,7 @@ class RecipeFinder:
                 report_lines.append(f"\n配方{i}：")
                 if recipe.get("status") == "材料充足":
                     # report_lines.append(f"  ✓ 材料充足，每批次产出：{recipe['per_batch']}，需要批次：{recipe['batches']}")
-                    report_lines.append(f"  ✓ 材料充足")
+                    report_lines.append("  ✓ 材料充足")
                 else:
                     report_lines.append(f"  ✗ 缺少材料：{', '.join(recipe['missing'])}")
                     # report_lines.append(f"    每批次产出：{recipe['per_batch']}，需要批次：{recipe['batches']}")

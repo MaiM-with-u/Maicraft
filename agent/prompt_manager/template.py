@@ -1,19 +1,22 @@
 from agent.prompt_manager.prompt_manager import PromptTemplate, prompt_manager
 from agent.prompt_manager.template_chat import init_templates_chat
-from agent.prompt_manager.template_use_item import init_templates_use_item
+from agent.prompt_manager.chest_gui import init_templates_chest_gui
+from agent.prompt_manager.furnace_gui import init_templates_furnace_gui
 from agent.prompt_manager.template_task import init_templates_task
 
 def init_templates() -> None:
     """初始化提示词模板"""
     init_templates_chat()
-    init_templates_use_item()
     init_templates_task()
+    init_templates_chest_gui()
+    init_templates_furnace_gui()
     
     prompt_manager.register_template(
         PromptTemplate(
         name="basic_info",
         template="""
 你是麦麦，游戏名叫Mai,你正在游玩Minecraft，是一名Minecraft玩家。
+{self_info}
 
 **当前目标和任务列表**：
 目标：{goal}
@@ -36,7 +39,17 @@ def init_templates() -> None:
 {chat_str}
 """,
         description="基础信息",
-        parameters=["mode","goal","event_str","task", "environment", "nearby_block_info", "position", "chat_str", "to_do_list"],
+        parameters=[
+            "self_info",
+            "mode",
+            "goal",
+            "event_str",
+            "task",
+            "environment",
+            "nearby_block_info",
+            "position",
+            "chat_str",
+            "to_do_list"],
     ))
     
     
@@ -45,6 +58,7 @@ def init_templates() -> None:
         PromptTemplate(
         name="main_thinking",
         template="""
+{basic_info}
 
 **动作**
 **break_block**
@@ -79,15 +93,6 @@ def init_templates() -> None:
     "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
 }}
 
-**view_container**
-查看容器（chest/furnace/blast_furnace/smoker）的内容物，查看里面有什么物品
-查看熔炉的输入，燃料和输出
-{{
-    "action_type":"view_container",
-    "type":"容器类型，可选chest/furnace/blast_furnace/smoker",
-    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
-}}
-
 **craft**
 使用工作台或者背包进行合成物品
 能够进行工作台3x3合成
@@ -99,34 +104,21 @@ def init_templates() -> None:
 }}
 
 **use_furnace**
-打开熔炉，将物品放入熔炉并添加燃料，进行熔炼
-取出熔炉的原料，燃料和熔炼后的物品
+打开熔炉，可以熔炼或取出熔炼的物品
 {{
     "action_type":"use_furnace",
-    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
-    "item":"需要放入或取出的物品名称",
-    "count":"数量",
-    "type":"put/take", //put表示放入，take表示取出
-    "slot":"input/fuel/output", //物品的位置，input表示原料，fuel表示燃料，output表示熔炼
+    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}}
 }}
 
 **use_chest**
 打开chest，将物品放入箱子或从箱子中取出物品
+你可以存入或取出多种物品
 {{
     "action_type":"use_chest",
     "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
-    "item":"需要放入或取出的物品名称",
-    "count":"数量",
-    "type":"put/take", //put表示放入，take表示取出
 }}
  
-**eat**
-食用某样物品回复饱食度
-食用背包中的物品
-{{
-    "action_type":"eat",
-    "item":"食物名称",
-}}
+{eat_action}
 
 **use_item**
 使用某样物品，可以对实体使用物品
@@ -153,18 +145,6 @@ def init_templates() -> None:
     "action_type":"go_to_location",
     "name":"地标名称",
 }}
- 
-**你可以进入的模式**
-
-**进入use_item模式**
-可以使用背包中的物品，但是你只能使用以下物品
-1.食用食物
-2.可激活的物品，例如药水等
-3.可对实体使用的物品，例如剪刀，栓绳等
-{{
-    "action_type":"enter_use_item_mode",
-    "reason":"使用物品的原因"
-}}
 
 **进入task_edit模式**
 对任务列表进行修改，包括：
@@ -180,15 +160,12 @@ def init_templates() -> None:
 **思考/执行的记录**
 {thinking_list}
 
-**模式**
-1.请你灵活使用任务规划模式，方块使用和物品使用模式，帮助你更高效的完成任务
-2.如果要使用物品，请你进入use_item模式，如果要放置方块或者使用方块，不要进入
-4.如果要修改任务列表，请你进入task_edit模式
 
 **注意事项**
 1.先总结之前的思考和执行的记录，对执行结果进行分析，是否达成目的，是否需要调整任务或动作
 2.你必须先查看容器的内容物，才能与容器交互
 3.想法要求准确全面，如果要描述坐标，完整的描述
+4.如果要修改任务列表，请你进入task_edit模式
 4.你可以通过事件知道别的玩家的位置，或者别的玩家正在做什么。
 5.然后根据现有的**动作**，**任务**,**情景**，**物品栏**,**最近事件**和**周围环境**，进行下一步规划，推进任务进度。
 6.如果一个动作反复无法完成，请反思性思考，结合周围环境尝试别的方案，不要重复尝试同一个动作
@@ -197,6 +174,8 @@ def init_templates() -> None:
 规划后请使用动作，动作用json格式输出:
 """,
         description="任务-动作选择",
-        parameters=["mode","goal","event_str","task", "environment", "thinking_list", "nearby_block_info", "position", "chat_str"],
+        parameters=[
+            "mode",
+            "goal","event_str","task", "environment", "thinking_list", "nearby_block_info", "position", "chat_str", "basic_info","eat_action"],
     ))
     

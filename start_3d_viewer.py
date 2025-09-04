@@ -4,8 +4,6 @@
 可以单独运行3D渲染器，无需启动完整的MaicraftAgent系统
 """
 import sys
-import os
-import asyncio
 from pathlib import Path
 
 # 添加项目根目录到Python路径

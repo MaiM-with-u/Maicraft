@@ -1,5 +1,4 @@
 import asyncio
-import time
 import math
 from typing import List, Any, Optional
 from langchain_core.tools import BaseTool
@@ -10,30 +9,23 @@ from openai_client.modelconfig import ModelConfig
 from agent.environment.environment_updater import EnvironmentUpdater
 from agent.environment.environment import global_environment
 from agent.prompt_manager.prompt_manager import prompt_manager
+from agent.environment.environment_updater import global_environment_updater
 from agent.block_cache.block_cache import global_block_cache
 from agent.prompt_manager.template import init_templates
 from agent.action.mine_action import mine_nearby_blocks, mine_block_by_position
 from agent.action.move_action import move_to_position
+from agent.action.place_action import place_block_action
 from agent.utils.utils import (
-    parse_json, convert_mcp_tools_to_openai_format, parse_tool_result, filter_action_tools,
+    convert_mcp_tools_to_openai_format, parse_tool_result, filter_action_tools,
     parse_thinking,
 )
-from agent.to_do_list import ToDoList
 from agent.action.craft_action.craft_action import recipe_finder
 import traceback
-from agent.block_cache.nearby_block import NearbyBlockManager
-from agent.action.place_action import PlaceAction
 from agent.utils.utils_tool_translation import (
-    translate_move_tool_result, 
-    translate_mine_nearby_tool_result, 
-    translate_mine_block_tool_result, 
-    translate_place_block_tool_result, 
-    translate_chat_tool_result,
-    translate_start_smelting_tool_result,
-    translate_collect_smelted_items_tool_result,
-    translate_use_chest_tool_result
+    translate_chat_tool_result
 )
-from agent.action.view_container import ViewContainer
+from agent.sim_gui.chest import ChestSimGui
+from agent.sim_gui.furnace import FurnaceSimGui
 from mcp_server.client import global_mcp_client
 from agent.thinking_log import global_thinking_log
 from agent.mai_mode import mai_mode
@@ -45,6 +37,8 @@ COLOR_MAP = {
     "main_mode": "\033[32m",        # 绿色
     "chat_mode": "\033[38;5;51m",     # 青色
     "task_edit_mode": "\033[38;5;196m", # 红色
+    "furnace_gui": "\033[38;5;208m",   # 橙色
+    "chest_gui": "\033[38;5;220m",     # 黄色
 }
 
 
@@ -88,14 +82,13 @@ class MaiAgent:
         # 环境更新器
         self.environment_updater: Optional[EnvironmentUpdater] = None
         
-        # 延迟初始化NearbyBlockManager，确保在EnvironmentUpdater启动后再创建
-        self.nearby_block_manager: Optional[NearbyBlockManager] = None
 
-        self.place_action: Optional[PlaceAction] = None
-        self.view_container: Optional[ViewContainer] = None
         # 初始化状态
         self.initialized = False
         
+        self.gui = None
+        
+        self.chest_list:List[ChestSimGui] = []
         
         
         self.goal_list: list[tuple[str, str, str]] = []  # (goal, status, details)
@@ -105,7 +98,6 @@ class MaiAgent:
         self.on_going_task_id = ""
         
         
-        self.to_do_list: ToDoList = ToDoList()
         self.task_done_list: list[tuple[bool, str, str]] = []
         
         self.exec_task: Optional[asyncio.Task] = None
@@ -157,23 +149,14 @@ class MaiAgent:
                 self.start_3d_window_sync()
             
             # 创建并启动环境更新器
-            self.environment_updater = EnvironmentUpdater(
-                mcp_client = global_mcp_client,
-                update_interval=0.1,  # 默认5秒更新间隔
-            )
-            
-            self.place_action = PlaceAction()
-            self.view_container = ViewContainer(global_mcp_client)
-            # 启动环境更新器
-            if self.environment_updater.start():
-                self.logger.info(" 环境更新器启动成功")
-            else:
-                self.logger.error(" 环境更新器启动失败")
+            self.environment_updater = global_environment_updater
+            self.environment_updater.start()
+
+
 
             await asyncio.sleep(1)
             
             # 初始化NearbyBlockManager
-            self.nearby_block_manager = NearbyBlockManager()
             self.logger.info(" NearbyBlockManager初始化成功")
 
             self.initialized = True
@@ -198,24 +181,7 @@ class MaiAgent:
         while True:
             await self.next_thinking()
     
-    def _format_task_done_list(self) -> str:
-        """将任务执行记录翻译成可读文本，只取最近10条。
 
-        任务记录为 (success: bool, task_id: str, message: str)
-        """
-        if not self.task_done_list:
-            return "暂无任务执行记录"
-
-        lines: list[str] = []
-        # 仅取最近10条
-        for success, task_id, message in self.task_done_list[-10:]:
-            status_text = "成功" if success else "失败"
-            # 规避 None/空值
-            safe_task_id = str(task_id) if task_id is not None else ""
-            safe_message = str(message) if message is not None else ""
-            lines.append(f"任务ID {safe_task_id}：{status_text}（{safe_message}）")
-
-        return "\n".join(lines)
 
 
     async def next_thinking(self) -> TaskResult:
@@ -223,46 +189,20 @@ class MaiAgent:
         执行目标
         返回: (执行结果, 执行状态)
         """
-        try:
-            
-            task = self.to_do_list.get_task_by_id(self.on_going_task_id)
-            if task:
-                self.logger.info(f"执行任务:\n {task}")
-                task_str = task.__str__()
-            else:
-                self.logger.debug("没有任务")
-                task_str = "当前没有选择明确的任务"
-            
+        try:            
             # 获取当前环境信息
             await self.environment_updater.perform_update()
-            environment_info = global_environment.get_summary()
-            nearby_block_info = await self.nearby_block_manager.get_block_details_mix_str(global_environment.block_position,distance=32)
-            
+
             #更新截图
             await self.update_overview()
 
-            input_data = {
-                "task": task_str,
-                "environment": environment_info,
-                "thinking_list": global_thinking_log.get_thinking_log(),
-                "nearby_block_info": nearby_block_info,
-                "position": global_environment.get_position_str(),
-                "chat_str": global_environment.get_chat_str(),
-                "event_str": global_environment.get_event_str(),
-                "to_do_list": self.to_do_list.__str__(),
-                "task_done_list": self._format_task_done_list(),
-                "goal": self.goal,
-                "mode": mai_mode.mode
-            }
-            
-            basic_info_prompt = prompt_manager.generate_prompt("basic_info", **input_data)
+            input_data = await global_environment.get_all_data()
             
             
             # 根据不同的模式，给予不同的工具
             if mai_mode.mode == "main_mode":
                 # 主模式，可以选择基础动作，和深入动作
-                mode_prompt = prompt_manager.generate_prompt("main_thinking", **input_data)
-                prompt = basic_info_prompt + mode_prompt
+                prompt = prompt_manager.generate_prompt("main_thinking", **input_data)
                 self.logger.info(f" 执行任务提示词: {prompt}")
             elif mai_mode.mode == "task_edit":
                 prompt = prompt_manager.generate_prompt("minecraft_excute_task_action", **input_data)
@@ -285,7 +225,6 @@ class MaiAgent:
                 self.logger.warning(f" 思考结果中没有json对象: {thinking}")
                 return TaskResult()
             
-
             
             
             color_prefix = COLOR_MAP.get(mai_mode.mode, "\033[0m")
@@ -305,8 +244,8 @@ class MaiAgent:
                 self.logger.info(f" 执行结果: {result.result_str}")
                 
                 
-        except Exception as e:
-            asyncio.sleep(1)
+        except Exception:
+            await asyncio.sleep(1)
             self.logger.error(f" 任务执行异常: {traceback.format_exc()}")
             
         
@@ -319,6 +258,9 @@ class MaiAgent:
             return await self.excute_task_edit(action_json)
         elif mai_mode.mode == "chat":
             return await self.excute_chat(action_json)
+        elif mai_mode.mode == "furnace_gui":
+            # 熔炉GUI模式下的操作由FurnaceSimGui类处理
+            return ThinkingJsonResult()
         else:
             self.logger.warning(f" {mai_mode.mode} 不支持的action_type: {action_json.get('action_type')}")
             return ThinkingJsonResult()
@@ -374,13 +316,8 @@ class MaiAgent:
             x = action_json.get("x")
             y = action_json.get("y")
             z = action_json.get("z")
-            result_str, args = await self.place_action.place_action(block, x, y, z)            
-            result.result_str = result_str
-            if not args:
-                return result
-            call_result = await global_mcp_client.call_tool_directly("place_block", args)
-            is_success, result_content = parse_tool_result(call_result)
-            result.result_str += translate_place_block_tool_result(result_content,args)
+            result_str = await place_block_action(block, x, y, z)            
+            result.result_str += result_str
         elif action_type == "chat":
             message = action_json.get("message")
             if message is not None:
@@ -390,35 +327,20 @@ class MaiAgent:
             is_success, result_content = parse_tool_result(call_result)
             result.result_str += translate_chat_tool_result(result_content)
             return result
-        elif action_type == "view_container":
-            position = action_json.get("position", {})
-            x = math.floor(float(position.get("x", 0)))
-            y = math.floor(float(position.get("y", 0)))
-            z = math.floor(float(position.get("z", 0)))
-            type = action_json.get("type")
-            args = {"x": x, "y": y, "z": z}
-            result.result_str = f"想要查看{type}: {x},{y},{z}\n"
-            result_content = await self.view_container.view_container(x, y, z, type)
-            result.result_str += result_content
-            return result
         elif action_type == "use_furnace":
-            item = action_json.get("item")
-            type = action_json.get("type")
-            slot = action_json.get("slot")
-            count = action_json.get("count")
             position = action_json.get("position")
             x = math.floor(float(position.get("x")))
             y = math.floor(float(position.get("y")))
             z = math.floor(float(position.get("z")))
-            result.result_str = f"想要使用熔炉: {item} 类型: {type} 槽位: {slot} 数量: {count}\n"
             
-            items = [{"name": item, "count": count,"position": slot}]
-            
-            args = {"item": item, "action": type, "items": items, "x": x, "y": y, "z": z}
-            call_result = await global_mcp_client.call_tool_directly("use_furnace", args)
-            is_success, result_content = parse_tool_result(call_result)
-            # result.result_str += translate_use_furnace_tool_result(result_content)
-            self.logger.info(f"熔炉结果: {result_content}")
+            block_position = BlockPosition(x = x, y = y, z = z)
+            result_str = f"打开熔炉: {x},{y},{z}\n"
+            mai_mode.mode = "furnace_gui"
+            self.gui = FurnaceSimGui(block_position, self.llm_client)
+            use_result = await self.gui.furnace_gui()
+            result_str += use_result
+            mai_mode.mode = "main_mode"
+            result.result_str = result_str
             return result
         elif action_type == "craft":
             item = action_json.get("item")
@@ -433,29 +355,25 @@ class MaiAgent:
                 result.result_str = f"合成未完成：{item} x{count}\n{summary}\n"
             return result
         elif action_type == "use_chest":
-            item = action_json.get("item")
-            count = action_json.get("count", 1)
-            type = action_json.get("type")
+            result_str = ""
             position = action_json.get("position")
             x = math.floor(float(position.get("x")))
             y = math.floor(float(position.get("y")))
             z = math.floor(float(position.get("z")))
-            result.result_str = f"想要使用箱子: {item} 类型: {type}\n"
+            block_position = BlockPosition(x = x, y = y, z = z)
+            block = global_block_cache.get_block(x, y, z)
+            if block.block_type != "chest":
+                result.result_str = f"位置{x},{y},{z}不是箱子，无法使用箱子\n"
+                return result
             
-            # 构建符合MCP工具期望的items格式
-            items = [{"name": item, "count": count}]
-
-            if type == "put":
-                args = {"items": items, "action": "store", "x": x, "y": y, "z": z}
-            elif type == "take":
-                args = {"items": items, "action": "withdraw", "x": x, "y": y, "z": z}
-            
-            call_result = await global_mcp_client.call_tool_directly("use_chest", args)
-            is_success, result_content = parse_tool_result(call_result) 
-            translated_result = translate_use_chest_tool_result(result_content)
-            result.result_str += translated_result
-
+            result_str += f"打开箱子: {x},{y},{z}\n"
+            mai_mode.mode = "chest_gui"
+            self.gui = ChestSimGui(block_position, self.llm_client)
+            use_result = await self.gui.chest_gui()
+            mai_mode.mode = "main_mode"
+            result.result_str += use_result
             return result
+            
         elif action_type == "eat":
             item = action_json.get("item")
             result.result_str = f"想要食用: {item}\n"

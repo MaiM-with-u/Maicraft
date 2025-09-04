@@ -1,5 +1,12 @@
 from typing import List
 import re
+from config import global_config
+
+class MaiGoal:
+    def __init__(self):
+        self.goal: str = global_config.game.goal
+        
+mai_goal = MaiGoal()
 
 class ToDoItem:
     def __init__(self, details: str, done_criteria: str, progress: str):
@@ -86,4 +93,5 @@ class ToDoList:
         self.is_done = True
         return True
         
-        
+mai_to_do_list = ToDoList()
+mai_done_list:list[tuple[bool, str, str]] = []

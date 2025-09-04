@@ -6,7 +6,7 @@
 import asyncio
 import time
 import traceback
-from typing import Callable, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from datetime import datetime
 from utils.logger import get_logger
 from agent.environment.environment import global_environment
@@ -15,15 +15,13 @@ from agent.block_cache.block_cache import global_block_cache
 from agent.environment.basic_info import Event, Player
 from agent.thinking_log import global_thinking_log
 from agent.mai_mode import mai_mode
+from mcp_server.client import global_mcp_client
 
 
 class EnvironmentUpdater:
     """环境信息定期更新器"""
     
-    def __init__(self, 
-                mcp_client,
-                update_interval: int = 0.2,
-                ):
+    def __init__(self,update_interval: int = 0.2):
         """
         初始化环境更新器
         
@@ -32,7 +30,6 @@ class EnvironmentUpdater:
             update_interval: 更新间隔（秒），默认3秒
             auto_start: 是否自动开始更新，默认False
         """
-        self.mcp_client = mcp_client
         self.update_interval = update_interval
         self.logger = get_logger("EnvironmentUpdater")
         
@@ -84,30 +81,6 @@ class EnvironmentUpdater:
         except Exception as e:
             self.logger.error(f"[EnvironmentUpdater] 启动失败: {e}")
             self.is_running = False
-            return False
-    
-    def stop(self) -> bool:
-        """停止环境更新器"""
-        if not self.is_running:
-            self.logger.warning("[EnvironmentUpdater] 更新器未在运行")
-            return False
-        
-        try:
-            self.logger.info("[EnvironmentUpdater] 正在停止更新器...")
-            self._stop_event.set()
-            
-            # 停止异步任务
-            if self._update_task and not self._update_task.done():
-                self._update_task.cancel()
-                self.logger.info("[EnvironmentUpdater] 异步任务已取消")
-            
-            self.is_running = False
-            self.is_paused = False
-            self.logger.info("[EnvironmentUpdater] 已停止")
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"[EnvironmentUpdater] 停止失败: {e}")
             return False
     
     
@@ -406,7 +379,7 @@ class EnvironmentUpdater:
     async def _call_tool(self, tool_name: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """调用工具"""
         try:
-            result = await self.mcp_client.call_tool_directly(tool_name, params)
+            result = await global_mcp_client.call_tool_directly(tool_name, params)
             if not result.is_error and result.content:
                 content_text = result.content[0].text
                 return json.loads(content_text)
@@ -434,10 +407,29 @@ class EnvironmentUpdater:
         """调用query_surroundings工具"""
         return await self._call_tool("query_surroundings", {"type": env_type,"range":5,"useAbsoluteCoords":True})
     
-    def reset_event_tracking(self):
-        """重置事件跟踪，清空 last_processed_tick"""
-        self.last_processed_tick = 0
-        self.logger.info("[EnvironmentUpdater] 事件跟踪已重置，last_processed_tick 设为 0")
+    def stop(self) -> bool:
+        """停止环境更新器"""
+        if not self.is_running:
+            self.logger.warning("[EnvironmentUpdater] 更新器未在运行")
+            return False
+        
+        try:
+            self.logger.info("[EnvironmentUpdater] 正在停止更新器...")
+            self._stop_event.set()
+            
+            # 停止异步任务
+            if self._update_task and not self._update_task.done():
+                self._update_task.cancel()
+                self.logger.info("[EnvironmentUpdater] 异步任务已取消")
+            
+            self.is_running = False
+            self.is_paused = False
+            self.logger.info("[EnvironmentUpdater] 已停止")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"[EnvironmentUpdater] 停止失败: {e}")
+            return False
     
     def __enter__(self):
         """上下文管理器入口"""
@@ -455,3 +447,5 @@ class EnvironmentUpdater:
                 self.stop()
             except:
                 pass
+
+global_environment_updater = EnvironmentUpdater()
