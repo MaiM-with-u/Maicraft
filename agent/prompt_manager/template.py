@@ -81,6 +81,48 @@ def init_templates() -> None:
     "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
 }}
 
+**view_container**
+查看容器（chest/furnace/blast_furnace/smoker）的内容物，查看里面有什么物品
+查看熔炉的输入，燃料和输出
+{{
+    "action_type":"view_container",
+    "type":"容器类型，可选chest/furnace/blast_furnace/smoker",
+    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
+}}
+
+**craft**
+使用工作台或者背包进行合成物品
+能够进行工作台3x3合成
+能够进行直接2x2合成
+{{
+    "action_type":"craft",
+    "item":"物品名称",
+    "count":"数量"
+}}
+
+**use_furnace**
+打开熔炉，将物品放入熔炉并添加燃料，进行熔炼
+取出熔炉的原料，燃料和熔炼后的物品
+{{
+    "action_type":"use_furnace",
+    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
+    "item":"需要放入或取出的物品名称",
+    "count":"数量",
+    "type":"put/take", //put表示放入，take表示取出
+    "slot":"input/fuel/output", //物品的位置，input表示原料，fuel表示燃料，output表示熔炼
+}}
+
+**use_chest**
+打开chest，将物品放入箱子或从箱子中取出物品
+{{
+    "action_type":"use_chest",
+    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
+    "item":"需要放入或取出的物品名称",
+    "count":"数量",
+    "type":"put/take", //put表示放入，take表示取出
+}}
+
+
 **发送聊天信息**
 在聊天框发送消息
 可以与其他玩家交流或者求助
@@ -119,14 +161,6 @@ def init_templates() -> None:
     "reason":"使用物品的原因"
 }}
 
-**进入use_block模式**
-可以打开chest存取物品，打开furnace进行冶炼，或存取熔炼后的物品
-或者使用crafting_table等功能性方块进行合成等操作
-{{
-    "action_type":"enter_use_block_mode",
-    "reason":"使用方块的原因"
-}}
-
 **进入task_edit模式**
 对任务列表进行修改，包括：
 1. 更新当前任务的进展
@@ -143,14 +177,13 @@ def init_templates() -> None:
 
 **模式**
 1.请你灵活使用任务规划模式，方块使用和物品使用模式，帮助你更高效的完成任务
-2.如果要存取物品，熔炼或使用方块，请你进入use_block模式,而不是进入use_item模式
-3.如果要使用物品，请你进入use_item模式,而不是进入use_block模式
+2.如果要使用物品，请你进入use_item模式，如果要放置方块或者使用方块，不要进入
 4.如果要修改任务列表，请你进入task_edit模式
 
 **注意事项**
 1.先总结之前的思考和执行的记录，对执行结果进行分析，是否达成目的，是否需要调整任务或动作
-2.你可以根据任务选择合适的动作模式，也可以选择单独的动作
-2.想法要求准确全面，如果要描述坐标，完整的描述
+2.你必须先查看容器的内容物，才能与容器交互
+3.想法要求准确全面，如果要描述坐标，完整的描述
 4.你可以通过事件知道别的玩家的位置，或者别的玩家正在做什么。
 5.然后根据现有的**动作**，**任务**,**情景**，**物品栏**,**最近事件**和**周围环境**，进行下一步规划，推进任务进度。
 6.如果一个动作反复无法完成，请反思性思考，结合周围环境尝试别的方案，不要重复尝试同一个动作

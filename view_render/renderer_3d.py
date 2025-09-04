@@ -123,6 +123,30 @@ class Renderer3D:
         # 纹理相关
         self.texture_ids: Dict[str, int] = {}
         self.texture_base_dir = os.path.join(os.path.dirname(__file__), 'block')
+        # 方块朝向占位（当无facing属性时用于决定front/back/left/right贴图映射）
+        # 可选：'south'(+Z), 'north'(-Z), 'east'(+X), 'west'(-X)
+        self.default_block_facing: str = 'south'
+
+    def _normalize_block_type_for_texture(self, raw_type: str) -> str:
+        """标准化方块名以匹配贴图文件名：
+        - 全部转小写
+        - 去命名空间前缀（取最后一段）
+        - 去属性附加（如 "crafting_table[facing=north]" -> "crafting_table"）
+        - 去空白
+        """
+        try:
+            name = str(raw_type).strip().lower()
+            # 去命名空间前缀（minecraft:xxx -> xxx 或 mod:xxx -> xxx）
+            if ':' in name:
+                name = name.split(':')[-1]
+            # 去属性附加（xxx[foo=bar] -> xxx）
+            if '[' in name:
+                name = name.split('[', 1)[0]
+            # 压缩空白
+            name = name.replace(' ', '_')
+            return name
+        except Exception:
+            return str(raw_type).lower()
         
     def start(self):
         """启动3D渲染器（在单独线程中运行）"""
@@ -619,11 +643,10 @@ class Renderer3D:
         visible_faces = self._get_visible_faces(block)
 
         # 优先尝试纹理贴图
-        texture_id = self._get_block_texture_id(block_type)
-        if texture_id > 0:
+        has_texture = self._has_any_block_texture(block_type)
+        if has_texture:
             try:
                 glEnable(GL_TEXTURE_2D)
-                glBindTexture(GL_TEXTURE_2D, texture_id)
                 glColor3f(1.0, 1.0, 1.0)
                 # 优先尝试按面纹理（如 *_top/_bottom/_front/_side）
                 self._draw_cube_selective_textured(visible_faces, block_type)
@@ -837,10 +860,12 @@ class Renderer3D:
         # 标准纹理坐标，对应每个面的四个顶点顺序
         texcoords = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
 
-        for face_name, face_info in faces_info.items():
-            if face_name in visible_faces:
-                # 按面绑定纹理（若存在 *_top/_bottom/_front/_side 等）
-                per_face_tex = self._get_face_texture_id(block_type, face_name)
+        for world_face_name, face_info in faces_info.items():
+            if world_face_name in visible_faces:
+                # 依据默认朝向把世界面映射到纹理面的front/back/left/right/top/bottom
+                texture_face = self._map_world_face_to_texture_face(world_face_name, self.default_block_facing)
+                # 按纹理面绑定纹理（若存在 *_top/_bottom/_front/_side 等）
+                per_face_tex = self._get_face_texture_id(block_type, texture_face)
                 if per_face_tex > 0:
                     glBindTexture(GL_TEXTURE_2D, per_face_tex)
                 glBegin(GL_QUADS)
@@ -857,17 +882,42 @@ class Renderer3D:
                 'back':  None, 'front': None, 'bottom': None, 'top': None, 'left': None, 'right': None
             })
 
+    def _map_world_face_to_texture_face(self, world_face: str, facing: str) -> str:
+        """根据占位facing把世界面的名称映射到纹理面的front/back/left/right/top/bottom。
+        world_face ∈ {'front(+Z)', 'back(-Z)', 'left(-X)', 'right(+X)', 'top', 'bottom'}
+        facing ∈ {'south','north','east','west'}
+        """
+        if world_face in ('top', 'bottom'):
+            return world_face
+        f = (facing or 'south').lower()
+        # 默认south: 纹理面与世界面一致
+        if f == 'south':
+            mapping = {'front': 'front', 'back': 'back', 'left': 'left', 'right': 'right'}
+        elif f == 'north':
+            # 180°旋转
+            mapping = {'front': 'back', 'back': 'front', 'left': 'right', 'right': 'left'}
+        elif f == 'east':
+            # 顺时针90°：+Z(front)->left, -Z(back)->right, -X(left)->front, +X(right)->back
+            mapping = {'front': 'left', 'back': 'right', 'left': 'front', 'right': 'back'}
+        elif f == 'west':
+            # 逆时针90°：+Z(front)->right, -Z(back)->left, -X(left)->back, +X(right)->front
+            mapping = {'front': 'right', 'back': 'left', 'left': 'back', 'right': 'front'}
+        else:
+            mapping = {'front': 'front', 'back': 'back', 'left': 'left', 'right': 'right'}
+        return mapping.get(world_face, world_face)
+
     def _get_block_texture_id(self, block_type: str) -> int:
         """按方块名从 view_render/block 下加载 PNG 纹理，缓存并返回纹理ID。失败返回0。"""
         try:
-            if block_type in self.texture_ids:
-                return self.texture_ids[block_type]
+            norm = self._normalize_block_type_for_texture(block_type)
+            if norm in self.texture_ids:
+                return self.texture_ids[norm]
 
-            filename = f"{block_type}.png"
+            filename = f"{norm}.png"
             path = os.path.join(self.texture_base_dir, filename)
             if not os.path.isfile(path):
                 # 未找到即缓存为0，避免重复IO
-                self.texture_ids[block_type] = 0
+                self.texture_ids[norm] = 0
                 return 0
 
             # 加载图片
@@ -883,13 +933,28 @@ class Renderer3D:
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_data)
 
-            self.texture_ids[block_type] = tex_id
-            logger.info(f"加载纹理成功: {block_type} -> {path} ({width}x{height}) id={tex_id}")
+            self.texture_ids[norm] = tex_id
+            logger.info(f"加载纹理成功: {norm} -> {path} ({width}x{height}) id={tex_id}")
             return tex_id
         except Exception as e:
             logger.warning(f"加载纹理失败 {block_type}: {e}")
-            self.texture_ids[block_type] = 0
+            self.texture_ids[self._normalize_block_type_for_texture(block_type)] = 0
             return 0
+
+    def _has_any_block_texture(self, block_type: str) -> bool:
+        """快速判断该方块是否存在任意可用贴图（通用或任一面）。"""
+        norm = self._normalize_block_type_for_texture(block_type)
+        # 已有缓存为正
+        if self.texture_ids.get(norm, -1) > 0:
+            return True
+        # 通用文件存在
+        if os.path.isfile(os.path.join(self.texture_base_dir, f"{norm}.png")):
+            return True
+        # 面级任一存在
+        for suffix in ("top","bottom","front","back","left","right","side"):
+            if os.path.isfile(os.path.join(self.texture_base_dir, f"{norm}_{suffix}.png")):
+                return True
+        return False
 
     def _get_face_texture_id(self, block_type: str, face_name: str) -> int:
         """按面选择纹理：优先 *_top/_bottom/_front/_back/_left/_right/_side。
@@ -897,7 +962,8 @@ class Renderer3D:
         返回纹理ID，失败返回0。
         """
         # 已有缓存键
-        key = f"{block_type}::{face_name}"
+        norm = self._normalize_block_type_for_texture(block_type)
+        key = f"{norm}::{face_name}"
         if key in self.texture_ids:
             return self.texture_ids[key]
 
@@ -939,20 +1005,51 @@ class Renderer3D:
         # 具体面
         suffix = face_to_suffix.get(face_name)
         if suffix:
-            tex_id = try_load(f"{block_type}_{suffix}")
+            tex_id = try_load(f"{norm}_{suffix}")
             if tex_id > 0:
                 self.texture_ids[key] = tex_id
                 return tex_id
 
-        # 侧面统一用 side（覆盖 front/back/left/right 任一侧）
+        # 侧面统一用 side（覆盖 front/back/left/right 任一侧），没有_side时优先用无后缀
         if face_name in ('front', 'back', 'left', 'right'):
-            tex_id = try_load(f"{block_type}_side")
+            tex_id = try_load(f"{norm}_side")
+            if tex_id > 0:
+                self.texture_ids[key] = tex_id
+                return tex_id
+            # 优先通用
+            base_id = self._get_block_texture_id(norm)
+            if base_id > 0:
+                self.texture_ids[key] = base_id
+                return base_id
+
+        # 顶面：没有_top时优先用无后缀
+        if face_name == 'top':
+            base_id = self._get_block_texture_id(norm)
+            if base_id > 0:
+                self.texture_ids[key] = base_id
+                return base_id
+
+        # 更宽松的回退：尝试其它已存在的面贴图再到通用
+        # 侧面缺失时优先互相替代；顶/底缺失时也可用侧面或另一个顶/底替代
+        fallback_orders = {
+            'front': ['front', 'side', 'back', 'left', 'right', 'top', 'bottom'],
+            'back':  ['back',  'side', 'front','left', 'right', 'top', 'bottom'],
+            'left':  ['left',  'side', 'right','front','back',  'top', 'bottom'],
+            'right': ['right', 'side', 'left', 'front','back',  'top', 'bottom'],
+            'top':   ['top',   'side', 'front','back', 'left',  'right','bottom'],
+            'bottom':['bottom','side', 'front','back', 'left',  'right','top'],
+        }
+        for candidate in fallback_orders.get(face_name, ['side','front','back','left','right','top','bottom']):
+            if candidate == 'side':
+                tex_id = try_load(f"{norm}_side")
+            else:
+                tex_id = try_load(f"{norm}_{candidate}")
             if tex_id > 0:
                 self.texture_ids[key] = tex_id
                 return tex_id
 
-        # 回退到通用纹理
-        tex_id = self._get_block_texture_id(block_type)
+        # 最后回退到通用纹理
+        tex_id = self._get_block_texture_id(norm)
         self.texture_ids[key] = tex_id
         return tex_id
     

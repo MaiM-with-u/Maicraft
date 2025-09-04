@@ -272,9 +272,6 @@ class MaiAgent:
             elif mai_mode.mode == "task_edit":
                 prompt = prompt_manager.generate_prompt("minecraft_excute_task_action", **input_data)
                 # self.logger.info(f"\033[38;5;153m 执行任务提示词: {prompt}\033[0m")
-            elif mai_mode.mode == "use_block":
-                prompt = prompt_manager.generate_prompt("use_block_mode", **input_data)
-                # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
             elif mai_mode.mode == "use_item":
                 prompt = prompt_manager.generate_prompt("use_item_mode", **input_data)
                 # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
@@ -329,8 +326,6 @@ class MaiAgent:
     async def excute_action(self,action_json) -> ThinkingJsonResult:
         if mai_mode.mode == "main_mode":
             return await self.excute_main_mode(action_json)
-        elif mai_mode.mode == "use_block":
-            return await self.excute_use_mode(action_json)
         elif mai_mode.mode == "use_item":
             return await self.excute_use_item(action_json)
         elif mai_mode.mode == "task_edit":
@@ -408,10 +403,71 @@ class MaiAgent:
             is_success, result_content = parse_tool_result(call_result)
             result.result_str += translate_chat_tool_result(result_content)
             return result
-        elif action_type == "enter_use_block_mode":
-            reason = action_json.get("reason")
-            result.result_str = f"进入use_block模式，原因是: {reason}\n"
-            mai_mode.mode = "use_block"
+        elif action_type == "view_container":
+            position = action_json.get("position", {})
+            x = math.floor(float(position.get("x", 0)))
+            y = math.floor(float(position.get("y", 0)))
+            z = math.floor(float(position.get("z", 0)))
+            type = action_json.get("type")
+            args = {"x": x, "y": y, "z": z}
+            result.result_str = f"想要查看{type}: {x},{y},{z}\n"
+            result_content = await self.view_container.view_container(x, y, z, type)
+            result.result_str += result_content
+            return result
+        elif action_type == "use_furnace":
+            item = action_json.get("item")
+            type = action_json.get("type")
+            slot = action_json.get("slot")
+            count = action_json.get("count")
+            position = action_json.get("position")
+            x = math.floor(float(position.get("x")))
+            y = math.floor(float(position.get("y")))
+            z = math.floor(float(position.get("z")))
+            result.result_str = f"想要使用熔炉: {item} 类型: {type} 槽位: {slot} 数量: {count}\n"
+            
+            items = [{"name": item, "count": count,"position": slot}]
+            
+            args = {"item": item, "action": type, "items": items, "x": x, "y": y, "z": z}
+            call_result = await global_mcp_client.call_tool_directly("use_furnace", args)
+            is_success, result_content = parse_tool_result(call_result)
+            # result.result_str += translate_use_furnace_tool_result(result_content)
+            self.logger.info(f"熔炉结果: {result_content}")
+            return result
+        elif action_type == "craft":
+            item = action_json.get("item")
+            count = action_json.get("count")
+            result.result_str = f"想要合成: {item} 数量: {count}\n"
+            self.inventory_old = global_environment.inventory
+            
+            ok, summary = await recipe_finder.craft_item_smart(item, count, global_environment.inventory, global_environment.block_position)
+            if ok:
+                result.result_str = f"合成成功：{item} x{count}\n{summary}\n"
+            else:
+                result.result_str = f"合成未完成：{item} x{count}\n{summary}\n"
+            return result
+        elif action_type == "use_chest":
+            item = action_json.get("item")
+            count = action_json.get("count", 1)
+            type = action_json.get("type")
+            position = action_json.get("position")
+            x = math.floor(float(position.get("x")))
+            y = math.floor(float(position.get("y")))
+            z = math.floor(float(position.get("z")))
+            result.result_str = f"想要使用箱子: {item} 类型: {type}\n"
+            
+            # 构建符合MCP工具期望的items格式
+            items = [{"name": item, "count": count}]
+
+            if type == "put":
+                args = {"items": items, "action": "store", "x": x, "y": y, "z": z}
+            elif type == "take":
+                args = {"items": items, "action": "withdraw", "x": x, "y": y, "z": z}
+            
+            call_result = await global_mcp_client.call_tool_directly("use_chest", args)
+            is_success, result_content = parse_tool_result(call_result) 
+            translated_result = translate_use_chest_tool_result(result_content)
+            result.result_str += translated_result
+
             return result
         elif action_type == "enter_use_item_mode":
             reason = action_json.get("reason")
@@ -440,94 +496,7 @@ class MaiAgent:
             
             
         return result
-    
-    async def excute_use_mode(self,action_json) -> ThinkingJsonResult:
-        result = ThinkingJsonResult()
-        action_type = action_json.get("action_type")
-        
-        if action_type == "view_container":
-            position = action_json.get("position", {})
-            x = math.floor(float(position.get("x", 0)))
-            y = math.floor(float(position.get("y", 0)))
-            z = math.floor(float(position.get("z", 0)))
-            type = action_json.get("type")
-            args = {"x": x, "y": y, "z": z}
-            result.result_str = f"想要查看{type}: {x},{y},{z}\n"
-            result_content = await self.view_container.view_container(x, y, z, type)
-            result.result_str += result_content
-        elif action_type == "use_furnace":
-            item = action_json.get("item")
-            type = action_json.get("type")
-            slot = action_json.get("slot")
-            count = action_json.get("count")
-            position = action_json.get("position")
-            x = math.floor(float(position.get("x")))
-            y = math.floor(float(position.get("y")))
-            z = math.floor(float(position.get("z")))
-            result.result_str = f"想要使用熔炉: {item} 类型: {type} 槽位: {slot} 数量: {count}\n"
-            
-            items = [{"name": item, "count": count,"position": slot}]
-            
-            args = {"item": item, "action": type, "items": items, "x": x, "y": y, "z": z}
-            call_result = await global_mcp_client.call_tool_directly("use_furnace", args)
-            is_success, result_content = parse_tool_result(call_result)
-            # result.result_str += translate_use_furnace_tool_result(result_content)
-            self.logger.info(f"熔炉结果: {result_content}")
-            
-        elif action_type == "place_block":
-            block = action_json.get("block")
-            position = action_json.get("position")
-            x = math.floor(float(position.get("x")))
-            y = math.floor(float(position.get("y")))
-            z = math.floor(float(position.get("z")))
-            result.result_str = f"想要放置方块: {block} 位置: {x},{y},{z}\n"
-            args = {"block": block, "x": x, "y": y, "z": z}
-            call_result = await global_mcp_client.call_tool_directly("place_block", args)
-            is_success, result_content = parse_tool_result(call_result)
-            result.result_str += translate_place_block_tool_result(result_content,args)
-        elif action_type == "craft":
-            item = action_json.get("item")
-            count = action_json.get("count")
-            result.result_str = f"想要合成: {item} 数量: {count}\n"
-            self.inventory_old = global_environment.inventory
-            
-            ok, summary = await recipe_finder.craft_item_smart(item, count, global_environment.inventory, global_environment.block_position)
-            if ok:
-                result.result_str = f"合成成功：{item} x{count}\n{summary}\n"
-            else:
-                result.result_str = f"合成未完成：{item} x{count}\n{summary}\n"
-        elif action_type == "use_chest":
-            item = action_json.get("item")
-            count = action_json.get("count", 1)
-            type = action_json.get("type")
-            position = action_json.get("position")
-            x = math.floor(float(position.get("x")))
-            y = math.floor(float(position.get("y")))
-            z = math.floor(float(position.get("z")))
-            result.result_str = f"想要使用箱子: {item} 类型: {type}\n"
-            
-            # 构建符合MCP工具期望的items格式
-            items = [{"name": item, "count": count}]
 
-            if type == "put":
-                args = {"items": items, "action": "store", "x": x, "y": y, "z": z}
-            elif type == "take":
-                args = {"items": items, "action": "withdraw", "x": x, "y": y, "z": z}
-            
-            call_result = await global_mcp_client.call_tool_directly("use_chest", args)
-            is_success, result_content = parse_tool_result(call_result) 
-            translated_result = translate_use_chest_tool_result(result_content)
-            result.result_str += translated_result
-        elif action_type == "finish_using":
-            reason = action_json.get("reason")
-            result.result_str = f"结束使用方块模式: \n原因: {reason}\n"
-            mai_mode.mode = "main_mode"
-        else:
-            self.logger.warning(f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}")
-            result.result_str = f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}\n"
-            mai_mode.mode = "main_mode"
-            
-        return result
             
     async def excute_use_item(self,action_json) -> ThinkingJsonResult:
         result = ThinkingJsonResult()

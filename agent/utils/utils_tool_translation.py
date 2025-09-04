@@ -311,27 +311,29 @@ def translate_view_chest_result(result: Any) -> str:
         翻译后的可读文本
     """
     try:
-        # result应该是来自parse_tool_result的result_content字符串
-        if not isinstance(result, str):
-            return str(result)
-        
-        # 解析JSON字符串
-        try:
-            result_data = json.loads(result)
-        except json.JSONDecodeError:
-            return str(result)
-        
-        # 检查是否是view_chest工具的结果
+        # 兼容多种输入：
+        # - 字符串（完整JSON或直接data字符串）
+        # - dict（完整响应或直接data对象）
+        if isinstance(result, str):
+            try:
+                result_data = json.loads(result)
+            except json.JSONDecodeError:
+                return str(result)
+        else:
+            result_data = result
+
         if not isinstance(result_data, dict):
             return str(result)
-        
-        # 提取关键信息
-        ok = result_data.get("ok", False)
-        data = result_data.get("data", {})
-        
-        if not ok:
-            return "查看箱子失败，可能是箱子不存在或无法访问"
-        
+
+        # 判断是完整响应还是已是data层
+        if "block" in result_data or "containerInfo" in result_data:
+            data = result_data
+        else:
+            ok = result_data.get("ok", True)
+            if not ok:
+                return "查看箱子失败，可能是箱子不存在或无法访问"
+            data = result_data.get("data", {})
+
         # 提取箱子信息
         block = data.get("block", {})
         container_info = data.get("containerInfo", {})
@@ -362,7 +364,6 @@ def translate_view_chest_result(result: Any) -> str:
             if slot.get("name") != "air" and slot.get("count", 0) > 0:
                 item_name = slot.get("displayName", slot.get("name", "未知物品"))
                 count = slot.get("count", 1)
-                slot_num = slot.get("slot", 0)
                 
                 if count == 1:
                     items.append(f"1个{item_name}")
@@ -370,13 +371,13 @@ def translate_view_chest_result(result: Any) -> str:
                     items.append(f"{count}个{item_name}")
         
         # 构建可读文本
-        readable_text = f"✅ 成功查看箱子\n"
+        readable_text = "✅ 成功查看箱子\n"
         readable_text += f"位置: ({x}, {y}, {z})\n"
         readable_text += f"类型: {block_name} (朝向: {facing})\n"
         readable_text += f"容量: {total_slots}格，已占用: {occupied_slots}格，空闲: {empty_slots}格 ({occupancy_rate})\n"
         
         if items:
-            readable_text += f"物品列表:\n"
+            readable_text += "物品列表:\n"
             for item in items:
                 readable_text += f"  {item}\n"
         else:
@@ -457,22 +458,27 @@ def translate_collect_smelted_items_tool_result(result: Any) -> str:
 def translate_view_furnace_result(result: Any) -> str:
     """翻译view_furnace工具的执行结果"""
     try:
-        if not isinstance(result, str):
-            return str(result)
-        
-        try:
-            result_data = json.loads(result)
-        except json.JSONDecodeError:
-            return str(result)
-        
+        # 兼容字符串或字典输入
+        if isinstance(result, str):
+            try:
+                result_data = json.loads(result)
+            except json.JSONDecodeError:
+                return str(result)
+        else:
+            result_data = result
+
         if not isinstance(result_data, dict):
             return str(result)
-        
-        ok = result_data.get("ok", False)
-        if not ok:
-            return "查看熔炉失败"
-        
-        data = result_data.get("data", {})
+
+        # 判断层级
+        if "block" in result_data or "containerInfo" in result_data:
+            data = result_data
+        else:
+            ok = result_data.get("ok", True)
+            if not ok:
+                return "查看熔炉失败"
+            data = result_data.get("data", {})
+
         block = data.get("block", {})
         container_info = data.get("containerInfo", {})
         
@@ -572,17 +578,17 @@ def translate_use_chest_tool_result(result: Any) -> str:
                     
                     # 提取成功和失败操作次数
                     success_match = re.search(r'成功操作:\s*(\d+)\s*次', error_message)
-                    success_count = success_match.group(1) if success_match else "0"
+                    _ = success_match.group(1) if success_match else "0"
                     
                     failure_match = re.search(r'失败操作:\s*(\d+)\s*次', error_message)
-                    failure_count = failure_match.group(1) if failure_match else "0"
+                    _ = failure_match.group(1) if failure_match else "0"
                     
                     # 提取未能完全取出的物品信息
                     withdraw_match = re.search(r'未能完全取出:\s*(\w+)\((\d+)\)', error_message)
                     if withdraw_match:
                         item_name = withdraw_match.group(1)
                         needed_count = withdraw_match.group(2)
-                        readable_text = f"❌ 附近箱子物品不足\n"
+                        readable_text = "❌ 附近箱子物品不足\n"
                         readable_text += f"需要取出: {item_name} ({needed_count}个)\n"
                         readable_text += f"访问了 {chest_count} 个箱子，但都没有足够的{item_name}"
                         return readable_text
