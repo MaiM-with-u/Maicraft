@@ -30,8 +30,13 @@ class BlockCacheViewer:
             center: Optional[Tuple[float, float, float]] = None,
             radius: Optional[float] = None) -> None:
         """同步运行方法，在主线程中运行"""
+        # 检查是否被禁用（当3D渲染器启用时）
+        import os
+        if os.environ.get('DISABLE_2D_VIEWER') == '1':
+            logger.info("2D预览窗口已被禁用（3D渲染器启用时避免pygame冲突）")
+            return
+
         cfg: RenderConfig = self.renderer.config
-        
 
         pygame.init()
         window = pygame.display.set_mode((cfg.image_width, cfg.image_height))
@@ -70,7 +75,7 @@ class BlockCacheViewer:
         if self._thread and self._thread.is_alive():
             logger.warning("BlockCacheViewer 已在运行中")
             return
-        
+
         self._thread = threading.Thread(
             target=self.run,
             args=(center, radius),

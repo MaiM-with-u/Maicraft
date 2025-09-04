@@ -281,7 +281,7 @@ class EnvironmentUpdater:
                 self._call_query_player_status(),
                 self._call_query_surroundings("players"),
                 self._call_query_surroundings("entities"),
-                self._call_query_surroundings("blocks")
+                self._call_query_blocks()
             ]
             
             # 等待所有查询完成
@@ -426,7 +426,10 @@ class EnvironmentUpdater:
         # 新的格式已经包含了物品栏信息，所以不需要额外参数
         return await self._call_tool("query_player_status", {"includeInventory":True})
 
-
+    async def _call_query_blocks(self) -> Optional[Dict[str, Any]]:
+        """调用query_blocks工具"""
+        return await self._call_tool("query_surroundings", {"type":"blocks","blockRange":5,"enable_xray":True})
+    
     async def _call_query_surroundings(self, env_type: str) -> Optional[Dict[str, Any]]:
         """调用query_surroundings工具"""
         return await self._call_tool("query_surroundings", {"type": env_type,"range":5,"useAbsoluteCoords":True})

@@ -1,7 +1,12 @@
 import json
+import math
 from json_repair import repair_json
 from typing import List, Dict, Any, Optional
-from loguru import logger
+from utils.logger import get_logger
+from mcp_server.client import CallToolResult
+from agent.environment.basic_info import BlockPosition
+
+logger = get_logger("Utils")
 
 def parse_json(text: str) -> dict:
     """解析json字符串"""
@@ -49,7 +54,12 @@ def convert_mcp_tools_to_openai_format(mcp_tools) -> List[Dict[str, Any]]:
     
     return openai_tools
 
-def parse_tool_result(result) -> tuple[bool, str]:
+def calculate_distance(position1: BlockPosition, position2: BlockPosition) -> float:
+    """计算两个位置之间的距离"""
+    return math.sqrt((position1.x - position2.x)**2 + (position1.y - position2.y)**2 + (position1.z - position2.z)**2)
+
+
+def parse_tool_result(result: CallToolResult) -> tuple[bool, str]:
     """解析工具执行结果，判断是否真的成功
     
     Args:
@@ -62,76 +72,40 @@ def parse_tool_result(result) -> tuple[bool, str]:
         # 首先检查MCP层面的错误
         if result.is_error:
             return False, f"MCP错误: {result.content}"
+    
+        result_json = result.structured_content
         
-        # 从结果中提取文本内容
-        if hasattr(result, 'content') and result.content:
-            result_text = ""
-            for content in result.content:
-                if hasattr(content, 'text'):
-                    result_text += content.text
-            
-            # 尝试解析JSON结果
-            try:
-                import json
-                result_json = json.loads(result_text)
-                
-                # 检查常见的成功/失败字段
-                if isinstance(result_json, dict):
-                    # 检查ok字段
-                    if "ok" in result_json:
-                        if result_json["ok"] is False:
-                            error_msg = result_json.get("error_message", "未知错误")
-                            error_code = result_json.get("error_code", "")
-                            return False, f"工具执行失败: {error_msg} (错误代码: {error_code})"
-                        elif result_json["ok"] is True:
-                            return True, result_text
-                    
-                    # 检查success字段
-                    if "success" in result_json:
-                        if result_json["success"] is False:
-                            error_msg = result_json.get("error_message", "未知错误")
-                            error_code = result_json.get("error_code", "")
-                            return False, f"工具执行失败: {error_msg} (错误代码: {error_code})"
-                        elif result_json["success"] is True:
-                            return True, result_text
-                    
-                    # 检查error相关字段
-                    if "error" in result_json and result_json["error"]:
-                        error_msg = result_json.get("error_message", "未知错误")
-                        error_code = result_json.get("error_code", "")
-                        return False, f"工具执行失败: {error_msg} (错误代码: {error_code})"
-                    
-                    # 检查error_code字段
-                    if "error_code" in result_json and result_json["error_code"]:
-                        error_msg = result_json.get("error_message", "未知错误")
-                        error_code = result_json["error_code"]
-                        return False, f"工具执行失败: {error_msg} (错误代码: {error_code})"
-                    
-                    # 如果没有明确的错误信息，检查文本内容中是否包含错误关键词
-                    error_keywords = ["错误", "失败", "error", "failed", "exception", "not found", "不足", "无效"]
-                    for keyword in error_keywords:
-                        if keyword.lower() in result_text.lower():
-                            return False, f"工具执行失败: {result_text}"
-                    
-                    # 默认认为成功
-                    return True, result_text
-                
-            except json.JSONDecodeError:
-                # 如果不是JSON格式，检查文本内容
-                error_keywords = ["错误", "失败", "error", "failed", "exception", "not found", "不足", "无效"]
-                for keyword in error_keywords:
-                    if keyword.lower() in result_text.lower():
-                        return False, f"工具执行失败: {result_text}"
-                
-                # 默认认为成功
-                return True, result_text
+        logger.info(f"工具执行结果: {result_json}")
+    
+        # 检查ok字段
+        if "ok" in result_json:
+            if result_json["ok"] is False:
+                error_msg = result_json.get("error_message", "未知错误")
+                error_code = result_json.get("error_code", "")
+                return False, f"工具执行失败: {error_msg} (错误代码: {error_code})"
+            elif result_json["ok"] is True:
+                return True, result_json.get("data", {})
         
-        # 如果没有内容，认为失败
-        return False, "工具执行结果为空"
+        # 检查success字段
+        if "success" in result_json:
+            if result_json["success"] is False:
+                error_msg = result_json.get("error_message", "未知错误")
+                error_code = result_json.get("error_code", "")
+                return False, f"工具执行失败: {error_msg} (错误代码: {error_code})"
+            elif result_json["success"] is True:
+                return True, result_json.get("data", {})
         
+        # 检查error_code字段
+        if "error_code" in result_json and result_json["error_code"]:
+            error_msg = result_json.get("error_message", "未知错误")
+            error_code = result_json["error_code"]
+            return False, f"工具执行失败: {error_msg} (错误代码: {error_code})"
+        
+        # 默认认为成功
+        return True, result_json.get("data", {})
     except Exception as e:
-        logger.error(f"[MaiAgent] 解析工具结果异常: {e}")
-        return False, f"解析工具结果异常: {str(e)}"
+        logger.error(f"[MaiAgent] 解析工具执行结果时异常: {e}")
+        return False, f"工具执行失败: {e}"
     
     
 
@@ -160,7 +134,7 @@ def filter_action_tools(available_tools) -> List:
         
         # 如果工具名称在查询类工具列表中，则跳过
         if tool_name in query_tool_names:
-            logger.debug(f"[MaiAgent] 排除查询类工具: {tool.name}")
+            logger.debug(f"[Utils] 排除查询类工具: {tool.name}")
             continue
         
         filtered_tools.append(tool)
@@ -226,7 +200,7 @@ def parse_thinking(thinking: str) -> tuple[bool, str, dict, str]:
             json_obj = parse_json(json_str)
             success = True
         except Exception as e:
-            logger.error(f"[MaiAgent] 解析思考结果时异常: {json_str}, 错误: {e}")
+            logger.error(f"[Utils] 解析思考结果时异常: {json_str}, 错误: {e}")
             # 尝试修复不完整的JSON
             try:
                 # 如果JSON不完整，尝试添加缺失的大括号
@@ -239,9 +213,9 @@ def parse_thinking(thinking: str) -> tuple[bool, str, dict, str]:
                         fixed_json = json_str + '}' * missing_braces
                         json_obj = parse_json(fixed_json)
                         success = True
-                        logger.info(f"[MaiAgent] 修复了不完整的JSON: {fixed_json}")
+                        logger.info(f"[Utils] 修复了不完整的JSON: {fixed_json}")
             except Exception as fix_e:
-                logger.error(f"[MaiAgent] 修复JSON失败: {fix_e}")
+                logger.error(f"[Utils] 修复JSON失败: {fix_e}")
     else:
         json_before = thinking.strip()
 
@@ -250,9 +224,10 @@ def parse_thinking(thinking: str) -> tuple[bool, str, dict, str]:
         json_before = json_before.replace("```json", "")
     if "```" in json_before:
         json_before = json_before.replace("```", "")
+
+    # 移除json_before的所有头尾换行符
+    json_before = json_before.strip('\n')
         
-        
-    
     return success, thinking, json_obj, json_before
 
 

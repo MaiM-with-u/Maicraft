@@ -541,9 +541,19 @@ def translate_use_chest_tool_result(result: Any) -> str:
         if not isinstance(result_data, dict):
             return str(result)
         
-        # 提取关键信息
-        ok = result_data.get("ok", False)
-        data = result_data.get("data", {})
+        # 兼容两种输入：
+        # 1) 完整响应：{"ok": true/false, "data": {...}}
+        # 2) 仅 data 对象：{"operationResults": [...], "chestContents": [...], ...}
+        if "ok" not in result_data and (
+            "operationResults" in result_data or
+            "chestContents" in result_data or
+            "chestLocation" in result_data
+        ):
+            ok = True
+            data = result_data
+        else:
+            ok = result_data.get("ok", False)
+            data = result_data.get("data", {})
         
         if not ok:
             # 处理操作失败的情况

@@ -689,6 +689,30 @@ class BlockCache:
         positions = self._type_index.get(block_type, set())
         return [self._position_cache[pos] for pos in positions if pos in self._position_cache]
     
+    
+    def find_blocks_in_range(self, block_type: str, center_x: float, center_y: float, center_z: float, 
+                           radius: float) -> List[CachedBlock]:
+        """
+        获取指定范围内的所有方块
+        """
+        radius_squared = radius * radius
+        blocks_in_range = []
+        for block in self._position_cache.values():
+            if block.block_type != block_type:
+                continue
+            dx = block.position.x - center_x
+            dy = block.position.y - center_y
+            dz = block.position.z - center_z
+            distance_squared = dx*dx + dy*dy + dz*dz
+            if distance_squared <= radius_squared:
+                blocks_in_range.append(block)
+        # 按与中心点的距离从小到大排序
+        blocks_in_range.sort(key=lambda b: (b.position.x - center_x) * (b.position.x - center_x) +
+                                           (b.position.y - center_y) * (b.position.y - center_y) +
+                                           (b.position.z - center_z) * (b.position.z - center_z))
+        return blocks_in_range
+    
+    
     def get_blocks_in_range(self, center_x: float, center_y: float, center_z: float, 
                            radius: float) -> List[CachedBlock]:
         """

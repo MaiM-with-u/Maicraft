@@ -3,13 +3,13 @@ import os
 from typing import Any
 from collections import Counter
 from utils.logger import get_logger
-from ..name_map import ITEM_NAME_MAP
+from agent.action.craft_action.name_map import ITEM_NAME_MAP
 from .recipe_class import RawRecipe
-
+from mcp_server.client import global_mcp_client
 
 class RecipeFinder:
-    def __init__(self, mcp_client=None):
-        self.mcp_client = mcp_client
+    def __init__(self):
+        self.mcp_client = global_mcp_client
         self.logger = get_logger("RecipeFinder")
         
         # 物品别名映射表，将常用别名映射成标准名称

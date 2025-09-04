@@ -17,8 +17,8 @@ class ThinkingLog:
         
     def add_thinking_log(self, thinking_log: str,type:str) -> None:
         self.thinking_list.append((thinking_log,type,time.time()))
-        if len(self.thinking_list) > 30:
-            self.thinking_list = self.thinking_list[-30:]
+        if len(self.thinking_list) > 20:
+            self.thinking_list = self.thinking_list[-20:]
         
     def get_thinking_log(self) -> str:
         # 分离不同类型的日志
@@ -37,10 +37,13 @@ class ThinkingLog:
         
         # 按时间戳排序thinking记录，然后获取最新的15条
         thinking_items.sort(key=lambda x: x[2])  # 按时间戳排序
-        latest_thinking = thinking_items[-5:] if len(thinking_items) > 5 else thinking_items
+        latest_thinking = thinking_items[-2:] if len(thinking_items) > 2 else thinking_items
+        
+        action_items.sort(key=lambda x: x[2])  # 按时间戳排序
+        latest_action = action_items[-5:] if len(action_items) > 5 else action_items
         
         # 合并所有记录并按时间排序
-        all_items = notice_items + action_items + latest_thinking
+        all_items = notice_items + latest_action + latest_thinking
         all_items.sort(key=lambda x: x[2])  # 按时间戳排序
         
         # 构建日志字符串
@@ -48,7 +51,7 @@ class ThinkingLog:
         for item in all_items:
             time_str = time.strftime("%H:%M:%S", time.localtime(item[2]))
             log_content, log_type, _ = item
-            thinking_str += f"{time_str} [{log_type}]: {log_content}\n"
+            thinking_str += f"{time_str}:{log_content}\n"
             
         return thinking_str
     

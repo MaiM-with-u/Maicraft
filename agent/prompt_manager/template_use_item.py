@@ -30,9 +30,6 @@ def init_templates_use_item() -> None:
 **玩家聊天记录**
 {chat_str}
 
-**备忘录**：
-{memo_list}
-
 **当前模式：{mode}**
 **你可以做的动作**
 **进食**
@@ -82,7 +79,7 @@ def init_templates_use_item() -> None:
 规划后请使用动作，动作用json格式输出
 """,
         description="物品-动作选择",
-        parameters=["event_str","task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
+        parameters=["event_str","task", "environment", "thinking_list", "nearby_block_info", "position", "chat_str"],
     ))
     
 

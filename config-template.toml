@@ -1,4 +1,6 @@
 # Maicraft插件配置模板
+[inner]
+version = "0.2.0"
 
 [bot]
 player_name = "Mai"

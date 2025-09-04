@@ -34,9 +34,6 @@ def init_templates_chat() -> None:
 **最近游戏事件**
 {event_str}
 
-**备忘录**：
-{memo_list}
-
 **玩家聊天记录**：
 {chat_str}
 
@@ -59,5 +56,5 @@ def init_templates_chat() -> None:
 请用json格式输出chat动作:
 """,
         description="聊天模式",
-        parameters=["event_str","goal", "task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
+        parameters=["event_str","goal", "task", "environment", "thinking_list", "nearby_block_info", "position",  "chat_str"],
     ))

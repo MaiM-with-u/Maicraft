@@ -29,19 +29,8 @@ def init_templates_use_block() -> None:
 **玩家聊天记录**
 {chat_str}
 
-**备忘录**：
-{memo_list}
-
 **当前模式：{mode}**
 **你可以做的动作**
-**放置动作**
-能够放置方块
-{{
-    "action_type":"place_block",
-    "block":"方块名称",
-    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
-}}
-
 **view_container**
 查看容器（chest/furnace/blast_furnace/smoker）的内容物，查看里面有什么物品
 查看熔炉的输入，燃料和输出
@@ -106,7 +95,7 @@ def init_templates_use_block() -> None:
 规划后请使用动作，动作用json格式输出
 """,
         description="方块-动作选择",
-        parameters=["event_str","task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
+        parameters=["event_str","task", "environment", "thinking_list", "nearby_block_info", "position", "chat_str"],
     ))
     
 

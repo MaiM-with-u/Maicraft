@@ -32,9 +32,6 @@ def init_templates_task() -> None:
 **玩家聊天记录**
 {chat_str}
 
-**备忘录**：
-{memo_list}
-
 **当前模式：{mode}**
 **动作列表：任务规划动作**
 1. 更新某个未完成的任务的进度
@@ -61,14 +58,8 @@ def init_templates_task() -> None:
      "new_task_id":"任务id，数字",
  }}
  
- 4. 如果某个任务是无法完成，不合理的，请删除该任务
- {{
-     "action_type":"delete_task",
-     "task_id":"任务id，数字",
-     "reason":"删除任务的原因",
- }}
  
- 5. 当任务修改完成，想要继续其他动作，请退出任务修改模式
+ 4. 当任务修改完成，想要继续其他动作，请退出任务修改模式
  {{
      "action_type":"exit_task_edit_mode",
      "reason":"退出任务修改模式的原因",
@@ -89,7 +80,7 @@ def init_templates_task() -> None:
 规划后请使用动作，你**必须**从上述动作列表中选择一个动作，动作用json格式输出:
 """,
         description="任务-任务动作",
-        parameters=["event_str","goal", "to_do_list", "task_done_list", "task", "environment", "thinking_list", "nearby_block_info", "position", "memo_list", "chat_str"],
+        parameters=["event_str","goal", "to_do_list", "task_done_list", "task", "environment", "thinking_list", "nearby_block_info", "position", "chat_str"],
     ))
     
 

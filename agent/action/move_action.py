@@ -1,71 +1,47 @@
-from agent.block_cache.block_cache import global_block_cache
-from agent.block_cache.nearby_block import NearbyBlockManager
+from agent.environment.locations import global_location_points
 from agent.environment.environment import global_environment
-from agent.prompt_manager.prompt_manager import prompt_manager
-from config import global_config
-from openai_client.llm_request import LLMClient
-from openai_client.modelconfig import ModelConfig
-from agent.utils.utils import parse_json
+from agent.environment.basic_info import BlockPosition
+from agent.utils.utils import calculate_distance,parse_tool_result
 from utils.logger import get_logger
+from mcp_server.client import global_mcp_client
 
-class MoveAction:
-    def __init__(self):
-        self.logger = get_logger("MoveAction")
-        model_config = ModelConfig(
-            model_name=global_config.llm_fast.model,
-            api_key=global_config.llm_fast.api_key,
-            base_url=global_config.llm_fast.base_url,
-            max_tokens=global_config.llm_fast.max_tokens,
-            temperature=global_config.llm_fast.temperature
-        )
-        
-        self.nearby_block_manager = NearbyBlockManager()
-        
-        self.llm_client = LLMClient(model_config)
-        self.logger.info("[PlaceAction] LLM客户端初始化成功")
+logger = get_logger("MoveAction")
 
-    async def move_action(self,x: int, y: int, z: int):
-        result_str = ""
+async def move_to_position(x:int,y:int,z:int):
+    result_str = ""
+    args = {"x": x, "y": y, "z": z, "type": "coordinate"}
+    call_result = await global_mcp_client.call_tool_directly("move", args)
+    
+    is_success, result_content = parse_tool_result(call_result)
+    
+    
+    
+    if isinstance(result_content, str):
+        # 如果失败
+        final_position = global_environment.block_position
+        distance = calculate_distance(final_position, BlockPosition(x=x, y=y, z=z))
+        result_str = f"未移动到目标点，最终位置{final_position}，距离目标点{distance}"
+    else:
         
-        block_cache = global_block_cache.get_block(x, y, z)
-        self_position = global_environment.block_position
-        
-        edit = ""
-        if block_cache and block_cache.block_type != "air":
-            edit += f"位置{x},{y},{z}已存在方块: {block_cache.block_type}，无法放置在{x},{y},{z}"
-        if self_position.x == x and (self_position.y == y or self_position.y == y+1) and self_position.z == z:
-            edit += f"你不能放置方块到你自己的脚下(x={x},y={y},z={z})或头部(x={x},y={y+1},z={z})"
-        
-
-        nearby_block_info = await self.nearby_block_manager.get_block_details_mix_str(self_position,f"{edit} 找一个适合移动的坐标")
-        
-        if edit:
-            suggest_position = edit
+        final_position_dict = result_content.get("position", {})
+        if not final_position_dict:
+            final_position = BlockPosition(x=x, y=y, z=z)
         else:
-            suggest_position = f"{x},{y},{z}"
-        input_data = {
-            "player_position": global_environment.get_position_str(),
-            "nearby_block_info": nearby_block_info,
-            "suggest_position": suggest_position,
-            "self_area": f"自己的脚下(x={self_position.x},y={self_position.y},z={self_position.z})或头部(x={self_position.x},y={self_position.y+1},z={self_position.z})"
-        }
-        prompt = prompt_manager.generate_prompt("minecraft_place_block", **input_data)
-        
-        self.logger.info(f"[PlaceAction] 生成提示词: {prompt}")
-        
-        response = await self.llm_client.simple_chat(prompt)
-        result_json = parse_json(response)
-        
-        self.logger.info(f"[PlaceAction] 解析结果: {response}")
-        
-        
-        if not result_json:
-            return result_str,{}
-        
-        new_x = result_json["x"]
-        new_y = result_json["y"]
-        new_z = result_json["z"]
-        
-        
-        args = {"x":new_x,"y":new_y,"z":new_z}
-        return f"决定移动到{new_x},{new_y},{new_z}",args
+            logger.info(f"从 final_position 获取位置: {final_position_dict}")
+            final_x = result_content.get("position", {}).get("x")
+            final_y = result_content.get("position", {}).get("y")
+            final_z = result_content.get("position", {}).get("z")
+            final_position = BlockPosition(x=final_x, y=final_y, z=final_z)
+            
+        distance = result_content.get("distance")
+        result_str = f"移动最终位置{final_position}，距离目标点{distance}"
+
+    return result_str
+    
+async def go_to_location(location_name:str):
+    location = global_location_points.get_location(location_name)
+    if not location:
+        return f"坐标点{location_name}不存在",{}
+    else:
+        logger.info(f"决定移动到坐标点{location_name}，坐标{location.x},{location.y},{location.z}")
+        return await move_to_position(location.x,location.y,location.z)
