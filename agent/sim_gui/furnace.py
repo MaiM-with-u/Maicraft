@@ -31,6 +31,9 @@ class FurnaceSimGui:
         await global_environment_updater.perform_update()
         input_data = await global_environment.get_all_data()
         
+        if not self.block:
+            return f"位置{self.position.x},{self.position.y},{self.position.z}不存在方块，无法查看"
+        
         if self.block.block_type not in ["furnace", "blast_furnace", "smoker"]:
             return f"位置{self.position.x},{self.position.y},{self.position.z}不是熔炉，无法查看{self.block.block_type}"
         
@@ -74,9 +77,8 @@ class FurnaceSimGui:
                 count = json_obj.get("count")
                 
                 
-                args["items"] = [{"name": item, "count": count}]
-                args["action"] = "withdraw"
-                args["slot"] = slot
+                args["items"] = [{"name": item, "count": count, "position": slot}]
+                args["action"] = "take"
                 
                 call_result = await global_mcp_client.call_tool_directly("use_furnace", args)
                 is_success, result_content = parse_tool_result(call_result) 
@@ -95,9 +97,8 @@ class FurnaceSimGui:
                 item = json_obj.get("item")
                 count = json_obj.get("count")
                 
-                args["items"] = [{"name": item, "count": count}]
-                args["action"] = "store"
-                args["slot"] = slot
+                args["items"] = [{"name": item, "count": count, "position": slot}]
+                args["action"] = "put"
                 
                 call_result = await global_mcp_client.call_tool_directly("use_furnace", args)
                 is_success, result_content = parse_tool_result(call_result) 

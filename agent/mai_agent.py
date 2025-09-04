@@ -238,6 +238,7 @@ class MaiAgent:
                 await asyncio.sleep(0.1)
                 self.logger.info(f"{color_prefix} 动作: {json_obj}\033[0m")
                 global_thinking_log.add_thinking_log(f"执行动作：{json_obj}",type = "action")
+                await asyncio.sleep(0.1)
                 result = await self.excute_action(json_obj)
                 global_thinking_log.add_thinking_log(f"执行结果：{result.result_str}",type = "notice")
                 

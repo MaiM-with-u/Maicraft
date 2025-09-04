@@ -5,7 +5,7 @@ def init_templates_furnace_gui() -> None:
 
     prompt_manager.register_template(
         PromptTemplate(
-        name="main_thinking",
+        name="furnace_gui",
         template="""
 {basic_info}    
     

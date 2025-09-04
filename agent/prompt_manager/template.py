@@ -78,6 +78,7 @@ def init_templates() -> None:
 
 **place_block**
 能够放置方块到xyz指定位置
+请选择可以放置的位置
 {{
     "action_type":"place_block",
     "block":"方块名称",
@@ -88,6 +89,7 @@ def init_templates() -> None:
 
 **move**
 移动到一个能够到达的位置，如果已经到达，则不需要移动
+请选择可以移动的位置
 {{
     "action_type":"move",
     "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},

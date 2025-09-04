@@ -37,6 +37,14 @@ class NearbyBlockManager:
         around_blocks_str += f"玩家所在位置: x={position.x}, y={position.y}, z={position.z}\n"
         around_blocks_str += f"玩家头部位置: x={position.x}, y={position.y+1}, z={position.z}\n"
         
+        # 添加可放置方块位置检测
+        placement_info = await self._get_placement_positions(position, distance=5)
+        around_blocks_str += f"\n可放置方块位置:\n{placement_info}"
+        
+        # 添加可移动位置检测
+        movement_info = await self._get_movement_positions(position, distance=5)
+        around_blocks_str += f"\n可移动位置:\n{movement_info}"
+        
         return around_blocks_str
 
     def _format_coords_compact(self, coords: list[tuple[int, int, int]]) -> str:
@@ -319,5 +327,153 @@ class NearbyBlockManager:
         # 选择字符最短的表示
         best = min(candidates, key=len)
         return best
+    
+    async def _get_placement_positions(self, position: BlockPosition, distance: int = 5):
+        """检测可以放置方块的位置
+        
+        规则：
+        1. 位置必须是空气、水或岩浆
+        2. 周围6个相邻位置（上下左右前后）中至少有1个至多5个是固体方块
+        3. 如果是水或岩浆，需要特别说明会挤占
+        """
+        # 获取周围5格内的所有方块
+        around_blocks = self.block_cache.get_blocks_in_range(position.x, position.y, position.z, distance)
+        
+        # 创建位置到方块类型的映射
+        block_map = {}
+        for block in around_blocks:
+            block_map[(block.position.x, block.position.y, block.position.z)] = block.block_type
+        
+        # 定义6个相邻方向（上下左右前后）
+        adjacent_directions = [
+            (0, 1, 0),   # 上
+            (0, -1, 0),  # 下
+            (1, 0, 0),   # 右
+            (-1, 0, 0),  # 左
+            (0, 0, 1),   # 前
+            (0, 0, -1),  # 后
+        ]
+        
+        # 检查每个位置是否可以放置方块
+        placement_positions = []
+        water_lava_positions = []
+        
+        for x in range(position.x - distance, position.x + distance + 1):
+            for y in range(position.y - distance, position.y + distance + 1):
+                for z in range(position.z - distance, position.z + distance + 1):
+                    current_pos = (x, y, z)
+                    current_block_type = block_map.get(current_pos)
+                    
+                    # 跳过未知方块（none）
+                    if current_block_type is None:
+                        continue
+                    
+                    # 只检查空气、水或岩浆位置
+                    if current_block_type not in ["air", "water", "lava"]:
+                        continue
+                    
+                    # 计算相邻固体方块数量
+                    solid_adjacent_count = 0
+                    for dx, dy, dz in adjacent_directions:
+                        adj_pos = (x + dx, y + dy, z + dz)
+                        adj_block_type = block_map.get(adj_pos)
+                        
+                        # 跳过未知方块
+                        if adj_block_type is None:
+                            continue
+                        
+                        # 检查是否为固体方块（非空气、水、岩浆）
+                        if adj_block_type not in ["air", "water", "lava"]:
+                            solid_adjacent_count += 1
+                    
+                    # 检查相邻固体方块数量是否在1-5之间
+                    if 1 <= solid_adjacent_count <= 5:
+                        if current_block_type == "air":
+                            placement_positions.append((x, y, z))
+                        elif current_block_type in ["water", "lava"]:
+                            water_lava_positions.append((x, y, z, current_block_type))
+        
+        # 格式化输出
+        result_parts = []
+        
+        if placement_positions:
+            coord_str = self._format_coords_compact(placement_positions)
+            result_parts.append(f"空气位置: {coord_str}")
+        
+        if water_lava_positions:
+            water_coords = [(x, y, z) for x, y, z, block_type in water_lava_positions if block_type == "water"]
+            lava_coords = [(x, y, z) for x, y, z, block_type in water_lava_positions if block_type == "lava"]
+            
+            if water_coords:
+                water_str = self._format_coords_compact(water_coords)
+                result_parts.append(f"水位置(会挤占): {water_str}")
+            
+            if lava_coords:
+                lava_str = self._format_coords_compact(lava_coords)
+                result_parts.append(f"岩浆位置(会挤占): {lava_str}")
+        
+        if not result_parts:
+            return "无可用位置"
+        
+        return "\n".join(result_parts)
+    
+    async def _get_movement_positions(self, position: BlockPosition, distance: int = 5):
+        """检测可以移动到的位置
+        
+        规则：
+        1. 该位置必须为空气
+        2. 该位置下方必须有方块（不为air或none）
+        3. 该位置上方必须为空气（确保有足够空间站立）
+        """
+        # 获取周围5格内的所有方块
+        around_blocks = self.block_cache.get_blocks_in_range(position.x, position.y, position.z, distance)
+        
+        # 创建位置到方块类型的映射
+        block_map = {}
+        for block in around_blocks:
+            block_map[(block.position.x, block.position.y, block.position.z)] = block.block_type
+        
+        # 检查每个位置是否可以移动
+        movement_positions = []
+        
+        for x in range(position.x - distance, position.x + distance + 1):
+            for y in range(position.y - distance, position.y + distance + 1):
+                for z in range(position.z - distance, position.z + distance + 1):
+                    current_pos = (x, y, z)
+                    current_block_type = block_map.get(current_pos)
+                    
+                    # 跳过未知方块
+                    if current_block_type is None:
+                        continue
+                    
+                    # 当前位置必须为空气
+                    if current_block_type != "air":
+                        continue
+                    
+                    # 检查下方是否有方块（不为air或none）
+                    below_pos = (x, y - 1, z)
+                    below_block_type = block_map.get(below_pos)
+                    
+                    # 跳过未知方块或空气
+                    if below_block_type is None or below_block_type == "air":
+                        continue
+                    
+                    # 检查上方是否为空气（确保有足够空间站立）
+                    above_pos = (x, y + 1, z)
+                    above_block_type = block_map.get(above_pos)
+                    
+                    # 跳过未知方块或非空气
+                    if above_block_type is None or above_block_type != "air":
+                        continue
+                    
+                    # 符合条件，可以移动到此位置
+                    movement_positions.append((x, y, z))
+        
+        # 格式化输出
+        if not movement_positions:
+            return "无可用move位置"
+        
+        coord_str = self._format_coords_compact(movement_positions)
+        return f"可移动位置: {coord_str}"
     
 nearby_block_manager = NearbyBlockManager()
