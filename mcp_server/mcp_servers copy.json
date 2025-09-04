@@ -6,8 +6,7 @@
         "-y",
         "maicraft@latest",
         "--host",
-        // "ChangingSelf.xyz",
-        
+        "ChangingSelf.xyz",
         "--port",
         "50226",
         "--username",

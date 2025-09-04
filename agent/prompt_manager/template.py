@@ -1,12 +1,10 @@
 from agent.prompt_manager.prompt_manager import PromptTemplate, prompt_manager
-from agent.prompt_manager.template_use_block import init_templates_use_block
 from agent.prompt_manager.template_chat import init_templates_chat
 from agent.prompt_manager.template_use_item import init_templates_use_item
 from agent.prompt_manager.template_task import init_templates_task
 
 def init_templates() -> None:
     """初始化提示词模板"""
-    init_templates_use_block()
     init_templates_chat()
     init_templates_use_item()
     init_templates_task()
@@ -47,9 +45,9 @@ def init_templates() -> None:
         PromptTemplate(
         name="main_thinking",
         template="""
-**当前模式：{mode}**
-**你可以做的动作**
-**挖掘/破坏动作**
+
+**动作**
+**break_block**
 挖掘某个位置指定的方块
 1.可选择挖掘指定位置的方块，使用type = "position"，只会挖掘xyz指定的方块
 2.可选挖掘附近count个name类型的方块，使用type = "nearby"，会自动寻找并挖掘附近count个name类型的方块，不需要额外使用move
@@ -64,7 +62,7 @@ def init_templates() -> None:
     "digOnly":"是否只挖掘，如果为True，则不收集方块（可选，默认为True）",
 }}
 
-**放置动作**
+**place_block**
 能够放置方块到xyz指定位置
 {{
     "action_type":"place_block",
@@ -74,7 +72,7 @@ def init_templates() -> None:
     "z":"放置z位置",
 }}
 
-**移动动作**
+**move**
 移动到一个能够到达的位置，如果已经到达，则不需要移动
 {{
     "action_type":"move",
@@ -121,18 +119,25 @@ def init_templates() -> None:
     "count":"数量",
     "type":"put/take", //put表示放入，take表示取出
 }}
-
-
-**发送聊天信息**
-在聊天框发送消息
-可以与其他玩家交流或者求助
-你可以积极参与其他玩家的聊天
-不要重复回复相同的内容
- {{
-     "action_type":"chat",
-     "message":"消息内容",
- }}
  
+**eat**
+食用某样物品回复饱食度
+食用背包中的物品
+{{
+    "action_type":"eat",
+    "item":"食物名称",
+}}
+
+**use_item**
+使用某样物品，可以对实体使用物品
+注意，如果是使用方块或放置方块，不要使用此动作
+如果要对实体使用物品，如剪刀对sheep，请填写entity，否则不要填写entity
+{{
+    "action_type":"use_item",
+    "item":"需要使用的物品名称",
+    "entity":"需要对其使用的实体名称",
+}}
+
 **设置标记点**
 记录一个标记点/地标，可以记录重要位置的信息，用于后续的移动，采矿，探索等
 {{
@@ -143,7 +148,7 @@ def init_templates() -> None:
 }}
 
 **前往地标**
-前往指定的地标
+前往指定的地标，尝试移动到名为name的坐标点
 {{
     "action_type":"go_to_location",
     "name":"地标名称",

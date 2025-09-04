@@ -18,6 +18,8 @@ import os
 import numpy as np
 import atexit
 import signal
+import base64
+import io
 
 from agent.block_cache.block_cache import BlockCache, CachedBlock, global_block_cache
 from agent.environment.environment import global_environment
@@ -60,7 +62,7 @@ def _register_atexit_cleanup():
 class Renderer3D:
     """3D Minecraft第一人称窗口渲染器"""
     
-    def __init__(self, cache: Optional[BlockCache] = None, window_size: Tuple[int, int] = (1200, 800)):
+    def __init__(self, cache: Optional[BlockCache] = None, window_size: Tuple[int, int] = (800, 600)):
         self.cache = cache or global_block_cache
         self.window_size = window_size
         self.running = False
@@ -82,15 +84,13 @@ class Renderer3D:
         self.lock_to_bot_camera = True
         
         # 渲染参数
-        self.render_distance = 50  # 渲染距离
+        self.render_distance = 64  # 渲染距离
         self.last_update_time = 0
-        self.update_interval = 0.1  # 100ms更新一次
+        self.update_interval = 0.05  # 100ms更新一次
         
         # 方块颜色映射
         self.block_colors = {
             'air': None,  # 不渲染空气
-            'stone': (0.5, 0.5, 0.5),
-            'dirt': (0.6, 0.4, 0.2),
             'grass_block': (0.2, 0.8, 0.2),
             'oak_log': (0.4, 0.2, 0.1),
             'spruce_log': (0.3, 0.2, 0.1),
@@ -99,10 +99,6 @@ class Renderer3D:
             'water': (0.0, 0.3, 0.8),
             'sand': (0.9, 0.8, 0.4),
             'gravel': (0.6, 0.6, 0.6),
-            'coal_ore': (0.2, 0.2, 0.2),
-            'iron_ore': (0.7, 0.5, 0.3),
-            'gold_ore': (0.8, 0.7, 0.2),
-            'diamond_ore': (0.4, 0.8, 0.8),
         }
         
         # 缓存的方块数据
@@ -122,10 +118,19 @@ class Renderer3D:
         
         # 纹理相关
         self.texture_ids: Dict[str, int] = {}
+        self.texture_meta: Dict[str, Dict[str, bool]] = {}
         self.texture_base_dir = os.path.join(os.path.dirname(__file__), 'block')
         # 方块朝向占位（当无facing属性时用于决定front/back/left/right贴图映射）
         # 可选：'south'(+Z), 'north'(-Z), 'east'(+X), 'west'(-X)
         self.default_block_facing: str = 'south'
+
+        # 每帧透明面渲染队列
+        self._alpha_faces: List[Dict] = []
+
+        # 截图请求与结果（在渲染线程内处理glReadPixels）
+        self._capture_req: Optional[Tuple[Optional[float], Optional[int], Optional[int]]] = None
+        self._last_capture_b64: Optional[str] = None
+        self._render_thread_ident: Optional[int] = None
 
     def _normalize_block_type_for_texture(self, raw_type: str) -> str:
         """标准化方块名以匹配贴图文件名：
@@ -237,6 +242,11 @@ class Renderer3D:
     def _run_render_loop(self):
         """渲染循环主函数"""
         try:
+            # 标记渲染线程ID
+            try:
+                self._render_thread_ident = threading.get_ident()
+            except Exception:
+                self._render_thread_ident = None
             logger.info("初始化pygame和OpenGL...")
             # 初始化pygame和OpenGL
             pygame.init()
@@ -364,7 +374,7 @@ class Renderer3D:
                 self._render_scene()
                 
                 pygame.display.flip()
-                clock.tick(60)  # 60 FPS
+                clock.tick(30)  # 60 FPS
                 
         except Exception as e:
             logger.error(f"3D渲染器运行错误: {e}")
@@ -613,11 +623,47 @@ class Renderer3D:
         glEnable(GL_CULL_FACE)
         glCullFace(GL_BACK)
 
-        # 渲染方块（按照距离从远到近排序，避免深度冲突）
-        sorted_blocks = sorted(self.cached_blocks,
-                              key=lambda b: -(b.position.x + b.position.y + b.position.z))
+        # 视野裁切（松弛版）：距离很近的始终渲染；其余按相机前向的宽松角度过滤
+        try:
+            filtered_blocks = []
+            cam_x, cam_y, cam_z = self.camera_pos
+            for b in self.cached_blocks:
+                bx, by, bz = b.position.x + 0.5, b.position.y + 0.5, b.position.z + 0.5
+                dx, dy, dz = bx - cam_x, by - cam_y, bz - cam_z
+                dist2 = dx*dx + dy*dy + dz*dz
+                if dist2 <= 36.0:  # 距离<=6格不过滤
+                    filtered_blocks.append(b)
+                    continue
+
+                # 计算与相机前向的夹角（3D），采用较松阈值：1.4倍垂直FOV的一半
+                yaw_rad = math.radians(self.camera_yaw)
+                pitch_rad = math.radians(self.camera_pitch)
+                fwd_x = math.sin(yaw_rad) * math.cos(pitch_rad)
+                fwd_y = -math.sin(pitch_rad)
+                fwd_z = math.cos(yaw_rad) * math.cos(pitch_rad)
+                len_v = math.sqrt(dist2)
+                if len_v == 0:
+                    filtered_blocks.append(b)
+                    continue
+                nx, ny, nz = dx/len_v, dy/len_v, dz/len_v
+                dotp = nx*fwd_x + ny*fwd_y + nz*fwd_z  # = cos(theta)
+
+                loose_half_fov = min(89.0, (self.fov * 0.5) * 1.4)
+                cos_thresh = math.cos(math.radians(loose_half_fov))
+                if dotp >= cos_thresh:
+                    filtered_blocks.append(b)
+            blocks_to_draw = filtered_blocks
+        except Exception:
+            blocks_to_draw = self.cached_blocks
+
+        # 渲染方块（按照距离从远到近排序）
+        sorted_blocks = sorted(
+            blocks_to_draw,
+            key=lambda b: (b.position.x - self.camera_pos[0])**2 + (b.position.y - self.camera_pos[1])**2 + (b.position.z - self.camera_pos[2])**2,
+            reverse=True,
+        )
         for block in sorted_blocks:
-            self._render_block(block)  # 恢复正常的方块渲染
+            self._render_block(block)
 
         # 渲染UI信息（在屏幕空间）
         self._render_ui()
@@ -625,6 +671,18 @@ class Renderer3D:
         # 最后渲染所有标签，确保不被覆盖
         if self.show_labels:
             self._render_all_labels(sorted_blocks)
+
+        # 处理截图请求（必须在渲染线程/GL上下文中进行）
+        if self._capture_req is not None:
+            try:
+                scale, max_w, max_h = self._capture_req
+                b64 = self._capture_current_frame_base64(scale=scale, max_width=max_w, max_height=max_h)
+                self._last_capture_b64 = b64
+            except Exception as e:
+                logger.warning(f"渲染线程截图失败: {e}")
+                self._last_capture_b64 = None
+            finally:
+                self._capture_req = None
     
     def _render_block(self, block: CachedBlock):
         """渲染单个方块（不包含标签）"""
@@ -649,6 +707,7 @@ class Renderer3D:
                 glEnable(GL_TEXTURE_2D)
                 glColor3f(1.0, 1.0, 1.0)
                 # 优先尝试按面纹理（如 *_top/_bottom/_front/_side）
+                # 在当前方块平移矩阵下绘制（推迟半透明面）
                 self._draw_cube_selective_textured(visible_faces, block_type)
                 glDisable(GL_TEXTURE_2D)
             except Exception:
@@ -857,8 +916,37 @@ class Renderer3D:
             'right': {'indices': [1, 2, 6, 5], 'normal': [1, 0, 0]}
         }
 
-        # 标准纹理坐标，对应每个面的四个顶点顺序
-        texcoords = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+        # 按面计算纹理坐标，保证V轴统一“向上”（+Y），并避免侧面旋转不一致
+        def compute_uv(face: str, vx: float, vy: float, vz: float) -> Tuple[float, float]:
+            # 将局部坐标[-0.5,0.5]映射到[0,1]
+            nx = vx + 0.5
+            ny = vy + 0.5
+            nz = vz + 0.5
+            if face == 'front':   # +Z
+                return nx, ny
+            if face == 'back':    # -Z（避免镜像，U反向）
+                return 1.0 - nx, ny
+            if face == 'right':   # +X（看向+X时，U从+Z向 -Z 递增保持统一朝上）
+                return 1.0 - nz, ny
+            if face == 'left':    # -X
+                return nz, ny
+            if face == 'top':     # +Y（V指向北：-Z 方向）
+                return nx, 1.0 - nz
+            if face == 'bottom':  # -Y（V指向南：+Z 方向）
+                return nx, nz
+            return nx, ny
+
+        # 纹理与顶点颜色采用正片叠底（MODULATE）以支持叶子/草的颜色调制
+        try:
+            glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE)
+        except Exception:
+            pass
+
+        # 贴图绘制时关闭固定管线光照，避免光照影响贴图颜色（贴图色调=纹理*顶点色）
+        try:
+            glDisable(GL_LIGHTING)
+        except Exception:
+            pass
 
         for world_face_name, face_info in faces_info.items():
             if world_face_name in visible_faces:
@@ -867,20 +955,75 @@ class Renderer3D:
                 # 按纹理面绑定纹理（若存在 *_top/_bottom/_front/_side 等）
                 per_face_tex = self._get_face_texture_id(block_type, texture_face)
                 if per_face_tex > 0:
+                    # 直接渲染（不考虑alpha）
+                    tint = self._get_texture_tint(block_type, texture_face)
+                    glEnable(GL_TEXTURE_2D)
                     glBindTexture(GL_TEXTURE_2D, per_face_tex)
-                glBegin(GL_QUADS)
-                glNormal3f(*face_info['normal'])
-                for i, vertex_index in enumerate(face_info['indices']):
-                    u, v = texcoords[i]
-                    glTexCoord2f(u, v)
-                    glVertex3f(*vertices[vertex_index])
-                glEnd()
+                    glColor3f(*tint)
+                    glBegin(GL_QUADS)
+                    glNormal3f(*face_info['normal'])
+                    for vertex_index in face_info['indices']:
+                        vx, vy, vz = vertices[vertex_index]
+                        u, v = compute_uv(texture_face, vx, vy, vz)
+                        glTexCoord2f(u, v)
+                        glVertex3f(vx, vy, vz)
+                    glEnd()
+                    glDisable(GL_TEXTURE_2D)
 
-        # 绘制边框增强轮廓
+        # 恢复默认状态
+        try:
+            glDepthMask(GL_TRUE)
+        except Exception:
+            pass
+        try:
+            glDisable(GL_ALPHA_TEST)
+        except Exception:
+            pass
+        glDisable(GL_BLEND)
+
+        # 恢复颜色为白色，避免影响后续绘制
+        glColor3f(1.0, 1.0, 1.0)
+
+        # 恢复光照状态
+        try:
+            glEnable(GL_LIGHTING)
+        except Exception:
+            pass
+
         if visible_faces:
             self._draw_cube_edges_selective(vertices, visible_faces, {
                 'back':  None, 'front': None, 'bottom': None, 'top': None, 'left': None, 'right': None
             })
+
+    def _get_texture_tint(self, block_type: str, texture_face: str) -> Tuple[float, float, float]:
+        """为特定方块/面返回正片叠底颜色。
+        规则：
+        - grass_block 的 top 面：偏亮绿色调制
+        - 所有 *_leaves：按树种给予不同的绿色。
+        其它：返回白色(1,1,1)。
+        """
+        name = self._normalize_block_type_for_texture(block_type)
+        # grass_block 顶面着色
+        if name == 'grass_block' and texture_face == 'top':
+            return (0.75, 0.95, 0.75)  # 轻微偏亮绿
+
+        # 叶子按树种调色
+        if name.endswith('_leaves'):
+            species = name[:-7]  # 去掉 '_leaves'
+            species_tints = {
+                'oak': (0.65, 0.85, 0.65),
+                'birch': (0.75, 0.95, 0.75),
+                'spruce': (0.50, 0.70, 0.50),
+                'jungle': (0.55, 0.80, 0.55),
+                'acacia': (0.70, 0.88, 0.70),
+                'dark_oak': (0.45, 0.65, 0.45),
+                'mangrove': (0.60, 0.82, 0.60),
+                'cherry': (0.80, 0.90, 0.80),
+            }
+            return species_tints.get(species, (0.65, 0.85, 0.65))
+
+        # 默认不调制
+        return (1.0, 1.0, 1.0)
 
     def _map_world_face_to_texture_face(self, world_face: str, facing: str) -> str:
         """根据占位facing把世界面的名称映射到纹理面的front/back/left/right/top/bottom。
@@ -906,6 +1049,125 @@ class Renderer3D:
             mapping = {'front': 'front', 'back': 'back', 'left': 'left', 'right': 'right'}
         return mapping.get(world_face, world_face)
 
+    def get_screenshot_surface(self, scale: Optional[float] = None, max_width: Optional[int] = None, max_height: Optional[int] = None) -> Optional[pygame.Surface]:
+        """获取当前窗口的截图为 pygame.Surface，并可按需缩放。
+        - scale: 比例缩放（例如 0.5 表示宽高均为原来的一半）
+        - max_width/max_height: 目标最大宽/高，按等比缩放适配其中一个或两个约束
+        注意：需在OpenGL上下文有效时调用（渲染线程或渲染循环内）。
+        """
+        try:
+            logger.info(f"获取截图surface: {scale}, {max_width}, {max_height}")
+            return self._capture_current_frame_surface(scale=scale, max_width=max_width, max_height=max_height)
+        except Exception as e:
+            logger.warning(f"获取截图失败: {e}")
+            return None
+
+    def get_screenshot_base64(self, scale: Optional[float] = None, max_width: Optional[int] = None, max_height: Optional[int] = None, data_uri: bool = False) -> Optional[str]:
+        """获取当前窗口截图的base64（PNG），支持缩放参数。可选返回 data URI。"""
+        try:
+            logger.info(f"获取截图base64: {scale}, {max_width}, {max_height}")
+            # 若在渲染线程内，直接读取；否则改为发起请求并返回上一次结果
+            same_thread = False
+            try:
+                same_thread = (self._render_thread_ident is not None and threading.get_ident() == self._render_thread_ident)
+            except Exception:
+                same_thread = False
+
+            if same_thread:
+                b64 = self._capture_current_frame_base64(scale=scale, max_width=max_width, max_height=max_height)
+                if b64 and data_uri:
+                    return f"data:image/png;base64,{b64}"
+                return b64
+            else:
+                # 异步请求，由渲染线程在下一帧完成
+                self.request_screenshot(scale=scale, max_width=max_width, max_height=max_height)
+                if self._last_capture_b64 and data_uri:
+                    return f"data:image/png;base64,{self._last_capture_b64}"
+                return self._last_capture_b64
+        except Exception as e:
+            logger.warning(f"截图转base64失败: {e}")
+            return None
+
+    def request_screenshot(self, scale: Optional[float] = None, max_width: Optional[int] = None, max_height: Optional[int] = None) -> None:
+        """请求在渲染线程下一帧进行截图（非阻塞）。结果通过 get_last_screenshot_base64 获取。"""
+        self._capture_req = (scale, max_width, max_height)
+
+    def get_last_screenshot_base64(self, data_uri: bool = False) -> Optional[str]:
+        """获取最近一次在渲染线程中产生的截图base64。"""
+        if self._last_capture_b64 and data_uri:
+            return f"data:image/png;base64,{self._last_capture_b64}"
+        return self._last_capture_b64
+
+    def _capture_current_frame_surface(self, scale: Optional[float], max_width: Optional[int], max_height: Optional[int]) -> Optional[pygame.Surface]:
+        """内部：在GL上下文中执行的实际读帧操作，返回Surface。"""
+        w, h = int(self.window_size[0]), int(self.window_size[1])
+        pixels = glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE)
+        if not pixels:
+            return None
+        surface = pygame.image.fromstring(pixels, (w, h), 'RGBA')
+        surface = pygame.transform.flip(surface, False, True)
+
+        # 缩放
+        target_w, target_h = w, h
+        if scale is not None and scale > 0:
+            target_w = max(1, int(round(w * float(scale))))
+            target_h = max(1, int(round(h * float(scale))))
+        if max_width is not None or max_height is not None:
+            aspect = w / h if h != 0 else 1.0
+            if max_width is not None and max_height is not None:
+                rw = max_width / w
+                rh = max_height / h
+                r = min(rw, rh)
+                target_w = max(1, int(round(w * r)))
+                target_h = max(1, int(round(h * r)))
+            elif max_width is not None:
+                target_w = int(max_width)
+                target_h = max(1, int(round(target_w / aspect)))
+            elif max_height is not None:
+                target_h = int(max_height)
+                target_w = max(1, int(round(target_h * aspect)))
+
+        if (target_w, target_h) != (w, h):
+            try:
+                surface = pygame.transform.smoothscale(surface, (target_w, target_h))
+            except Exception:
+                surface = pygame.transform.scale(surface, (target_w, target_h))
+        return surface
+
+    def _capture_current_frame_base64(self, scale: Optional[float], max_width: Optional[int], max_height: Optional[int]) -> Optional[str]:
+        surface = self._capture_current_frame_surface(scale=scale, max_width=max_width, max_height=max_height)
+        if surface is None:
+            return None
+        png_bytes = self._encode_surface_to_png(surface)
+        if not png_bytes:
+            return None
+        return base64.b64encode(png_bytes).decode('ascii')
+
+    def _encode_surface_to_png(self, surface: pygame.Surface) -> Optional[bytes]:
+        """将Surface编码为PNG字节，优先使用pygame扩展，其次PIL，最后回退BMP(None)。"""
+        # 1) pygame扩展（支持通过namehint决定格式）
+        try:
+            if pygame.image.get_extended():
+                bio = io.BytesIO()
+                pygame.image.save_extended(surface, bio, 'screen.png')  # namehint 触发PNG编码
+                return bio.getvalue()
+        except Exception:
+            pass
+        # 2) PIL编码
+        try:
+            from PIL import Image
+            mode = 'RGBA'
+            w, h = surface.get_size()
+            raw = pygame.image.tostring(surface, mode)
+            img = Image.frombytes(mode, (w, h), raw)
+            bio = io.BytesIO()
+            img.save(bio, format='PNG')
+            return bio.getvalue()
+        except Exception:
+            pass
+        # 3) 回退失败
+        return None
+
     def _get_block_texture_id(self, block_type: str) -> int:
         """按方块名从 view_render/block 下加载 PNG 纹理，缓存并返回纹理ID。失败返回0。"""
         try:
@@ -924,6 +1186,13 @@ class Renderer3D:
             surface = pygame.image.load(path).convert_alpha()
             width, height = surface.get_size()
             texture_data = pygame.image.tostring(surface, "RGBA", True)
+            # 记录是否存在半透明
+            translucent = False
+            try:
+                alpha_bytes = texture_data[3::4]
+                translucent = any(b != 255 for b in alpha_bytes)
+            except Exception:
+                pass
 
             tex_id = glGenTextures(1)
             glBindTexture(GL_TEXTURE_2D, tex_id)
@@ -934,6 +1203,7 @@ class Renderer3D:
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_data)
 
             self.texture_ids[norm] = tex_id
+            self.texture_meta[norm] = {'translucent': translucent}
             logger.info(f"加载纹理成功: {norm} -> {path} ({width}x{height}) id={tex_id}")
             return tex_id
         except Exception as e:
@@ -979,6 +1249,13 @@ class Renderer3D:
                 surface = pygame.image.load(path).convert_alpha()
                 width, height = surface.get_size()
                 texture_data = pygame.image.tostring(surface, "RGBA", True)
+                # 记录透明度
+                translucent = False
+                try:
+                    alpha_bytes = texture_data[3::4]
+                    translucent = any(b != 255 for b in alpha_bytes)
+                except Exception:
+                    pass
                 tex_id = glGenTextures(1)
                 glBindTexture(GL_TEXTURE_2D, tex_id)
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
@@ -987,6 +1264,7 @@ class Renderer3D:
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
                 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_data)
                 self.texture_ids[name] = tex_id
+                self.texture_meta[name] = {'translucent': translucent}
                 return tex_id
             except Exception:
                 self.texture_ids[name] = 0
@@ -1008,6 +1286,8 @@ class Renderer3D:
             tex_id = try_load(f"{norm}_{suffix}")
             if tex_id > 0:
                 self.texture_ids[key] = tex_id
+                # 将元数据映射到key
+                self.texture_meta[key] = self.texture_meta.get(f"{norm}_{suffix}", {'translucent': False})
                 return tex_id
 
         # 侧面统一用 side（覆盖 front/back/left/right 任一侧），没有_side时优先用无后缀
@@ -1015,11 +1295,13 @@ class Renderer3D:
             tex_id = try_load(f"{norm}_side")
             if tex_id > 0:
                 self.texture_ids[key] = tex_id
+                self.texture_meta[key] = self.texture_meta.get(f"{norm}_side", {'translucent': False})
                 return tex_id
             # 优先通用
             base_id = self._get_block_texture_id(norm)
             if base_id > 0:
                 self.texture_ids[key] = base_id
+                self.texture_meta[key] = self.texture_meta.get(norm, {'translucent': False})
                 return base_id
 
         # 顶面：没有_top时优先用无后缀
@@ -1046,11 +1328,14 @@ class Renderer3D:
                 tex_id = try_load(f"{norm}_{candidate}")
             if tex_id > 0:
                 self.texture_ids[key] = tex_id
+                meta_name = f"{norm}_side" if candidate == 'side' else f"{norm}_{candidate}"
+                self.texture_meta[key] = self.texture_meta.get(meta_name, {'translucent': False})
                 return tex_id
 
         # 最后回退到通用纹理
         tex_id = self._get_block_texture_id(norm)
         self.texture_ids[key] = tex_id
+        self.texture_meta[key] = self.texture_meta.get(norm, {'translucent': False})
         return tex_id
     
     def _draw_cube_edges_selective(self, vertices, visible_faces: Set[str], faces_info):

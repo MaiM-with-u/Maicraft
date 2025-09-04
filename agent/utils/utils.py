@@ -227,7 +227,13 @@ def parse_thinking(thinking: str) -> tuple[bool, str, dict, str]:
 
     # 移除json_before的所有头尾换行符
     json_before = json_before.strip('\n')
-        
+    
+    
+    action_type = json_obj.get("action_type")
+    if not action_type:
+        logger.error(f" 思考结果中没有action_type: {thinking}")
+        return False, thinking, json_obj, json_before
+
     return success, thinking, json_obj, json_before
 
 

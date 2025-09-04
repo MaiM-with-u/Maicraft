@@ -11,7 +11,7 @@ from mcp_server.client import global_mcp_client
     
 async def mine_nearby_blocks(name: str, count: int,digOnly:bool) -> tuple[bool,str]:
     result_str = f"想要批量挖掘: {name} 数量: {count}\n"
-    args = {"name": name, "count": count,"digOnly": digOnly}
+    args = {"name": name, "count": count,"digOnly": digOnly,"enable_xray":True}
     call_result = await global_mcp_client.call_tool_directly("mine_block", args)
     is_success, result_content = parse_tool_result(call_result)
     if is_success:
@@ -40,7 +40,7 @@ async def mine_block_by_position(x,y,z,digOnly: bool) -> tuple[bool,str]:
         result_str += f"位置{x},{y},{z}是{block_cache.block_type}，无法挖掘\n"
         return False,result_str
     
-    args = {"x": x, "y": y, "z": z, "digOnly": digOnly}
+    args = {"x": x, "y": y, "z": z, "digOnly": digOnly,"enable_xray":True}
     call_result = await global_mcp_client.call_tool_directly("mine_block", args)
     is_success, result_content = parse_tool_result(call_result)
     if is_success:

@@ -596,14 +596,14 @@ class BlockCache:
                     updated_count += 1
 
             # 以观测到的最小/最大 xyz 创建包围盒，填充缺失为 air
-            if observed_positions and None not in (min_x, max_x, min_y, max_y, min_z, max_z):
-                for ix in range(min_x, max_x + 1):
-                    for iy in range(min_y, max_y + 1):
-                        for iz in range(min_z, max_z + 1):
-                            if (ix, iy, iz) not in observed_positions:
-                                pos = {"x": ix, "y": iy, "z": iz}
-                                self.add_block("air", BlockPosition(pos))
-                                updated_count += 1
+            # if observed_positions and None not in (min_x, max_x, min_y, max_y, min_z, max_z):
+            #     for ix in range(min_x, max_x + 1):
+            #         for iy in range(min_y, max_y + 1):
+            #             for iz in range(min_z, max_z + 1):
+            #                 if (ix, iy, iz) not in observed_positions:
+            #                     pos = {"x": ix, "y": iy, "z": iz}
+            #                     self.add_block("air", BlockPosition(pos))
+            #                     updated_count += 1
 
             # logger.info(f"从query_surroundings更新了 {updated_count} 个方块到缓存")
             return updated_count

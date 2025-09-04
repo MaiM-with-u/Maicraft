@@ -100,10 +100,7 @@ class EnvironmentInfo:
         if not self.vlm:
             return ""
         prompt = """
-你是一个经验丰富的Minecraft玩家，现在你正在一个Minecraft世界中，请根据你看到的画面，描述你周围的环境。
-黄色箭头代表玩家位置，黄色线条代表了玩家走过的路线
-周围蓝色的区域代表还未探索，未加载的区域，不是没有方块的区域
-请你根据这幅鸟瞰图大致描述 xyz各个方向的地形和物品 
+你是一个经验丰富的Minecraft玩家，现在你正在一个Minecraft世界中，请根据你看到的画面，描述你周围的环境。和关键坐标
         """
         
         logger.info(f"prompt: {prompt}")
@@ -372,15 +369,17 @@ class EnvironmentInfo:
         
         location_list = global_location_points.all_location_str()
         
+        is_on_ground_str = f"  是否在地面上: {self.on_ground}"
+        
         final_str = f"""
 {position_str}
+{is_on_ground_str}
 {location_list}
         """
         
         return final_str
-
-    def get_summary(self) -> str:
-        """以可读文本形式返回所有环境信息"""
+    
+    def get_self_info(self) -> str:
         lines = []
         
         # 玩家信息
@@ -388,42 +387,10 @@ class EnvironmentInfo:
             lines.append("【自身信息】")
             lines.append(f"  用户名: {self.player_name}")
             lines.append(f"  游戏模式: {self.gamemode}")
-            # lines.append(f"  显示名: {self.player.display_name}")
-            # lines.append(f"  游戏模式: {self._get_gamemode_name(self.player.gamemode)}")
-            lines.append("")
-        
-        # 状态信息
-        lines.append("【状态信息】")
-        lines.append(f"  生命值: {self.health}/{self.health_max}")
-        lines.append(f"  饥饿值: {self.food}/{self.food_max}")
-        if self.food/self.food_max < 0.5:
-            lines.append(f"  饥饿值: {self.food}/{self.food_max}，饥饿值较低，需要马上食用食物")
-        elif self.food/self.food_max < 0.8:
-            lines.append(f"  饥饿值: {self.food}/{self.food_max}，有条件最好食用食物")
             
-        # lines.append(f"  经验值: {self.experience}")
-        lines.append(f"  等级: {self.level}")
-        lines.append(f"  是否在地面上: {self.on_ground}")
-        # lines.append(f"  是否在睡觉: {self.is_sleeping}")
-        # lines.append(f"  氧气: {self.oxygen}")
-        
-        # 视角信息
-        # if self.yaw != 0.0 or self.pitch != 0.0:
-        #     lines.append(f"  视角: Yaw={self.yaw:.2f}°, Pitch={self.pitch:.2f}°")
-
-        
-        # 光标信息
-        # if self.block_at_cursor:
-        #     block_name = self.block_at_cursor.get("displayName", self.block_at_cursor.get("name", "未知方块"))
-        #     block_pos = self.block_at_cursor.get("position", {})
-        #     if block_pos:
-        #         lines.append(f"  光标指向: {block_name} 在 ({block_pos.get('x', 0)}, {block_pos.get('y', 0)}, {block_pos.get('z', 0)})")
-        
-        # if self.entity_at_cursor:
-        #     entity_name = self.entity_at_cursor.get("displayName", self.entity_at_cursor.get("name", "未知实体"))
-        #     lines.append(f"  光标指向实体: {entity_name}")
-        
-        # 装备信息
+    
+    def get_equipment_info(self) -> str:
+        lines = []
         if self.equipment:
             equipped_items = []
             for slot, item in self.equipment.items():
@@ -432,11 +399,11 @@ class EnvironmentInfo:
                     equipped_items.append(f"{slot}: {item_name}")
             if equipped_items:
                 lines.append(f"  装备: {', '.join(equipped_items)}")
-        
-        lines.append("")
-        
-        lines.append("【装备】")
-        lines.append(f"  护甲值: {self.armor}")
+                lines.append(f"  护甲值: {self.armor}")
+        return "\n".join(lines)
+    
+    def get_held_item_info(self) -> str:
+        lines = []
         if self.held_item:
             item_name = self.held_item.get("displayName", self.held_item.get("name", "未知物品"))
             item_count = self.held_item.get("count", 1)
@@ -447,16 +414,17 @@ class EnvironmentInfo:
                     if component.get("type") == "damage":
                         current_damage = component.get("data", 0)
                         break
+            lines.append(f"  手持物品: {item_name} x{item_count}")
+            if durability > 1:
+                remaining_durability = durability - current_damage
+                lines.append(f"    耐久度: {remaining_durability}/{durability}")
+            if self.using_held_item:
+                lines.append("    正在使用中")
             
-            # lines.append(f"  手持物品: {item_name} x{item_count}")
-            # if durability > 1:
-            #     remaining_durability = durability - current_damage
-            #     lines.append(f"    耐久度: {remaining_durability}/{durability}")
-            # if self.using_held_item:
-            #     lines.append("    正在使用中")
-        
-        # 物品栏
-        lines.append("【物品栏】")
+        return "\n".join(lines)
+    
+    def get_inventory_info(self) -> str:
+        lines = []
         if self.inventory:
             if self.empty_slot_count == 0:
                 lines.append("物品栏已满！无法装入新物品！")
@@ -488,6 +456,25 @@ class EnvironmentInfo:
         else:
             lines.append("  物品栏为空")
         lines.append("")
+        return "\n".join(lines)
+
+    def get_summary(self) -> str:
+        """以可读文本形式返回所有环境信息"""
+        lines = []
+        
+        # 状态信息
+        lines.append("【状态信息】")
+        lines.append(f"  生命值: {self.health}/{self.health_max}")
+        lines.append(f"  饥饿值: {self.food}/{self.food_max}")
+        if self.food/self.food_max < 0.5:
+            lines.append(f"  饥饿值: {self.food}/{self.food_max}，饥饿值较低，需要马上食用食物")
+        elif self.food/self.food_max < 0.8:
+            lines.append(f"  饥饿值: {self.food}/{self.food_max}，有条件最好食用食物")
+        lines.append(f"  等级: {self.level}")
+        
+        # 物品栏
+        lines.append("【物品栏】")
+        lines.append(self.get_inventory_info())
         
         # 附近玩家
         lines.append("【附近玩家】")
@@ -508,6 +495,8 @@ class EnvironmentInfo:
                 pos = entity.position
                 lines.append(f"  {i}. {entity.name} (ID: {entity.id}, 类型: {entity.type})")
                 lines.append(f"     位置: X={pos.x:.2f}, Y={pos.y:.2f}, Z={pos.z:.2f}")
+        else:
+            lines.append("  附近没有其他实体")
         lines.append("")
         
         
@@ -531,7 +520,7 @@ class EnvironmentInfo:
                     continue
                 event_desc = self._get_event_description(event)
                 # 添加格式化的时间戳信息
-                if event:
+                if event and event_desc:
                     timestamp_str = ""
                     if event.timestamp:
                         try:

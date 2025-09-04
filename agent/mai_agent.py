@@ -22,7 +22,6 @@ from agent.to_do_list import ToDoList
 from agent.action.craft_action.craft_action import recipe_finder
 import traceback
 from agent.block_cache.nearby_block import NearbyBlockManager
-from view_render.block_cache_viewer import BlockCacheViewer
 from agent.action.place_action import PlaceAction
 from agent.utils.utils_tool_translation import (
     translate_move_tool_result, 
@@ -44,12 +43,8 @@ from view_render.renderer_3d import get_global_renderer_3d
 
 COLOR_MAP = {
     "main_mode": "\033[32m",        # 绿色
-    "move_mode": "\033[38;5;141m",  # 橙色
-    "mining_mode": "\033[38;5;226m",  # 黄色
     "chat_mode": "\033[38;5;51m",     # 青色
-    "memo_mode": "\033[38;5;199m",    # 粉色
     "task_edit_mode": "\033[38;5;196m", # 红色
-    "use_block": "\033[38;5;208m", # 橙色
 }
 
 
@@ -113,9 +108,6 @@ class MaiAgent:
         self.to_do_list: ToDoList = ToDoList()
         self.task_done_list: list[tuple[bool, str, str]] = []
         
-        # 方块缓存预览窗口
-        self.block_cache_viewer: Optional[BlockCacheViewer] = None
-        self._viewer_started: bool = False
         self.exec_task: Optional[asyncio.Task] = None
         # 不再需要_viewer_task，因为现在使用线程
         
@@ -161,8 +153,8 @@ class MaiAgent:
             self.logger.info(f" 获取到 {len(self.action_tools)} 个可用工具")
             self.openai_tools = convert_mcp_tools_to_openai_format(self.action_tools)
 
-            # await self._start_block_cache_viewer()
-            self.start_3d_window_sync()
+            if global_config.visual.enable:
+                self.start_3d_window_sync()
             
             # 创建并启动环境更新器
             self.environment_updater = EnvironmentUpdater(
@@ -245,6 +237,9 @@ class MaiAgent:
             await self.environment_updater.perform_update()
             environment_info = global_environment.get_summary()
             nearby_block_info = await self.nearby_block_manager.get_block_details_mix_str(global_environment.block_position,distance=32)
+            
+            #更新截图
+            await self.update_overview()
 
             input_data = {
                 "task": task_str,
@@ -272,9 +267,6 @@ class MaiAgent:
             elif mai_mode.mode == "task_edit":
                 prompt = prompt_manager.generate_prompt("minecraft_excute_task_action", **input_data)
                 # self.logger.info(f"\033[38;5;153m 执行任务提示词: {prompt}\033[0m")
-            elif mai_mode.mode == "use_item":
-                prompt = prompt_manager.generate_prompt("use_item_mode", **input_data)
-                # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
             elif mai_mode.mode == "chat":
                 prompt = prompt_manager.generate_prompt("chat_mode", **input_data)
                 # self.logger.info(f"\033[38;5;208m 执行任务提示词: {prompt}\033[0m")
@@ -293,10 +285,7 @@ class MaiAgent:
                 self.logger.warning(f" 思考结果中没有json对象: {thinking}")
                 return TaskResult()
             
-            action_type = json_obj.get("action_type")
-            if not action_type:
-                self.logger.warning(f" 思考结果中没有action_type: {thinking}")
-                return TaskResult()
+
             
             
             color_prefix = COLOR_MAP.get(mai_mode.mode, "\033[0m")
@@ -326,8 +315,6 @@ class MaiAgent:
     async def excute_action(self,action_json) -> ThinkingJsonResult:
         if mai_mode.mode == "main_mode":
             return await self.excute_main_mode(action_json)
-        elif mai_mode.mode == "use_item":
-            return await self.excute_use_item(action_json)
         elif mai_mode.mode == "task_edit":
             return await self.excute_task_edit(action_json)
         elif mai_mode.mode == "chat":
@@ -469,11 +456,27 @@ class MaiAgent:
             result.result_str += translated_result
 
             return result
-        elif action_type == "enter_use_item_mode":
-            reason = action_json.get("reason")
-            result.result_str = f"进入use_item模式，原因是: {reason}\n"
-            mai_mode.mode = "use_item"
-            return result
+        elif action_type == "eat":
+            item = action_json.get("item")
+            result.result_str = f"想要食用: {item}\n"
+            args = {"itemName": item, "useType":"consume"} #consume表示食用
+            call_result = await global_mcp_client.call_tool_directly("use_item", args)
+            is_success, result_content = parse_tool_result(call_result)
+            self.logger.info(f"食用结果: {result_content}")
+            # result.result_str += translate_eat_tool_result(result_content)
+        elif action_type == "use_item":
+            item = action_json.get("item")
+            entity = action_json.get("entity")
+            if entity:
+                result.result_str = f"使用: {item}\n"
+                args = {"itemName": item,"useType":"activate"} #activate表示激活
+            else:
+                result.result_str = f"对{entity}使用: {item}\n"
+                args = {"itemName": item, "targetEntityName": entity,"useType":"useOn"}
+            call_result = await global_mcp_client.call_tool_directly("use_item", args)
+            is_success, result_content = parse_tool_result(call_result)
+            self.logger.info(f"使用结果: {result_content}")
+            # result.result_str += translate_use_item_tool_result(result_content)
         elif action_type == "enter_task_edit_mode":
             mai_mode.mode = "task_edit"
             reason = action_json.get("reason")
@@ -497,45 +500,6 @@ class MaiAgent:
             
         return result
 
-            
-    async def excute_use_item(self,action_json) -> ThinkingJsonResult:
-        result = ThinkingJsonResult()
-        action_type = action_json.get("action_type")
-        if action_type == "eat":
-            item = action_json.get("item")
-            result.result_str = f"想要食用: {item}\n"
-            args = {"itemName": item, "useType":"consume"} #consume表示食用
-            call_result = await global_mcp_client.call_tool_directly("use_item", args)
-            is_success, result_content = parse_tool_result(call_result)
-            self.logger.info(f"食用结果: {result_content}")
-            # result.result_str += translate_eat_tool_result(result_content)
-        elif action_type == "use_item":
-            item = action_json.get("item")
-            result.result_str = f"想要使用: {item}\n"
-            args = {"itemName": item,"useType":"activate"} #activate表示激活
-            call_result = await global_mcp_client.call_tool_directly("use_item", args)
-            is_success, result_content = parse_tool_result(call_result)
-            self.logger.info(f"使用结果: {result_content}")
-            # result.result_str += translate_use_item_tool_result(result_content)
-        elif action_type == "use_item_on_entity":
-            item = action_json.get("item")
-            entity = action_json.get("entity")
-            result.result_str = f"想要使用: {item} 在: {entity}\n"
-            args = {"itemName": item, "targetEntityName": entity,"useType":"useOn"} #useOnEntity表示使用在实体上
-            call_result = await global_mcp_client.call_tool_directly("use_item", args)
-            is_success, result_content = parse_tool_result(call_result)
-            self.logger.info(f"使用结果: {result_content}")
-            # result.result_str += translate_use_item_on_entity_tool_result(result_content)
-        elif action_type == "exit_use_item_mode":
-            reason = action_json.get("reason")
-            result.result_str = f"退出使用物品模式: \n原因: {reason}\n"
-            mai_mode.mode = "main_mode"
-        else:
-            self.logger.warning(f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}")
-            result.result_str = f"在模式，{mai_mode.mode} 不支持的action_type: {action_type}\n"
-            mai_mode.mode = "main_mode"
-        return result
-
     def start_3d_window_sync(self) -> bool:
         """
         同步启动3D渲染窗口。
@@ -544,11 +508,8 @@ class MaiAgent:
         - 返回是否成功启动
         """
         try:
-            import os
-            # 避免与2D预览器的pygame上下文冲突
-            os.environ['DISABLE_2D_VIEWER'] = '1'
-
             self.renderer_3d = get_global_renderer_3d()
+            
             if getattr(self.renderer_3d, 'running', False):
                 self.logger.info(" 3D渲染器已在运行")
                 return True
@@ -563,6 +524,22 @@ class MaiAgent:
         except Exception as e:
             self.logger.error(f" 启动3D渲染窗口失败: {e}")
             return False
+        
+    async def update_overview(self):
+        """更新概览图像"""
+        try:
+            img_b64 = None
+            if self.renderer_3d and getattr(self.renderer_3d, 'running', False):
+                # 缩放压缩，降低带宽与内存
+                b64 = self.renderer_3d.get_screenshot_base64(scale=0.35)
+                if b64:
+                    img_b64 = f"data:image/png;base64,{b64}"
+                    global_environment.overview_base64 = img_b64
+                    
+                    self.logger.info(f"更新概览图像: {img_b64[:100]}")
+                    await global_environment.get_overview_str()
+        except Exception as e:
+            self.logger.error(f"update_overview 异常: {e}")
 
     async def excute_task_edit(self, action_json) -> ThinkingJsonResult:
         """
@@ -603,30 +580,6 @@ class MaiAgent:
             return result
         
         return result
-    
-    async def _start_block_cache_viewer(self) -> None:
-        """以后台线程启动方块缓存预览窗口。"""
-        if self._viewer_started:
-            return
-
-        # 检查是否被禁用（当3D渲染器启用时）
-        import os
-        if os.environ.get('DISABLE_2D_VIEWER') == '1':
-            self.logger.info(" 2D预览窗口已被禁用（3D渲染器启用时避免pygame冲突）")
-            return
-
-        try:
-            self.block_cache_viewer = BlockCacheViewer(update_interval_seconds=0.6)
-            # 在单独线程中运行pygame，防止阻塞主线程
-            self.block_cache_viewer.run_in_thread()
-            # 启动overview更新异步任务
-            if global_config.visual.enable:
-                asyncio.create_task(self.block_cache_viewer.run_loop())
-                self._viewer_started = True
-                self.logger.info(" 方块缓存预览窗口已在单独线程中启动（每0.6秒刷新）")
-                self.logger.info(" overview更新异步任务已启动（每10秒更新）")
-        except Exception as e:
-            self.logger.error(f" 启动方块缓存预览窗口失败: {e}")
 
 
     async def shutdown(self) -> None:
@@ -637,8 +590,8 @@ class MaiAgent:
         except Exception:
             pass
         try:
-            if self.block_cache_viewer:
-                self.block_cache_viewer.stop()
+            if self.renderer_3d:
+                self.renderer_3d.stop()
         except Exception:
             pass
         # 取消后台任务
