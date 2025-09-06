@@ -379,10 +379,23 @@ class RecipeFinder:
                 self.logger.warning(f"[DEBUG] 递归深度达到上限 {MAX_NESTING_DEPTH}，停止并视为失败：{item} x{qty}")
                 return False
 
-            # 忽略现有库存，始终按请求数量进行合成
+            # 首先检查现有库存，如果库存足够则不需要合成
             need = int(qty)
+            current_bag = Counter()
+            for it in inventory or []:
+                if isinstance(it, dict):
+                    name = self._normalize_item_name(it.get("name", ""))
+                    if name:
+                        current_bag[name] += int(it.get("count", 0))
             
-            self.logger.info(f"[DEBUG] 尝试合成 {item} x{need}（忽略现有库存）")
+            available = current_bag.get(item, 0)
+            if available >= need:
+                self.logger.info(f"[DEBUG] {item} 库存充足（{available} >= {need}），无需合成")
+                return True
+            
+            # 计算实际需要合成的数量
+            actual_need = need - available
+            self.logger.info(f"[DEBUG] 尝试合成 {item} x{actual_need}（库存已有{available}，需要{need}）")
             
             # 尝试找到可用配方
             recs = await choose_recipes(item, has_table_nearby)
@@ -423,6 +436,7 @@ class RecipeFinder:
                 # 虽然这里返回 dict 形式仅用于成本估算与日志，执行时使用 rr 原始结构
                 return [{"name": v["name"], "count": v["count"]} for v in tally.values()]
 
+            
             valid_recs: list[tuple[RawRecipe, list]] = []
             for rr in recs:
                 ings = extract_ings(rr)
@@ -434,23 +448,31 @@ class RecipeFinder:
                 self.logger.warning(f"[DEBUG] {item} 没有找到任何有效配方，作为叶子材料处理")
                 # 叶子材料，检查库存是否足够
                 # 每次检查都从头开始计算库存，防止前面的步骤影响
-                current_bag = Counter()
+                leaf_bag = Counter()
                 for it in inventory or []:
                     if isinstance(it, dict):
                         name = self._normalize_item_name(it.get("name", ""))
                         if name:
-                            current_bag[name] += int(it.get("count", 0))
+                            leaf_bag[name] += int(it.get("count", 0))
+                
+                available = leaf_bag.get(item, 0)
+                self.logger.info(f"[DEBUG] 叶子材料 {item} 检查：需要 {qty}，库存 {available}")
 
                 # 优先物品：如果该物品属于转化对，且本身是优先项，则直接视为叶子物品（不递归）
                 if self._is_priority_item(item):
                     self.logger.info(f"[DEBUG] {item} 是转化对优先物品，跳过递归，视为叶子物品")
-                    return current_bag.get(item, 0) >= qty
+                    if available >= qty:
+                        self.logger.info(f"[DEBUG] 优先物品 {item} 库存充足")
+                        return True
+                    else:
+                        self.logger.warning(f"[DEBUG] 优先物品 {item} 库存不足，无法合成")
+                        return False
 
-                if current_bag.get(item, 0) >= qty:
-                    self.logger.info(f"[DEBUG] {item} 在库存中存在，直接使用")
+                if available >= qty:
+                    self.logger.info(f"[DEBUG] 叶子材料 {item} 在库存中存在，直接使用")
                     return True
                 else:
-                    self.logger.warning(f"[DEBUG] {item} 无法合成且库存不足，合成失败")
+                    self.logger.warning(f"[DEBUG] 叶子材料 {item} 无法合成且库存不足（{available} < {qty}），合成失败")
                     return False
             
             self.logger.info(f"[DEBUG] {item} 找到 {len(valid_recs)} 个有效配方")
@@ -477,7 +499,7 @@ class RecipeFinder:
             except Exception:
                 per_batch_out = 1
             import math
-            batches_needed = int(math.ceil(need / per_batch_out))
+            batches_needed = int(math.ceil(actual_need / per_batch_out))
 
             # 检查材料是否足够，不足时尝试递归合成（按批次需求）
             can_craft = True
@@ -492,26 +514,28 @@ class RecipeFinder:
                 ing_count = per_ing * batches_needed
                 
                 # 每次检查都从头开始计算库存，防止前面的步骤影响
-                current_bag = Counter()
+                temp_bag = Counter()
                 for it in inventory or []:
                     if isinstance(it, dict):
                         name = self._normalize_item_name(it.get("name", ""))
                         if name:
-                            current_bag[name] += int(it.get("count", 0))
+                            temp_bag[name] += int(it.get("count", 0))
                 
-                self.logger.info(f"[DEBUG] 检查材料 {ing_name}: 需要 {ing_count}, 库存 {current_bag.get(ing_name, 0)}")
+                available = temp_bag.get(ing_name, 0)
+                is_enough = available >= ing_count
+                self.logger.info(f"[DEBUG] 检查材料 {ing_name}: 需要 {ing_count}, 库存 {available}")
 
                 # 若目标 item 是转化对中的优先物品，且当前原料属于其转化对成员
                 # 当库存不足时，不再递归合成该原料，避免在优先物品之间循环互转
                 if self._is_priority_item(item) and ing_name in self._get_pair_items(item):
-                    if current_bag.get(ing_name, 0) < ing_count:
+                    if not is_enough:
                         self.logger.info(f"[DEBUG] {item} 为优先物品，且 {ing_name} 属于同一转化对；库存不足时不递归该原料")
                         can_craft = False
                         break
                 
-                if current_bag.get(ing_name, 0) < ing_count:
+                if not is_enough:
                     # 材料不足，尝试递归合成
-                    missing_qty = ing_count - current_bag.get(ing_name, 0)
+                    missing_qty = ing_count - available
                     self.logger.info(f"[DEBUG] 材料 {ing_name} 不足，尝试递归合成 {missing_qty} 个")
                     if not await try_craft_item(ing_name, missing_qty, depth + 1):
                         # 递归合成失败，说明这个材料无法合成
@@ -529,12 +553,12 @@ class RecipeFinder:
                 if not await choose_recipes(item, has_table_nearby):
                     actual_mode = not has_table_nearby
                 
-                self.logger.info(f"[DEBUG] 配方可行，记录合成步骤: {item} x{need} (模式: {actual_mode})")
+                self.logger.info(f"[DEBUG] 配方可行，记录合成步骤: {item} x{actual_need} (模式: {actual_mode})")
                 recipe_payload = self._raw_recipe_to_tool_payload(best_rr) if best_rr else {}
-                steps.append((item, need, actual_mode, recipe_payload))
+                steps.append((item, actual_need, actual_mode, recipe_payload))
                 
                 # 不再模拟消耗和增加材料，因为每次检查都从头开始
-                self.logger.info(f"[DEBUG] 记录合成步骤: {item} x{need}，不模拟材料变化")
+                self.logger.info(f"[DEBUG] 记录合成步骤: {item} x{actual_need}，不模拟材料变化")
                 return True
             
             # 如果当前配方无法合成，尝试其他配方
@@ -553,24 +577,25 @@ class RecipeFinder:
                     for ing in ings:
                         if isinstance(ing, dict):
                             ing_name = self._normalize_item_name(ing.get("name", "未知材料"))
-                            ing_count = int(ing.get("count", 1)) * need
+                            ing_count = int(ing.get("count", 1)) * actual_need
                         else:
                             ing_name = self._normalize_item_name(ing)
-                            ing_count = 1 * need
+                            ing_count = 1 * actual_need
                         
                         # 每次检查都从头开始计算库存，防止前面的步骤影响
-                        current_bag = Counter()
+                        temp_bag = Counter()
                         for it in inventory or []:
                             if isinstance(it, dict):
                                 name = self._normalize_item_name(it.get("name", ""))
                                 if name:
-                                    current_bag[name] += int(it.get("count", 0))
+                                    temp_bag[name] += int(it.get("count", 0))
                         
-                        self.logger.info(f"[DEBUG] 替代配方材料 {ing_name}: 需要 {ing_count}, 库存 {current_bag.get(ing_name, 0)}")
+                        available = temp_bag.get(ing_name, 0)
+                        self.logger.info(f"[DEBUG] 替代配方材料 {ing_name}: 需要 {ing_count}, 库存 {available}")
                         
-                        if current_bag.get(ing_name, 0) < ing_count:
+                        if available < ing_count:
                             # 尝试递归合成
-                            missing_qty = ing_count - current_bag.get(ing_name, 0)
+                            missing_qty = ing_count - available
                             self.logger.info(f"[DEBUG] 替代配方材料 {ing_name} 不足，尝试递归合成 {missing_qty} 个")
                             if not await try_craft_item(ing_name, missing_qty, depth + 1):
                                 self.logger.warning(f"[DEBUG] 替代配方递归合成 {ing_name} 失败")
@@ -587,12 +612,12 @@ class RecipeFinder:
                         if not await choose_recipes(item, has_table_nearby):
                             actual_mode = not has_table_nearby
                         
-                        self.logger.info(f"[DEBUG] 替代配方可行，记录合成步骤: {item} x{need} (模式: {actual_mode})")
+                        self.logger.info(f"[DEBUG] 替代配方可行，记录合成步骤: {item} x{actual_need} (模式: {actual_mode})")
                         recipe_payload = self._raw_recipe_to_tool_payload(rr)
-                        steps.append((item, need, actual_mode, recipe_payload))
+                        steps.append((item, actual_need, actual_mode, recipe_payload))
                         
                         # 不再模拟消耗和增加材料，因为每次检查都从头开始
-                        self.logger.info(f"[DEBUG] 记录替代配方合成步骤: {item} x{need}，不模拟材料变化")
+                        self.logger.info(f"[DEBUG] 记录替代配方合成步骤: {item} x{actual_need}，不模拟材料变化")
                         return True
             else:
                 self.logger.info("[DEBUG] 没有替代配方可尝试")
