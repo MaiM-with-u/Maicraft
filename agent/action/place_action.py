@@ -20,7 +20,7 @@ async def place_block_action(block_type: str, x: int, y: int, z: int):
     args = {"block":block_type,"x":x,"y":y,"z":z}
     call_result = await global_mcp_client.call_tool_directly("place_block", args)
     is_success, result_content = parse_tool_result(call_result)
-    result_str += translate_place_block_tool_result(result_content,args)
+    result_str += translate_place_block_tool_result(result_content)
     
     return result_str
     

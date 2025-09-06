@@ -101,10 +101,10 @@ class FurnaceSimGui:
                 is_success, result_content = parse_tool_result(call_result) 
                 # 记录操作
                 if not is_success:
-                    global_thinking_log.add_thinking_log(f"取出{item} x{count}失败: {result_content}")
+                    global_thinking_log.add_thinking_log(f"取出{item} x{count}失败: {result_content}","action")
                     
                 else:
-                    global_thinking_log.add_thinking_log(f"取出{item} x{count}成功: {result_content}")
+                    global_thinking_log.add_thinking_log(f"取出{item} x{count}成功: {result_content}","action")
                 
             elif action_type == "put_items":
                 slot = json_obj.get("slot")

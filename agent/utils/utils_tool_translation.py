@@ -1,72 +1,9 @@
 import json
 from typing import Any
 from utils.logger import get_logger
+from collections import Counter
 
 logger = get_logger("UtilsToolTranslation")
-
-def translate_move_tool_result(result: Any, arguments: Any = None) -> str:
-    """
-    翻译move工具的执行结果，使其更可读
-    
-    Args:
-        result: move工具的执行结果
-        arguments: 工具调用参数，用于提供更准确的错误信息
-        
-    Returns:
-        翻译后的可读文本
-    """
-    try:
-        # 如果结果是字符串，尝试解析JSON
-        if isinstance(result, str):
-            try:
-                result_data = json.loads(result)
-            except json.JSONDecodeError:
-                return str(result)
-        else:
-            result_data = result
-        
-        # 提取关键信息
-        ok = result_data.get("ok", False)
-        data = result_data.get("data", {})
-        
-        move_fail_str = ""
-        
-        if not ok:
-            # 处理移动失败的情况
-            error_msg = result_data.get("error", "")
-            if "MOVE_FAILED" in error_msg:
-                if "Took to long to decide path to goal" in error_msg:
-                    # 根据工具参数提供更准确的错误信息
-                    if "block" in arguments:
-                        block_name = arguments["block"]
-                        return f"移动失败: 这附近没有{block_name}"
-                    elif "type" in arguments and arguments["type"] == "coordinate":
-                        return "移动失败: 指定坐标太远了，无法到达"
-                    return "移动失败: 这附近没有目标"
-                else:
-                    move_fail_str = "未到达目标点，可能是目标点无法到达"
-            else:
-                return f"移动失败，但不是MOVE_FAILED错误: {error_msg}"
-        
-        # 提取移动信息
-        # target 字段暂未使用，保留解析但不赋值避免未使用告警
-        distance = data.get("distance", 0)
-        position = data.get("position", {})
-        
-        # 格式化位置信息
-        x = position.get("x", 0)
-        y = position.get("y", 0)
-        z = position.get("z", 0)
-        
-        # 构建可读文本
-        readable_text = f"移动到坐标 ({x}, {y}, {z}) 附近，距离目标：{distance} 格\n{move_fail_str}"
-
-        
-        return readable_text
-        
-    except Exception:
-        # 如果解析失败，返回原始结果
-        return str(result)
 
 def translate_craft_item_tool_result(result: Any) -> str:
     """
@@ -121,7 +58,7 @@ def translate_mine_nearby_tool_result(result: Any) -> str:
     """
     return translate_mine_block_tool_result(result)
 
-def translate_mine_block_tool_result(result: Any) -> str:
+def translate_mine_block_tool_result(data: Any) -> str:
     """
     翻译mine_block工具的执行结果，使其更可读
     
@@ -133,27 +70,10 @@ def translate_mine_block_tool_result(result: Any) -> str:
     """
     try:
         # 如果结果是字符串，尝试解析JSON
-        if isinstance(result, str):
-            try:
-                result_data = json.loads(result)
-            except json.JSONDecodeError:
-                # 检查是否是特定的错误信息
-                if "Bot does not have a harvestable tool" in result:
-                    return "没有合适的挖掘工具"
-                return str(result)
-        else:
-            result_data = result
-        
-        # 提取关键信息
-        ok = result_data.get("ok", False)
-        data = result_data.get("data", {})
-        
-        if not ok:
-            # 检查错误信息
-            error_msg = result_data.get("error", "")
-            if "Bot does not have a harvestable tool" in error_msg:
+        if isinstance(data, str):
+            if "Bot does not have a harvestable tool" in data:
                 return "没有合适的挖掘工具"
-            return "挖掘方块失败"
+            return str(data)
         
         # 检查是否有挖掘数据
         if "minedCount" in data:
@@ -161,51 +81,53 @@ def translate_mine_block_tool_result(result: Any) -> str:
             mined_count = data["minedCount"]
             mined_blocks = data.get("minedBlocks", [])
             
-            # 处理方块名称，如果是列表则显示所有方块，如果是字符串则直接使用
-            if len(mined_blocks) > 0:
-                if len(mined_blocks) == 1:
-                    block_name = mined_blocks[0]
-                else:
-                    # 多个方块用顿号分隔
-                    block_name = "、".join(mined_blocks)
+            # 统计每种方块的数量
+            
+            block_counts = Counter(mined_blocks)
             
             # 构建可读文本
-            if mined_count == 1:
-                readable_text = f"成功挖掘了1个{block_name}"
+            if len(block_counts) == 1:
+                # 只有一种方块
+                block_name, count = block_counts.most_common(1)[0]
+                readable_text = f"成功挖掘了{count}个{block_name}"
             else:
-                readable_text = f"成功挖掘了{mined_count}个方块：{block_name}"
+                # 多种方块，按数量排序
+                sorted_blocks = block_counts.most_common()
+                block_details = "、".join([f"{count}个{name}" for name, count in sorted_blocks])
+                readable_text = f"成功挖掘了{mined_count}个方块：{block_details}"
             
             return readable_text
         else:
             # 如果没有挖掘数据，返回原始结果
-            return str(result)
+            return str(data)
         
     except Exception:
         # 如果解析失败，返回原始结果
-        return str(result)
+        return str(data)
     
-def translate_place_block_tool_result(result: Any, arguments: Any = None) -> str:
+def translate_place_block_tool_result(data: str|dict) -> str:
     """
     翻译place_block工具的执行结果，使其更可读
     """
 
     # 如果结果是字符串，尝试解析JSON
-    if isinstance(result, str):
-        try:
-            result_data = json.loads(result)
-        except json.JSONDecodeError:
-            return str(result)
-    else:
-        result_data = result
-        
-    ok = result_data.get("ok", False)
-    if not ok:
-        return "放置方块失败"
+    if isinstance(data, str):
+        return str(data)
     
-    return "放置方块成功"
+    block = data.get("block", "")
+    position = data.get("position", {})
+    referenceBlock = data.get("referenceBlock", {})
+    x = position.get("x", 0)
+    y = position.get("y", 0)
+    z = position.get("z", 0)
+    
+    place_str = f"成功放置方块{block}到({x}, {y}, {z})"
+    
+    return place_str
         
 
 def translate_chat_tool_result(result: Any) -> str:
+    
     """
     翻译chat工具的执行结果，使其更可读
     
@@ -241,60 +163,6 @@ def translate_chat_tool_result(result: Any) -> str:
         
         # 构建可读文本
         readable_text = f"成功发送消息：{message}"
-        
-        return readable_text
-        
-    except Exception:
-        # 如果解析失败，返回原始结果
-        return str(result)
-
-
-def translate_start_smelting_tool_result(result: Any) -> str:
-    """
-    翻译start_smelting工具的执行结果，使其更可读
-    
-    Args:
-        result: start_smelting工具的执行结果
-        
-    Returns:
-        翻译后的可读文本
-    """
-    try:
-        # 如果结果是字符串，尝试解析JSON
-        if isinstance(result, str):
-            try:
-                result_data = json.loads(result)
-            except json.JSONDecodeError:
-                return str(result)
-        else:
-            result_data = result
-        
-        # 检查是否是start_smelting工具的结果
-        if not isinstance(result_data, dict):
-            return str(result)
-        
-        # 提取关键信息
-        ok = result_data.get("ok", False)
-        data = result_data.get("data", {})
-        
-        if not ok:
-            return "开始熔炼失败，可能是物品不存在或缺少熔炉"
-        
-        # 提取熔炼信息
-        item_name = data.get("item", "未知物品")
-        count = data.get("count", 1)
-        furnace_position = data.get("furnacePosition", {})
-        
-        # 格式化熔炉位置信息
-        x = furnace_position.get("x", 0)
-        y = furnace_position.get("y", 0)
-        z = furnace_position.get("z", 0)
-        
-        # 构建可读文本
-        if count == 1:
-            readable_text = f"成功开始熔炼1个{item_name}，熔炉位置：({x}, {y}, {z})"
-        else:
-            readable_text = f"成功开始熔炼{count}个{item_name}，熔炉位置：({x}, {y}, {z})"
         
         return readable_text
         
@@ -457,7 +325,7 @@ def translate_view_furnace_result(result: Any) -> str:
     except Exception:
         return str(result)
 
-def translate_use_chest_tool_result(result: Any) -> str:
+def translate_use_chest_tool_result(data: Any) -> str:
     """
     翻译use_chest工具的执行结果，使其更可读
     
@@ -469,77 +337,8 @@ def translate_use_chest_tool_result(result: Any) -> str:
     """
     try:
         # 如果结果是字符串，尝试解析JSON
-        if isinstance(result, str):
-            try:
-                result_data = json.loads(result)
-            except json.JSONDecodeError:
-                return str(result)
-        else:
-            result_data = result
-        
-        # 检查是否是use_chest工具的结果
-        if not isinstance(result_data, dict):
-            return str(result)
-        
-        # 兼容两种输入：
-        # 1) 完整响应：{"ok": true/false, "data": {...}}
-        # 2) 仅 data 对象：{"operationResults": [...], "chestContents": [...], ...}
-        if "ok" not in result_data and (
-            "operationResults" in result_data or
-            "chestContents" in result_data or
-            "chestLocation" in result_data
-        ):
-            ok = True
-            data = result_data
-        else:
-            ok = result_data.get("ok", False)
-            data = result_data.get("data", {})
-        
-        if not ok:
-            # 处理操作失败的情况
-            error_code = result_data.get("error_code", "")
-            error_message = result_data.get("error_message", "")
-            
-            if "ALL_OPERATIONS_FAILED" in error_code:
-                # 处理复杂的失败情况
-                if "访问了" in error_message and "箱子" in error_message:
-                    # 解析箱子访问统计信息
-                    import re
-                    
-                    # 提取访问的箱子数量
-                    chest_match = re.search(r'访问了\s*(\d+)\s*个箱子', error_message)
-                    chest_count = chest_match.group(1) if chest_match else "未知"
-                    
-                    # 提取成功和失败操作次数
-                    success_match = re.search(r'成功操作:\s*(\d+)\s*次', error_message)
-                    _ = success_match.group(1) if success_match else "0"
-                    
-                    failure_match = re.search(r'失败操作:\s*(\d+)\s*次', error_message)
-                    _ = failure_match.group(1) if failure_match else "0"
-                    
-                    # 提取未能完全取出的物品信息
-                    withdraw_match = re.search(r'未能完全取出:\s*(\w+)\((\d+)\)', error_message)
-                    if withdraw_match:
-                        item_name = withdraw_match.group(1)
-                        needed_count = withdraw_match.group(2)
-                        readable_text = "❌ 附近箱子物品不足\n"
-                        readable_text += f"需要取出: {item_name} ({needed_count}个)\n"
-                        readable_text += f"访问了 {chest_count} 个箱子，但都没有足够的{item_name}"
-                        return readable_text
-                    else:
-                        return f"❌ 箱子操作失败: {error_message}"
-                elif "背包没有" in error_message:
-                    # 提取物品名称
-                    match = re.search(r'背包没有\s*(\w+)', error_message)
-                    if match:
-                        item_name = match.group(1)
-                        return f"❌ 操作失败: 背包中没有{item_name}"
-                    else:
-                        return f"❌ 操作失败: {error_message}"
-                else:
-                    return f"❌ 操作失败: {error_message}"
-            else:
-                return f"❌ 操作失败: {error_message}"
+        if isinstance(data, str):
+            return str(data)
         
         # 提取操作结果信息
         operation_results = data.get("operationResults", [])
@@ -547,11 +346,10 @@ def translate_use_chest_tool_result(result: Any) -> str:
         chest_location = data.get("chestLocation", {})
         
         # 构建可读文本
-        readable_text = "✅ 箱子操作成功\n"
+        readable_text = ""
         
         # 添加操作结果
         if operation_results:
-            readable_text += "操作结果:\n"
             for operation in operation_results:
                 readable_text += f"  {operation}\n"
         
@@ -579,34 +377,21 @@ def translate_use_chest_tool_result(result: Any) -> str:
         
     except Exception:
         # 如果解析失败，返回原始结果
-        return str(result)
+        return str(data)
 
-def translate_use_furnace_tool_result(result: Any) -> str:
+def translate_use_furnace_tool_result(data: Any) -> str:
     """翻译use_furnace工具的执行结果"""
     try:
-        if isinstance(result, str):
-            try:
-                result_data = json.loads(result)
-            except json.JSONDecodeError:
-                return str(result)
-        else:
-            result_data = result
-        
-        if not isinstance(result_data, dict):
-            return str(result)
-        
-        ok = result_data.get("ok", False)
-        if not ok:
-            return "熔炉操作失败"
-        
-        data = result_data.get("data", {})
+        if isinstance(data, str):
+            return str(data)
+
         operation_results = data.get("operationResults", [])
         container_contents = data.get("containerContents", [])
         
         # 槽位映射
         slot_names = {0: "input", 1: "fuel", 2: "output"}
         
-        readable_text = "✅ 熔炉操作成功\n"
+        readable_text = ""
         
         if operation_results:
             readable_text += f"{operation_results[0]}\n"
@@ -622,4 +407,4 @@ def translate_use_furnace_tool_result(result: Any) -> str:
         return readable_text
         
     except Exception:
-        return str(result)
+        return str(data)

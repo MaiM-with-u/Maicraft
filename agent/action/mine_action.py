@@ -10,7 +10,7 @@ from agent.utils.utils_tool_translation import (
 from mcp_server.client import global_mcp_client
     
 async def mine_nearby_blocks(name: str, count: int,digOnly:bool) -> tuple[bool,str]:
-    result_str = f"想要批量挖掘: {name} 数量: {count}\n"
+    result_str = ""
     args = {"name": name, "count": count,"digOnly": digOnly,"enable_xray":True}
     call_result = await global_mcp_client.call_tool_directly("mine_block", args)
     is_success, result_content = parse_tool_result(call_result)

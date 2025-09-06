@@ -422,7 +422,7 @@ class EnvironmentUpdater:
             "includeBlockCounts": False
         })
     
-    async def _update_area_blocks_with_can_see(self, center_pos: BlockPosition, size: int = 5) -> int:
+    async def _update_area_blocks_with_can_see(self, center_pos: BlockPosition, size: int = 8) -> int:
         """更新区域方块数据，包括 can_see 信息
         
         Args:
