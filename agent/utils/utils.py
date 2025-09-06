@@ -246,8 +246,8 @@ def parse_thinking(thinking: str) -> tuple[bool, str, dict, str]:
     if "```" in json_before:
         json_before = json_before.replace("```", "")
 
-    # 移除json_before的所有头尾换行符
-    json_before = json_before.strip('\n')
+    # 移除json_before的所有换行符
+    json_before = json_before.replace('\n', '')
     
     
     action_type = json_obj.get("action_type")

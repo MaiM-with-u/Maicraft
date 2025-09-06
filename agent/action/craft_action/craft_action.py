@@ -294,26 +294,56 @@ class RecipeFinder:
                     else:
                         all_missing[missing_item] = 1
             
-            # 生成详细报告
-            report_lines = ["合成失败分析："]
+            # 生成简化报告
+            if not all_missing:
+                return "合成失败：无法解析配方需求"
             
-            # 添加总体缺少材料汇总
-            # if all_missing:
-            #     missing_summary = [f"{item} x{count}" for item, count in all_missing.items()]
-            #     report_lines.append(f"总体缺少材料：{', '.join(missing_summary)}")
+            # 生成紧凑的配方分析字符串
+            recipe_parts = []
+            display_recipes = recipe_analysis[:3]  # 只显示前3个配方
             
-            # 添加各配方的详细分析
-            for i, recipe in enumerate(recipe_analysis, 1):
-                # report_lines.append(f"\n配方{i}（{recipe['type']}）：")
-                report_lines.append(f"\n配方{i}：")
+            for i, recipe in enumerate(display_recipes, 1):
                 if recipe.get("status") == "材料充足":
-                    # report_lines.append(f"  ✓ 材料充足，每批次产出：{recipe['per_batch']}，需要批次：{recipe['batches']}")
-                    report_lines.append("  ✓ 材料充足")
+                    recipe_parts.append(f"配方{i}充足")
                 else:
-                    report_lines.append(f"  ✗ 缺少材料：{', '.join(recipe['missing'])}")
-                    # report_lines.append(f"    每批次产出：{recipe['per_batch']}，需要批次：{recipe['batches']}")
+                    # 对缺少的材料进行排序：已有的排在前面，完全缺失的排在后面
+                    sorted_missing = []
+                    have_items = []
+                    no_items = []
+                    
+                    for missing_item in recipe["missing"]:
+                        # 解析物品名称
+                        if " x" in missing_item:
+                            item_name = missing_item.rsplit(" x", 1)[0]
+                        else:
+                            item_name = missing_item
+                        
+                        # 检查该物品是否在库存中有（即使数量不足）
+                        normalized_name = self._normalize_item_name(item_name)
+                        if bag.get(normalized_name, 0) > 0:
+                            have_items.append(missing_item)
+                        else:
+                            no_items.append(missing_item)
+                    
+                    # 合并：已有的在前，完全缺失的在后
+                    sorted_missing = have_items + no_items
+                    
+                    # 简化显示，最多显示2种主要材料
+                    if sorted_missing:
+                        missing_items = sorted_missing[:2]
+                        if len(sorted_missing) > 2:
+                            missing_items.append("等")
+                        recipe_parts.append(f"配方{i}缺{','.join(missing_items)}")
+                    else:
+                        recipe_parts.append(f"配方{i}缺材料")
             
-            return "\n".join(report_lines)
+            # 组合成紧凑的字符串
+            result = "合成失败：" + ",".join(recipe_parts)
+            
+            if len(recipe_analysis) > 3:
+                result += f"等{len(recipe_analysis)}个配方"
+            
+            return result
             
         except Exception as e:
             return f"分析材料需求时出错：{e}"

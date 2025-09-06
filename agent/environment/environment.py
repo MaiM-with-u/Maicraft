@@ -17,6 +17,7 @@ from agent.block_cache.nearby_block import nearby_block_manager
 from agent.to_do_list import mai_goal, mai_to_do_list
 from agent.utils.utils import format_task_done_list
 from agent.prompt_manager.prompt_manager import prompt_manager
+from agent.container_cache.container_cache import global_container_cache
 
 
 logger = get_logger("EnvironmentInfo")
@@ -754,7 +755,7 @@ class EnvironmentInfo:
             "task": "当前没有选择明确的任务",
             "environment": self.get_summary(),
             "thinking_list": global_thinking_log.get_thinking_log(),
-            "nearby_block_info": await nearby_block_manager.get_block_details_mix_str(self.block_position,distance=32),
+            "nearby_block_info": await nearby_block_manager.get_block_details_mix_str(self.block_position,full_distance=4,can_see_distance=16),
             "position": self.get_position_str(),
             "chat_str": self.get_chat_str(),
             "event_str": self.get_event_str(),
@@ -764,6 +765,13 @@ class EnvironmentInfo:
             "mode": mai_mode.mode,
             "eat_action": eat_action
         }
+        
+        # 添加容器缓存信息
+        container_cache_info = ""
+        if self.block_position:
+            nearby_containers_info = global_container_cache.get_nearby_containers_info(self.block_position, 3)
+            container_cache_info += nearby_containers_info
+        input_data["container_cache_info"] = container_cache_info
         
         basic_info = prompt_manager.generate_prompt("basic_info", **input_data)
         input_data["basic_info"] = basic_info

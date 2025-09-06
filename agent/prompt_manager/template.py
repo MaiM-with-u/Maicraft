@@ -32,6 +32,9 @@ def init_templates() -> None:
 **周围方块的信息**
 {nearby_block_info}
 
+**周围箱子信息**
+{container_cache_info}
+
 **最近游戏事件**
 {event_str}
 
@@ -49,7 +52,8 @@ def init_templates() -> None:
             "nearby_block_info",
             "position",
             "chat_str",
-            "to_do_list"],
+            "to_do_list",
+            "container_cache_info"],
     ))
     
     

@@ -17,9 +17,10 @@ logger = get_logger("BlockCache")
 
 class CachedBlock:
     """缓存的方块信息"""
-    def __init__(self, block_type: str, position: BlockPosition, last_seen: datetime, first_seen: datetime, seen_count: int = 1) -> None:
+    def __init__(self, block_type: str, position: BlockPosition, can_see: bool, last_seen: datetime, first_seen: datetime, seen_count: int = 1) -> None:
         self.block_type = block_type
         self.position = position
+        self.can_see = can_see
         self.last_seen = last_seen
         self.first_seen = first_seen
         self.seen_count = seen_count
@@ -29,6 +30,7 @@ class CachedBlock:
         return {
             "block_type": self.block_type,
             "position": self.position.to_dict(),
+            "can_see": self.can_see,
             "last_seen": self.last_seen.isoformat(),
             "first_seen": self.first_seen.isoformat(),
             "seen_count": self.seen_count
@@ -40,6 +42,7 @@ class CachedBlock:
         return cls(
             block_type=data["block_type"],
             position=BlockPosition(data["position"]),
+            can_see=data["can_see"] if "can_see" in data else True,
             last_seen=datetime.fromisoformat(data["last_seen"]),
             first_seen=datetime.fromisoformat(data["first_seen"]),
             seen_count=data["seen_count"]
@@ -54,6 +57,16 @@ class CachedBlock:
         if not isinstance(other, CachedBlock):
             return False
         return (self.position.x, self.position.y, self.position.z) == (other.position.x, other.position.y, other.position.z)
+
+
+class PlayerPositionCache:
+    """玩家位置和视角信息缓存"""
+    def __init__(self, player_name: str, position: Position, yaw: float, pitch: float, timestamp: datetime):
+        self.player_name = player_name
+        self.position = position
+        self.yaw = yaw
+        self.pitch = pitch
+        self.timestamp = timestamp
 
 
 class PlayerPositionCache:
@@ -401,11 +414,11 @@ class BlockCache:
             for player_pos in self._player_position_cache.values():
                 save_data["player_positions"].append(player_pos.to_dict())
             
-            # 保存到文件
+            # 直接保存到文件
             with open(self._player_cache_file, 'w', encoding='utf-8') as f:
                 json.dump(save_data, f, ensure_ascii=False, indent=2)
             
-            logger.debug(f"玩家位置缓存已保存到文件: {self._player_cache_file}")
+            logger.debug(f"玩家位置缓存已保存到文件")
         except Exception as e:
             logger.error(f"保存玩家位置缓存文件失败: {e}")
     
@@ -512,6 +525,9 @@ class BlockCache:
         # 更新统计信息（总玩家数量）
         self._stats["total_player_positions"] = len(self._player_position_cache)
         
+        # 立即保存玩家位置缓存
+        self._save_player_cache()
+        
         logger.debug(f"更新玩家位置缓存: {player_name} at ({position.x:.2f}, {position.y:.2f}, {position.z:.2f})")
         return player_pos
     
@@ -557,65 +573,53 @@ class BlockCache:
         """
         return self._player_position_cache.get(player_name)
     
-    def update_from_blocks(self, blocks_data: Dict[str, Any]) -> int:
-        """
-        从query_surroundings函数的结果更新方块缓存
+    # def update_from_blocks(self, blocks_data: Dict[str, Any]) -> int:
+    #     """
+    #     从query_area_blocks函数的结果更新方块缓存
         
-        Args:
-            query_result: query_surroundings函数返回的结果字典
+    #     Args:
+    #         blocks_data: query_area_blocks函数返回的blocks数据
             
-        Returns:
-            更新的方块数量
-        """
-        if not blocks_data:
-            logger.debug("query_surroundings返回的方块数据为空")
-            return 0
+    #     Returns:
+    #         更新的方块数量
+    #     """
+    #     if not blocks_data:
+    #         logger.debug("query_area_blocks返回的方块数据为空")
+    #         return 0
         
-        
-        updated_count = 0
-        try:
-            observed_positions: Set[Tuple[int, int, int]] = set()
-            min_x = min_y = min_z = None
-            max_x = max_y = max_z = None
-            for block_type, block_info in blocks_data["blockMap"].items():
-                positions = block_info.get("positions", [])
-                for pos in positions:
-                    x, y, z = int(pos[0]), int(pos[1]), int(pos[2])
-                    pos = {"x": x, "y": y, "z": z}
-                    self.add_block(block_type, BlockPosition(pos))
-                    observed_positions.add((x, y, z))
-                    # 更新边界
-                    min_x = x if min_x is None else min(min_x, x)
-                    max_x = x if max_x is None else max(max_x, x)
-                    min_y = y if min_y is None else min(min_y, y)
-                    max_y = y if max_y is None else max(max_y, y)
-                    min_z = z if min_z is None else min(min_z, z)
-                    max_z = z if max_z is None else max(max_z, z)
-                    updated_count += 1
+    #     updated_count = 0
+    #     try:
+    #         # 处理compressedBlocks格式
+    #         compressed_blocks = blocks_data.get("compressedBlocks", [])
+    #         for block_data in compressed_blocks:
+    #             block_type = block_data.get("name", "unknown")
+    #             positions = block_data.get("positions", [])
+                
+    #             for pos in positions:
+    #                 if isinstance(pos, dict):
+    #                     x, y, z = int(pos.get("x", 0)), int(pos.get("y", 0)), int(pos.get("z", 0))
+    #                 else:
+    #                     # 假设是数组格式 [x, y, z]
+    #                     x, y, z = int(pos[0]), int(pos[1]), int(pos[2])
+                    
+    #                 pos_dict = {"x": x, "y": y, "z": z}
+    #                 self.add_block(block_type, BlockPosition(pos_dict))
+    #                 updated_count += 1
 
-            # 以观测到的最小/最大 xyz 创建包围盒，填充缺失为 air
-            if observed_positions and None not in (min_x, max_x, min_y, max_y, min_z, max_z):
-                for ix in range(min_x, max_x + 1):
-                    for iy in range(min_y, max_y + 1):
-                        for iz in range(min_z, max_z + 1):
-                            if (ix, iy, iz) not in observed_positions:
-                                pos = {"x": ix, "y": iy, "z": iz}
-                                self.add_block("air", BlockPosition(pos))
-                                updated_count += 1
-
-            # logger.info(f"从query_surroundings更新了 {updated_count} 个方块到缓存")
-            return updated_count
-        except Exception as e:
-            logger.error(f"处理query_surroundings数据时出错: {e}")
-            return 0
+    #         return updated_count
+    #     except Exception as e:
+    #         logger.error(f"处理query_area_blocks数据时出错: {e}")
+    #         logger.debug(f"数据结构: {blocks_data}")
+    #         return 0
         
     
-    def add_block(self, block_type: str, position: BlockPosition) -> CachedBlock:
+    def add_block(self, block_type: str, can_see: bool, position: BlockPosition) -> CachedBlock:
         """
         添加或更新方块信息
         
         Args:
             block_type: 方块类型
+            can_see: 是否可见
             position: 方块位置
             
         Returns:
@@ -628,10 +632,17 @@ class BlockCache:
         if position in self._position_cache:
             # 更新现有方块
             existing_block = self._position_cache[position]
-            existing_block.block_type = block_type
+            if existing_block.block_type == block_type:
+                if not existing_block.can_see:
+                    existing_block.can_see = can_see
+            else:
+                existing_block.block_type = block_type
+                existing_block.can_see = can_see
+            
+            
             existing_block.last_seen = now
             existing_block.seen_count += 1
-            
+                
             # 更新索引
             self._update_indices(existing_block, block_type)
             
@@ -643,6 +654,7 @@ class BlockCache:
             new_block = CachedBlock(
                 block_type=block_type,
                 position=position,
+                can_see=can_see,
                 last_seen=now,
                 first_seen=now
             )

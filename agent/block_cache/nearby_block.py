@@ -10,15 +10,46 @@ class NearbyBlockManager:
     def __init__(self):
         self.block_cache = global_block_cache
     
-    async def get_block_details_mix_str(self, position: BlockPosition, distance: int = 16):
-        around_blocks = self.block_cache.get_blocks_in_range(position.x, position.y, position.z, distance)
-        block_num = 0
+    async def get_block_details_mix_str(self, position: BlockPosition, full_distance: int = 16, can_see_distance: int = 32):
+        """
+        获取方块详情字符串
+        
+        Args:
+            position: 中心位置
+            full_distance: 完全显示距离，此距离内显示所有方块
+            can_see_distance: 可见显示距离，此距离内只显示可见方块
+        """
+        # 获取两个距离范围内的方块
+        full_blocks = self.block_cache.get_blocks_in_range(position.x, position.y, position.z, full_distance)
+        can_see_blocks = self.block_cache.get_blocks_in_range(position.x, position.y, position.z, can_see_distance)
+        
+        # 合并两个范围的方块，去重
+        all_blocks = list({(block.position.x, block.position.y, block.position.z): block for block in full_blocks + can_see_blocks}.values())
+        
         # 分组：key 为展示名称（空气 -> 无方块，其它直接用方块类型）
         grouped_positions = {}
+        block_num = 0
         
-        for block in around_blocks:
+        for block in all_blocks:
             # 跳过空气方块，不加入显示
             if block.block_type == "air":
+                continue
+            
+            # 计算方块到中心的距离
+            distance_to_center = ((block.position.x - position.x) ** 2 + 
+                                 (block.position.y - position.y) ** 2 + 
+                                 (block.position.z - position.z) ** 2) ** 0.5
+            
+            # 根据距离范围决定显示规则
+            if distance_to_center <= full_distance:
+                # 完全显示距离内显示所有方块
+                pass
+            elif distance_to_center <= can_see_distance:
+                # 可见显示距离内只显示可见方块
+                if not block.can_see:
+                    continue
+            else:
+                # 超出范围，不显示
                 continue
                 
             block_num += 1
@@ -43,7 +74,7 @@ class NearbyBlockManager:
         
         # 添加可移动位置检测
         movement_info = await self._get_movement_positions(position, distance=5)
-        around_blocks_str += f"\n可移动位置:\n{movement_info}"
+        around_blocks_str += f"\n可作为Move终点位置:\n{movement_info}"
         
         return around_blocks_str
 
@@ -398,7 +429,7 @@ class NearbyBlockManager:
         
         if placement_positions:
             coord_str = self._format_coords_compact(placement_positions)
-            result_parts.append(f"空气位置: {coord_str}")
+            result_parts.append(f"可直接放置: {coord_str}")
         
         if water_lava_positions:
             water_coords = [(x, y, z) for x, y, z, block_type in water_lava_positions if block_type == "water"]
@@ -406,11 +437,11 @@ class NearbyBlockManager:
             
             if water_coords:
                 water_str = self._format_coords_compact(water_coords)
-                result_parts.append(f"水位置(会挤占): {water_str}")
+                result_parts.append(f"水位置(会挤占水方块): {water_str}")
             
             if lava_coords:
                 lava_str = self._format_coords_compact(lava_coords)
-                result_parts.append(f"岩浆位置(会挤占): {lava_str}")
+                result_parts.append(f"岩浆位置(会挤占岩浆方块): {lava_str}")
         
         if not result_parts:
             return "无可用位置"
@@ -474,6 +505,6 @@ class NearbyBlockManager:
             return "无可用move位置"
         
         coord_str = self._format_coords_compact(movement_positions)
-        return f"可移动位置: {coord_str}"
+        return f"{coord_str}"
     
 nearby_block_manager = NearbyBlockManager()

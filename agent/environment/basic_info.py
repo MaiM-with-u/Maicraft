@@ -75,6 +75,9 @@ class BlockPosition:
             "y": self.y,
             "z": self.z
         }
+        
+    def __str__(self) -> str:
+        return f"({self.x}, {self.y}, {self.z})"
     
     def distance(self, other) -> float:
         """计算与另一个位置的距离

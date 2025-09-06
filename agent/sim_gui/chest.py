@@ -10,6 +10,7 @@ from agent.utils.utils_tool_translation import translate_use_chest_tool_result
 from typing import Dict
 from agent.environment.environment import global_environment
 from agent.environment.environment_updater import global_environment_updater
+from agent.container_cache.container_cache import global_container_cache
 from utils.logger import get_logger
 
 logger = get_logger("ChestSimGui")
@@ -40,6 +41,8 @@ class ChestSimGui:
             init_inv = await self._get_raw_chest_inventory()
             self.chest_inventory = dict(init_inv)
             self.temp_chest_inventory = dict(init_inv)
+            # 添加到全局容器缓存
+            global_container_cache.add_container(self.position, "chest", init_inv)
         except Exception:
             # 即使读取失败，也不阻塞后续流程
             self.chest_inventory = {}
@@ -60,6 +63,8 @@ class ChestSimGui:
         
         if take_items_actions:
             self.chest_inventory = await self._get_raw_chest_inventory()
+            # 更新全局容器缓存中的库存信息
+            global_container_cache.update_container_inventory(self.position, self.chest_inventory)
             logger.info(f" 执行了 {len(take_items_actions)} 个动作")
             return self._summarize_chest_diff()
         else:
@@ -143,7 +148,7 @@ class ChestSimGui:
             if after > 0:
                 remain_list.append(f"{name} x{after}")
 
-        lines = []
+        lines = [""]
         if put_list:
             lines.append("存入: " + "，".join(put_list))
         else:
@@ -152,9 +157,9 @@ class ChestSimGui:
             lines.append("取出: " + "，".join(take_list))
         else:
             lines.append("取出: 无")
-        if remain_list:
-            lines.append("箱内剩余: " + "，".join(remain_list))
-        else:
-            lines.append("箱内剩余: 空")
+        # if remain_list:
+        #     lines.append("箱内剩余: " + "，".join(remain_list))
+        # else:
+        #     lines.append("箱内剩余: 空")
 
         return "\n".join(lines)

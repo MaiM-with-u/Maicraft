@@ -16,6 +16,7 @@ from agent.environment.basic_info import Event, Player
 from agent.thinking_log import global_thinking_log
 from agent.mai_mode import mai_mode
 from mcp_server.client import global_mcp_client
+from agent.environment.basic_info import BlockPosition
 
 
 class EnvironmentUpdater:
@@ -114,22 +115,21 @@ class EnvironmentUpdater:
             
             # 使用新的拆分后的查询工具获取环境数据
             environment_data = await self._gather_environment_data()
-            event_data = await self._gather_event_data()
+            global_environment.update_from_observation(environment_data)
             
-
-            # 更新全局环境信息
-            try:
-                await self.update_events(event_data)
-                global_environment.update_from_observation(environment_data)
-                # self.logger.info(f"[EnvironmentUpdater] 全局环境信息已更新，最后更新: {global_environment.last_update}")
-            except Exception as e:
-                self.logger.error(f"[EnvironmentUpdater] 更新全局环境信息失败: {e}")
-                asyncio.sleep(1)
-                self.logger.error(traceback.format_exc())
+            #更新事件
+            event_data = await self._gather_event_data()
+            await self.update_events(event_data)
+            
+            #更新周围方块
+            if global_environment.block_position:
+                can_see_updated_count = await self._update_area_blocks_with_can_see(global_environment.block_position, 5)
+                # self.logger.debug(f"[EnvironmentUpdater] 已更新 {can_see_updated_count} 个方块的 can_see 信息")
             
         except Exception as e:
             self.logger.error(f"[EnvironmentUpdater] 环境更新失败: {e}")
-            raise
+            asyncio.sleep(1)
+            self.logger.error(traceback.format_exc())
 
     async def _gather_event_data(self) -> Optional[Dict[str, Any]]:
         """使用新的查询工具收集事件数据"""
@@ -254,7 +254,6 @@ class EnvironmentUpdater:
                 self._call_query_player_status(),
                 self._call_query_surroundings("players"),
                 self._call_query_surroundings("entities"),
-                self._call_query_blocks()
             ]
             
             # 等待所有查询完成
@@ -272,7 +271,6 @@ class EnvironmentUpdater:
                 "request_id": "",
                 "elapsed_ms": 0
             }
-            
             
             # 处理游戏状态
             if isinstance(results[0], dict) and results[0].get("ok"):
@@ -325,50 +323,34 @@ class EnvironmentUpdater:
             
             
             # 处理周围环境 - 玩家
-            if isinstance(results[3], dict) and results[3].get("ok"):
+            if isinstance(results[2], dict) and results[2].get("ok"):
                 try:
-                    nearby_players = results[3].get("data", {}).get("players", {})
+                    nearby_players = results[2].get("data", {}).get("players", {})
                     if isinstance(nearby_players, dict) and "list" in nearby_players:
                         combined_data["data"]["nearbyPlayers"] = nearby_players.get("list", [])
                     else:
                         # 如果players不是预期的结构，设置为空列表
                         combined_data["data"]["nearbyPlayers"] = []
-                    combined_data["elapsed_ms"] = max(combined_data["elapsed_ms"], results[3].get("elapsed_ms", 0))
+                    combined_data["elapsed_ms"] = max(combined_data["elapsed_ms"], results[2].get("elapsed_ms", 0))
                     self.logger.debug("[EnvironmentUpdater] 周围玩家数据更新成功")
                 except Exception as e:
                     self.logger.warning(f"[EnvironmentUpdater] 处理周围玩家数据时出错: {e}")
                     combined_data["data"]["nearbyPlayers"] = []
             
             # 处理周围环境 - 实体
-            if isinstance(results[4], dict) and results[4].get("ok"):
+            if isinstance(results[3], dict) and results[3].get("ok"):
                 try:
-                    nearby_entities = results[4].get("data", {}).get("entities", {})
+                    nearby_entities = results[3].get("data", {}).get("entities", {})
                     if isinstance(nearby_entities, dict) and "list" in nearby_entities:
                         combined_data["data"]["nearbyEntities"] = nearby_entities.get("list", [])
                     else:
                         # 如果entities不是预期的结构，设置为空列表
                         combined_data["data"]["nearbyEntities"] = []
-                    combined_data["elapsed_ms"] = max(combined_data["elapsed_ms"], results[4].get("elapsed_ms", 0))
+                    combined_data["elapsed_ms"] = max(combined_data["elapsed_ms"], results[3].get("elapsed_ms", 0))
                     self.logger.debug("[EnvironmentUpdater] 周围实体数据更新成功")
                 except Exception as e:
                     self.logger.warning(f"[EnvironmentUpdater] 处理周围实体数据时出错: {e}")
                     combined_data["data"]["nearbyEntities"] = []
-                    
-            
-            # 处理周围方块缓存器
-            if len(results) > 4 and isinstance(results[4], dict) and results[4].get("ok"):
-                try:
-                    # 从实体查询结果中获取方块信息，因为实体查询通常也包含周围的方块信息
-                    blocks_data = results[4].get("data", {})
-                    if "blocks" in blocks_data:
-                        blocks = blocks_data["blocks"]
-                        global_block_cache.update_from_blocks(blocks)
-                        self.logger.debug("[EnvironmentUpdater] 周围方块数据更新成功")
-                    else:
-                        self.logger.debug("[EnvironmentUpdater] 实体查询结果中没有方块数据")
-                except Exception as e:
-                    self.logger.warning(f"[EnvironmentUpdater] 处理周围方块数据时出错: {e}")
-                    self.logger.warning(traceback.format_exc())
             
             return combined_data
             
@@ -398,14 +380,120 @@ class EnvironmentUpdater:
         """调用query_player_status工具"""
         # 新的格式已经包含了物品栏信息，所以不需要额外参数
         return await self._call_tool("query_player_status", {"includeInventory":True})
-
-    async def _call_query_blocks(self) -> Optional[Dict[str, Any]]:
-        """调用query_blocks工具"""
-        return await self._call_tool("query_surroundings", {"type":"blocks","blockRange":5,"enable_xray":True})
     
     async def _call_query_surroundings(self, env_type: str) -> Optional[Dict[str, Any]]:
         """调用query_surroundings工具"""
         return await self._call_tool("query_surroundings", {"type": env_type,"range":5,"useAbsoluteCoords":True})
+    
+    async def _call_query_area_blocks(self, center_pos: BlockPosition, size: int = 5) -> Optional[Dict[str, Any]]:
+        """调用query_area_blocks工具，以指定位置为中心获取方块数据
+        
+        Args:
+            center_pos: 中心位置
+            size: 区域大小（size x size）
+            
+        Returns:
+            查询结果字典
+        """
+        if not center_pos:
+            self.logger.warning("[EnvironmentUpdater] 中心位置为空，无法查询区域方块")
+            return None
+            
+        # 计算区域边界
+        half_size = size // 2
+        start_x = center_pos.x - half_size
+        start_y = center_pos.y - half_size
+        start_z = center_pos.z - half_size
+        end_x = center_pos.x + half_size
+        end_y = center_pos.y + half_size
+        end_z = center_pos.z + half_size
+        
+        # 调用工具
+        return await self._call_tool("query_area_blocks", {
+            "startX": start_x,
+            "startY": start_y,
+            "startZ": start_z,
+            "endX": end_x,
+            "endY": end_y,
+            "endZ": end_z,
+            "useRelativeCoords": False,
+            "maxBlocks": 5000,
+            "compressionMode": True,
+            "includeBlockCounts": False
+        })
+    
+    async def _update_area_blocks_with_can_see(self, center_pos: BlockPosition, size: int = 5) -> int:
+        """更新区域方块数据，包括 can_see 信息
+        
+        Args:
+            center_pos: 中心位置
+            size: 区域大小（size x size）
+            
+        Returns:
+            更新的方块数量
+        """
+        # 调用 query_area_blocks 工具
+        result = await self._call_query_area_blocks(center_pos, size)
+        if not result or not result.get("ok"):
+            self.logger.warning("[EnvironmentUpdater] query_area_blocks 调用失败")
+            return 0
+            
+        try:
+            data = result.get("data", {})
+            compressed_blocks = data.get("compressedBlocks", [])
+            updated_count = 0
+            
+            # 计算查询范围的边界
+            half_size = size // 2
+            start_x = center_pos.x - half_size
+            start_y = center_pos.y - half_size
+            start_z = center_pos.z - half_size
+            end_x = center_pos.x + half_size
+            end_y = center_pos.y + half_size
+            end_z = center_pos.z + half_size
+            
+            # 创建所有位置的集合，用于标记哪些位置已经有数据
+            positions_with_data = set()
+            
+            # 首先处理从查询结果中获得的方块数据
+            for block_data in compressed_blocks:
+                block_type = block_data.get("name", "")
+                can_see = block_data.get("canSee", False)  # 注意：返回的是 canSee，不是 can_see
+                positions = block_data.get("positions", [])
+                
+                # 更新每个位置的方块
+                for pos in positions:
+                    x = pos.get("x", 0)
+                    y = pos.get("y", 0)
+                    z = pos.get("z", 0)
+                    
+                    # 标记这个位置已经有数据
+                    positions_with_data.add((x, y, z))
+                    
+                    # 获取或创建方块位置对象
+                    block_pos = BlockPosition(x=x, y=y, z=z)
+                    
+                    # 更新方块缓存，包括 can_see 信息
+                    cached_block = global_block_cache.add_block(block_type, can_see, block_pos)
+                    updated_count += 1
+            
+            # 然后处理查询范围内但没有数据的位置，设置为air且can_see=True
+            for x in range(start_x, end_x + 1):
+                for y in range(start_y, end_y + 1):
+                    for z in range(start_z, end_z + 1):
+                        if (x, y, z) not in positions_with_data:
+                            # 这个位置在查询范围内但没有数据，设置为air且can_see=True
+                            block_pos = BlockPosition(x=x, y=y, z=z)
+                            cached_block = global_block_cache.add_block("air", True, block_pos)
+                            updated_count += 1
+            
+            # self.logger.info(f"[EnvironmentUpdater] 已更新 {updated_count} 个方块的 can_see 信息")
+            return updated_count
+            
+        except Exception as e:
+            self.logger.error(f"[EnvironmentUpdater] 处理 query_area_blocks 数据时出错: {e}")
+            self.logger.warning(traceback.format_exc())
+            return 0
     
     def stop(self) -> bool:
         """停止环境更新器"""
@@ -445,7 +533,7 @@ class EnvironmentUpdater:
         if self.is_running:
             try:
                 self.stop()
-            except:
+            except Exception:
                 pass
 
 global_environment_updater = EnvironmentUpdater()

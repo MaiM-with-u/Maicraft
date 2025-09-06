@@ -34,7 +34,7 @@ async def move_to_position(x:int,y:int,z:int):
             final_position = BlockPosition(x=final_x, y=final_y, z=final_z)
             
         distance = result_content.get("distance")
-        result_str = f"移动最终位置{final_position}，距离目标点{distance}"
+        result_str = f"移动到最终位置{final_position}，距离目标点{distance}"
 
     return result_str
     

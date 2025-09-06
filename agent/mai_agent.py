@@ -1,6 +1,6 @@
 import asyncio
 import math
-from typing import List, Any, Optional
+from typing import List, Any, Optional, Dict, Tuple
 from langchain_core.tools import BaseTool
 from utils.logger import get_logger
 from config import global_config
@@ -26,6 +26,7 @@ from agent.utils.utils_tool_translation import (
 )
 from agent.sim_gui.chest import ChestSimGui
 from agent.sim_gui.furnace import FurnaceSimGui
+from agent.container_cache.container_cache import global_container_cache
 from mcp_server.client import global_mcp_client
 from agent.thinking_log import global_thinking_log
 from agent.mai_mode import mai_mode
@@ -97,7 +98,6 @@ class MaiAgent:
         
         self.on_going_task_id = ""
         
-        
         self.task_done_list: list[tuple[bool, str, str]] = []
         
         self.exec_task: Optional[asyncio.Task] = None
@@ -105,6 +105,22 @@ class MaiAgent:
         
         # 3D 渲染器实例（需要时启动）
         self.renderer_3d = None
+        
+    def add_container_to_cache(self, position: BlockPosition, container_type: str) -> None:
+        """添加容器到缓存"""
+        global_container_cache.add_container(position, container_type)
+    
+    def update_container_cache_lifetime(self) -> None:
+        """更新容器缓存生命周期"""
+        global_container_cache.update_cache_lifetime()
+    
+    def get_nearby_containers(self, center_position: BlockPosition, radius: float = 20.0) -> List:
+        """获取附近的容器"""
+        return global_container_cache.get_nearby_containers(center_position, radius)
+    
+    def get_container_cache_info(self) -> str:
+        """获取容器缓存信息的字符串表示"""
+        return global_container_cache.get_cache_info()
         
     async def initialize(self):
         """异步初始化"""
@@ -196,9 +212,12 @@ class MaiAgent:
             #更新截图
             await self.update_overview()
 
+            # 更新容器缓存生命周期
+            self.update_container_cache_lifetime()
+
             input_data = await global_environment.get_all_data()
             
-            
+                
             # 根据不同的模式，给予不同的工具
             if mai_mode.mode == "main_mode":
                 # 主模式，可以选择基础动作，和深入动作
@@ -237,10 +256,9 @@ class MaiAgent:
             if json_obj:
                 await asyncio.sleep(0.1)
                 self.logger.info(f"{color_prefix} 动作: {json_obj}\033[0m")
-                global_thinking_log.add_thinking_log(f"执行动作：{json_obj}",type = "action")
                 await asyncio.sleep(0.1)
                 result = await self.excute_action(json_obj)
-                global_thinking_log.add_thinking_log(f"执行结果：{result.result_str}",type = "notice")
+                global_thinking_log.add_thinking_log(f"执行：{json_obj};{result.result_str}\n",type = "action")
                 
                 self.logger.info(f" 执行结果: {result.result_str}")
                 
@@ -335,6 +353,9 @@ class MaiAgent:
             z = math.floor(float(position.get("z")))
             
             block_position = BlockPosition(x = x, y = y, z = z)
+            # 添加熔炉到缓存
+            self.add_container_to_cache(block_position, "furnace")
+            
             result_str = f"打开熔炉: {x},{y},{z}\n"
             mai_mode.mode = "furnace_gui"
             self.gui = FurnaceSimGui(block_position, self.llm_client)
@@ -366,6 +387,9 @@ class MaiAgent:
             if block.block_type != "chest":
                 result.result_str = f"位置{x},{y},{z}不是箱子，无法使用箱子\n"
                 return result
+            
+            # 添加箱子到缓存
+            self.add_container_to_cache(block_position, "chest")
             
             result_str += f"打开箱子: {x},{y},{z}\n"
             mai_mode.mode = "chest_gui"

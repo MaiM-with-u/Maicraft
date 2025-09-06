@@ -9,6 +9,11 @@ from agent.utils.utils import parse_tool_result
 from typing import Dict, List
 from agent.environment.environment import global_environment
 from agent.environment.environment_updater import global_environment_updater
+from utils.logger import get_logger
+from agent.thinking_log import global_thinking_log
+from agent.container_cache.container_cache import global_container_cache
+
+logger = get_logger("FurnaceSimGui")
 
 class FurnaceSimGui:
     def __init__(self,position:BlockPosition,llm_client:LLMClient):
@@ -22,9 +27,6 @@ class FurnaceSimGui:
         self.input_slot: Dict[str, int] = {}
         self.fuel_slot: Dict[str, int] = {}
         self.output_slot: Dict[str, int] = {}
-        
-        # 操作记录：记录每次放入/取出的操作
-        self.use_record: List[Dict] = []
         
     
     async def furnace_gui(self):
@@ -43,6 +45,12 @@ class FurnaceSimGui:
             self.input_slot = dict(init_slots.get("input", {}))
             self.fuel_slot = dict(init_slots.get("fuel", {}))
             self.output_slot = dict(init_slots.get("output", {}))
+            # 添加到全局容器缓存，合并所有槽位的物品
+            furnace_inventory = {}
+            for slot_items in [self.input_slot, self.fuel_slot, self.output_slot]:
+                for item, count in slot_items.items():
+                    furnace_inventory[item] = furnace_inventory.get(item, 0) + count
+            global_container_cache.add_container(self.position, "furnace", furnace_inventory)
         except Exception:
             # 即使读取失败，也不阻塞后续流程
             self.input_slot = {}
@@ -61,12 +69,21 @@ class FurnaceSimGui:
                 self.input_slot = dict(current_slots.get("input", {}))
                 self.fuel_slot = dict(current_slots.get("fuel", {}))
                 self.output_slot = dict(current_slots.get("output", {}))
+                # 更新全局容器缓存
+                furnace_inventory = {}
+                for slot_items in [self.input_slot, self.fuel_slot, self.output_slot]:
+                    for item, count in slot_items.items():
+                        furnace_inventory[item] = furnace_inventory.get(item, 0) + count
+                global_container_cache.update_container_inventory(self.position, furnace_inventory)
             except Exception:
                 pass
 
             prompt = prompt_manager.generate_prompt("furnace_gui", **input_data)
             thinking = await self.llm_client.simple_chat(prompt)
             success, thinking, json_obj, thinking_log = parse_thinking(thinking)
+            
+            logger.info(prompt)
+            logger.info(f" 思考结果: {thinking}")
             
             args = {"x": self.position.x, "y": self.position.y, "z": self.position.z}
             action_type = json_obj.get("action_type")
@@ -83,14 +100,11 @@ class FurnaceSimGui:
                 call_result = await global_mcp_client.call_tool_directly("use_furnace", args)
                 is_success, result_content = parse_tool_result(call_result) 
                 # 记录操作
-                self.use_record.append({
-                    "action": "取出",
-                    "slot": slot,
-                    "item": item,
-                    "count": count,
-                    "success": is_success
-                })
-                
+                if not is_success:
+                    global_thinking_log.add_thinking_log(f"取出{item} x{count}失败: {result_content}")
+                    
+                else:
+                    global_thinking_log.add_thinking_log(f"取出{item} x{count}成功: {result_content}")
                 
             elif action_type == "put_items":
                 slot = json_obj.get("slot")
@@ -103,25 +117,15 @@ class FurnaceSimGui:
                 call_result = await global_mcp_client.call_tool_directly("use_furnace", args)
                 is_success, result_content = parse_tool_result(call_result) 
                 # 记录操作
-                self.use_record.append({
-                    "action": "放入",
-                    "slot": slot,
-                    "item": item,
-                    "count": count,
-                    "success": is_success
-                })
-
+                if not is_success:
+                    global_thinking_log.add_thinking_log(f"放入{item} x{count}失败: {result_content}")
+                    
+                else:
+                    global_thinking_log.add_thinking_log(f"放入{item} x{count}成功: {result_content}")
+                    
                 
             elif action_type == "exit_furnace_gui":
-                # 循环结束前做一次最终同步
-                try:
-                    final_slots = await self._get_raw_furnace_slots()
-                    self.input_slot = dict(final_slots.get("input", {}))
-                    self.fuel_slot = dict(final_slots.get("fuel", {}))
-                    self.output_slot = dict(final_slots.get("output", {}))
-                except Exception:
-                    pass
-                return self._summarize_furnace_operations()
+                return "关闭熔炼界面"
             else:
                 return f"不支持的动作类型: {action_type}"
 
@@ -161,49 +165,3 @@ class FurnaceSimGui:
                 continue
                 
         return furnace_slots
-
-    def _summarize_furnace_operations(self) -> str:
-        """输出熔炉操作记录和当前物品情况。"""
-        lines = ["退出熔炉界面"]
-        
-        # 1. 操作记录
-        if self.use_record:
-            lines.append("\n操作记录:")
-            for i, record in enumerate(self.use_record, 1):
-                action = record.get("action", "")
-                slot = record.get("slot", "")
-                item = record.get("item", "")
-                count = record.get("count", 0)
-                success = record.get("success", False)
-                if not success:
-                    lines.append(f"  {i}. {action} {slot}槽位: {item} x{count} 失败")
-                    continue
-                lines.append(f"  {i}. {action} {slot}槽位: {item} x{count} 成功")
-        else:
-            lines.append("\n操作记录: 无")
-        
-        # 2. 熔炉现在的物品情况
-        lines.append("\n熔炉当前物品情况:")
-        
-        # 输入槽位
-        if self.input_slot:
-            input_items = [f"{name} x{count}" for name, count in self.input_slot.items()]
-            lines.append(f"  输入槽位: {', '.join(input_items)}")
-        else:
-            lines.append("  输入槽位: 空")
-            
-        # 燃料槽位
-        if self.fuel_slot:
-            fuel_items = [f"{name} x{count}" for name, count in self.fuel_slot.items()]
-            lines.append(f"  燃料槽位: {', '.join(fuel_items)}")
-        else:
-            lines.append("  燃料槽位: 空")
-            
-        # 输出槽位
-        if self.output_slot:
-            output_items = [f"{name} x{count}" for name, count in self.output_slot.items()]
-            lines.append(f"  输出槽位: {', '.join(output_items)}")
-        else:
-            lines.append("  输出槽位: 空")
-
-        return "\n".join(lines)
