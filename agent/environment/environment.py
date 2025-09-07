@@ -6,7 +6,7 @@ Minecraft环境信息存储类
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from utils.logger import get_logger
-from agent.environment.basic_info import Player, Position, Entity, Event, BlockPosition
+from agent.common.basic_class import Player, Position, Entity, Event, BlockPosition
 from agent.block_cache.block_cache import global_block_cache
 from openai_client.llm_request import LLMClient
 from agent.environment.locations import global_location_points
@@ -18,6 +18,8 @@ from agent.to_do_list import mai_goal, mai_to_do_list
 from agent.utils.utils import format_task_done_list
 from agent.prompt_manager.prompt_manager import prompt_manager
 from agent.container_cache.container_cache import global_container_cache
+from openai_client.modelconfig import ModelConfig
+from agent.chat_history import global_chat_history
 
 
 logger = get_logger("EnvironmentInfo")
@@ -100,8 +102,21 @@ class EnvironmentInfo:
         # 时间戳
         self.last_update: Optional[datetime] = None
         
-    def set_vlm(self, vlm: LLMClient):
-        self.vlm = vlm
+        
+        model_config = ModelConfig(
+                model_name=global_config.vlm.model,
+                api_key=global_config.vlm.api_key,
+                base_url=global_config.vlm.base_url,
+                max_tokens=global_config.vlm.max_tokens,
+                temperature=global_config.vlm.temperature
+            )
+            
+        self.vlm = LLMClient(model_config)
+        
+    def add_event(self, event: Event):
+        self.recent_events.append(event)
+        if len(self.recent_events) > 80:
+            self.recent_events = self.recent_events[80:]
         
     async def get_overview_str(self) -> str:
         if not self.vlm:
@@ -391,9 +406,10 @@ class EnvironmentInfo:
         
         # 玩家信息
         if self.player_name:
-            lines.append("【自身信息】")
             lines.append(f"  用户名: {self.player_name}")
             lines.append(f"  游戏模式: {self.gamemode}")
+            
+        return "\n".join(lines)
             
     
     def get_equipment_info(self) -> str:
@@ -472,16 +488,15 @@ class EnvironmentInfo:
         # 状态信息
         lines.append("【状态信息】")
         lines.append(f"  生命值: {self.health}/{self.health_max}")
-        lines.append(f"  饥饿值: {self.food}/{self.food_max}")
+        
         if self.food/self.food_max < 0.5:
             lines.append(f"  饥饿值: {self.food}/{self.food_max}，饥饿值较低，需要马上食用食物")
         elif self.food/self.food_max < 0.8:
             lines.append(f"  饥饿值: {self.food}/{self.food_max}，有条件最好食用食物")
+        else:
+            lines.append(f"  饥饿值: {self.food}/{self.food_max}")
+            
         lines.append(f"  等级: {self.level}")
-        
-        # 物品栏
-        lines.append("【物品栏】")
-        lines.append(self.get_inventory_info())
         
         # 附近玩家
         lines.append("【附近玩家】")
@@ -516,30 +531,6 @@ class EnvironmentInfo:
         
         return "\n".join(lines)
     
-    def get_event_str(self) -> str:
-        lines = []
-        if self.recent_events:
-            # 限制显示最近的事件数量，避免信息过多
-            max_events = 20
-            recent_events_to_show = self.recent_events[-max_events:] if len(self.recent_events) > max_events else self.recent_events
-            for i, event in enumerate(recent_events_to_show, 1):
-                if event.type == "chat":
-                    continue
-                event_desc = self._get_event_description(event)
-                # 添加格式化的时间戳信息
-                if event and event_desc:
-                    timestamp_str = ""
-                    if event.timestamp:
-                        try:
-                            from datetime import datetime
-                            dt = datetime.fromtimestamp(event.timestamp)
-                            timestamp_str = f"[{dt.strftime('%H:%M:%S')}]"
-                        except (ValueError, OSError):
-                            timestamp_str = f"[{event.timestamp:.1f}s]"
-                    lines.append(f"{timestamp_str}:{event_desc}")
-        else:
-            lines.append("  暂无最近事件记录")
-        return "\n".join(lines)
     
     def get_chat_str(self) -> str:
         """获取所有聊天事件的字符串表示"""
@@ -610,37 +601,6 @@ class EnvironmentInfo:
             base_desc = f"你({player_name})"
         else:
             base_desc = f"玩家{player_name}"
-        
-        
-        # 根据事件类型生成详细描述
-        # if event.type == "playerMove" and event.old_position and event.new_position:
-        #     old_pos = event.old_position
-        #     new_pos = event.new_position
-        #     return f"{base_desc} 从 ({old_pos.x:.1f}, {old_pos.y:.1f}, {old_pos.z:.1f}) 移动到 ({new_pos.x:.1f}, {new_pos.y:.1f}, {new_pos.z:.1f})"
-        
-        # elif event.type == "blockBreak" and event.block:
-        #     block = event.block
-        #     pos = block.position
-        #     return f"{base_desc} 破坏了 {block.name} 在 ({pos.x:.1f}, {pos.y:.1f}, {pos.z:.1f})"
-        
-        # elif event.type == "blockPlace" and event.block:
-        #     block = event.block
-        #     pos = block.position
-        #     return f"{base_desc} 放置了 {block.name} 在 ({pos.x:.1f}, {pos.y:.1f}, {pos.z:.1f})"
-        
-        # elif event.type == "experienceUpdate":
-        #     return f"{base_desc} 经验值更新: {event.experience}, 等级: {event.level}"
-        
-        # elif event.type == "healthUpdate":
-        #     health_info = f"生命值: {event.health}"
-        #     food_info = f"饥饿值: {event.food}"
-        #     saturation_info = f"饱和度: {event.saturation}" if event.saturation is not None else ""
-            
-        #     info_parts = [health_info, food_info]
-        #     if saturation_info:
-        #         info_parts.append(saturation_info)
-            
-            # return f"{base_desc} 状态更新: {', '.join(info_parts)}"
         
         if event.type == "playerJoin":
             return f"{base_desc} 加入了游戏"
@@ -754,11 +714,12 @@ class EnvironmentInfo:
             "basic_info": "",
             "task": "当前没有选择明确的任务",
             "environment": self.get_summary(),
+            "inventory_info": self.get_inventory_info(),
             "thinking_list": global_thinking_log.get_thinking_log(),
             "nearby_block_info": await nearby_block_manager.get_block_details_mix_str(self.block_position,full_distance=4,can_see_distance=16),
             "position": self.get_position_str(),
-            "chat_str": self.get_chat_str(),
-            "event_str": self.get_event_str(),
+            "chat_str": global_chat_history.get_chat_history_str(),
+            # "event_str": self.get_event_str(),
             "to_do_list": mai_to_do_list.__str__(),
             "task_done_list": format_task_done_list(),
             "goal": mai_goal.goal,

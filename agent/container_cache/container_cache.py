@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Dict, List, Any
 from dataclasses import dataclass
 from utils.logger import get_logger
-from agent.environment.basic_info import BlockPosition
+from agent.common.basic_class import BlockPosition
 
 logger = get_logger("ContainerCache")
 
@@ -15,16 +15,20 @@ class ContainerInfo:
     last_accessed: datetime
     lifetime: int
     inventory: Dict[str, int] = None
+    # 熔炉专用槽位信息
+    furnace_slots: Dict[str, Dict[str, int]] = None
     
     def __post_init__(self):
         if self.inventory is None:
             self.inventory = {}
+        if self.furnace_slots is None:
+            self.furnace_slots = {}
 
 
 class GlobalContainerCache:
     """全局容器缓存管理器"""
     
-    def __init__(self, cache_lifetime: int = 10):
+    def __init__(self, cache_lifetime: int = 30):
         self.container_cache: Dict[str, ContainerInfo] = {}
         self.cache_lifetime = cache_lifetime
         logger.info("容器缓存管理器初始化完成")
@@ -33,7 +37,7 @@ class GlobalContainerCache:
         """获取位置的唯一键"""
         return f"{position.x}_{position.y}_{position.z}"
     
-    def add_container(self, position: BlockPosition, container_type: str, inventory: Dict[str, int] = None) -> None:
+    def add_container(self, position: BlockPosition, container_type: str, inventory: Dict[str, int] = None, furnace_slots: Dict[str, Dict[str, int]] = None) -> None:
         """添加容器到缓存"""
         position_key = self._get_position_key(position)
         
@@ -43,6 +47,8 @@ class GlobalContainerCache:
             self.container_cache[position_key].lifetime = self.cache_lifetime
             if inventory is not None:
                 self.container_cache[position_key].inventory = dict(inventory)
+            if furnace_slots is not None:
+                self.container_cache[position_key].furnace_slots = dict(furnace_slots)
         else:
             # 创建新缓存
             self.container_cache[position_key] = ContainerInfo(
@@ -50,7 +56,8 @@ class GlobalContainerCache:
                 container_type=container_type,
                 last_accessed=datetime.now(),
                 lifetime=self.cache_lifetime,
-                inventory=dict(inventory) if inventory else {}
+                inventory=dict(inventory) if inventory else {},
+                furnace_slots=dict(furnace_slots) if furnace_slots else {}
             )
         logger.info(f"添加容器到缓存: {container_type} at ({position.x}, {position.y}, {position.z})")
     
@@ -97,11 +104,13 @@ class GlobalContainerCache:
         position_key = self._get_position_key(position)
         return self.container_cache.get(position_key)
     
-    def update_container_inventory(self, position: BlockPosition, inventory: Dict[str, int]) -> bool:
+    def update_container_inventory(self, position: BlockPosition, inventory: Dict[str, int], furnace_slots: Dict[str, Dict[str, int]] = None) -> bool:
         """更新容器库存信息"""
         position_key = self._get_position_key(position)
         if position_key in self.container_cache:
             self.container_cache[position_key].inventory = dict(inventory)
+            if furnace_slots is not None:
+                self.container_cache[position_key].furnace_slots = dict(furnace_slots)
             self.container_cache[position_key].last_accessed = datetime.now()
             return True
         return False
@@ -126,17 +135,48 @@ class GlobalContainerCache:
                 container_line = f"- {container.container_type} at ({pos.x}, {pos.y}, {pos.z})"
                 
                 # 添加内容物信息
-                if container.inventory:
-                    items = []
-                    for item_name, count in container.inventory.items():
-                        if count > 0:
-                            items.append(f"{item_name} x{count}")
-                    if items:
-                        container_line += f" [{', '.join(items)}]"
+                if container.container_type == "furnace" and container.furnace_slots:
+                    # 熔炉特殊显示格式
+                    input_items = []
+                    fuel_items = []
+                    output_items = []
+                    
+                    for slot_name, items in container.furnace_slots.items():
+                        for item_name, count in items.items():
+                            if count > 0:
+                                item_str = f"{item_name} x{count}"
+                                if slot_name == "input":
+                                    input_items.append(item_str)
+                                elif slot_name == "fuel":
+                                    fuel_items.append(item_str)
+                                elif slot_name == "output":
+                                    output_items.append(item_str)
+                    
+                    slot_info = []
+                    if input_items:
+                        slot_info.append(f"输入: {', '.join(input_items)}")
+                    if fuel_items:
+                        slot_info.append(f"燃料: {', '.join(fuel_items)}")
+                    if output_items:
+                        slot_info.append(f"输出: {', '.join(output_items)}")
+                    
+                    if slot_info:
+                        container_line += f" [{'; '.join(slot_info)}]"
                     else:
                         container_line += " [空]"
                 else:
-                    container_line += " [空]"
+                    # 普通容器显示格式
+                    if container.inventory:
+                        items = []
+                        for item_name, count in container.inventory.items():
+                            if count > 0:
+                                items.append(f"{item_name} x{count}")
+                        if items:
+                            container_line += f" [{', '.join(items)}]"
+                        else:
+                            container_line += " [空]"
+                    else:
+                        container_line += " [空]"
                 
                 info_lines.append(container_line)
         
@@ -158,17 +198,48 @@ class GlobalContainerCache:
             container_line = f"- {container_type} at ({pos.x}, {pos.y}, {pos.z})"
             
             # 添加内容物信息
-            if container.inventory:
-                items = []
-                for item_name, count in container.inventory.items():
-                    if count > 0:
-                        items.append(f"{item_name} x{count}")
-                if items:
-                    container_line += f" [{', '.join(items)}]"
+            if container.container_type == "furnace" and container.furnace_slots:
+                # 熔炉特殊显示格式
+                input_items = []
+                fuel_items = []
+                output_items = []
+                
+                for slot_name, items in container.furnace_slots.items():
+                    for item_name, count in items.items():
+                        if count > 0:
+                            item_str = f"{item_name} x{count}"
+                            if slot_name == "input":
+                                input_items.append(item_str)
+                            elif slot_name == "fuel":
+                                fuel_items.append(item_str)
+                            elif slot_name == "output":
+                                output_items.append(item_str)
+                
+                slot_info = []
+                if input_items:
+                    slot_info.append(f"输入: {', '.join(input_items)}")
+                if fuel_items:
+                    slot_info.append(f"燃料: {', '.join(fuel_items)}")
+                if output_items:
+                    slot_info.append(f"输出: {', '.join(output_items)}")
+                
+                if slot_info:
+                    container_line += f" [{'; '.join(slot_info)}]"
                 else:
                     container_line += " [空]"
             else:
-                container_line += " [空]"
+                # 普通容器显示格式
+                if container.inventory:
+                    items = []
+                    for item_name, count in container.inventory.items():
+                        if count > 0:
+                            items.append(f"{item_name} x{count}")
+                    if items:
+                        container_line += f" [{', '.join(items)}]"
+                    else:
+                        container_line += " [空]"
+                else:
+                    container_line += " [空]"
             
             info_lines.append(container_line)
         

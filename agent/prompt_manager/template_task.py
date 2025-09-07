@@ -26,9 +26,6 @@ def init_templates_task() -> None:
 **周围方块的信息**
 {nearby_block_info}
 
-**最近游戏事件**
-{event_str}
-
 **玩家聊天记录**
 {chat_str}
 
@@ -42,7 +39,7 @@ def init_templates_task() -> None:
      "done":bool类型，true表示完成，false表示未完成
  }}
  
- 2. 创建一个新任务
+ 2. 创建一个新任务并选择该任务
  如果当前没有任何任务
  如果当前任务无法完成，需要前置任务，创建一个新任务:
  {{
@@ -57,16 +54,8 @@ def init_templates_task() -> None:
      "action_type":"change_task",
      "new_task_id":"任务id，数字",
  }}
- 
- 
- 4. 当任务修改完成，想要继续其他动作，请退出任务修改模式
- {{
-     "action_type":"exit_task_edit_mode",
-     "reason":"退出任务修改模式的原因",
- }}
- 
-**请在task_id填写数字，不要填写其他内容**
 
+**请在task_id填写数字，不要填写其他内容**
  
  之前的思考和执行的记录：
 {thinking_list}
@@ -74,13 +63,33 @@ def init_templates_task() -> None:
 **注意事项**
 1.先总结之前的思考和执行的记录，对执行结果进行分析，是否达成目的，是否需要调整任务或动作
 2.然后根据现有的**动作**，**任务**,**情景**，**物品栏**和**周围环境**，进行下一步规划，推进任务进度。
-3.如果已经进行了任务更新，请不要重复更新
-4.请在合适的时候退出任务修改模式，例如当任务无需修改的时候
 规划内容是一段平文本，不要分点
-规划后请使用动作，你**必须**从上述动作列表中选择一个动作，动作用json格式输出:
+规划后请使用动作，动作用json格式输出，如果输出多个json，每个json都要单独用```json包裹:
+
+**示例 - 多个动作：**
+```json
+{{
+    "action_type": "update_task_progress",
+    "task_id": "任务id，数字",
+    "progress": "任务进展情况",
+    "done": "是否完成，bool类型，true表示完成，false表示未完成",
+}}
+```
+
+```json
+{{
+    "action_type": "create_new_task", 
+    "new_task": "前置任务的描述",
+    "new_task_criteria": "前置任务的评估标准",
+}}
+```
 """,
         description="任务-任务动作",
-        parameters=["event_str","goal", "to_do_list", "task_done_list", "task", "environment", "thinking_list", "nearby_block_info", "position", "chat_str"],
+        parameters=[
+            "goal",
+            "to_do_list", 
+            "task_done_list", 
+            "task", "environment", "thinking_list", "nearby_block_info", "position", "chat_str"],
     ))
     
 

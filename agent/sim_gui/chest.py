@@ -1,7 +1,7 @@
 from agent.prompt_manager.prompt_manager import prompt_manager
 from openai_client.llm_request import LLMClient
 from agent.utils.utils import parse_take_items_actions
-from agent.environment.basic_info import BlockPosition
+from agent.common.basic_class import BlockPosition
 from agent.block_cache.block_cache import global_block_cache
 from agent.action.view_container import view_container
 from mcp_server.client import global_mcp_client
@@ -21,8 +21,6 @@ class ChestSimGui:
         self.llm_client = llm_client
         self.position = position
         self.block = global_block_cache.get_block(position.x, position.y, position.z)
-
-        self.lasting_time = 10
         
         # 运行时维护：当前箱子物品与初始化时的快照
         self.chest_inventory: Dict[str, int] = {}

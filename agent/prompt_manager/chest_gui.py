@@ -59,8 +59,7 @@ def init_templates_chest_gui() -> None:
         description="箱子面板",
         parameters=[
             "chest_gui",
-            "mode",
             "basic_info",
-            "goal","event_str","task", "environment", "thinking_list", "nearby_block_info", "position", "chat_str"],
+            "thinking_list", "nearby_block_info", "position", "chat_str"],
     ))
     

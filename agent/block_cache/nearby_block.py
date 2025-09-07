@@ -1,5 +1,5 @@
 from agent.block_cache.block_cache import global_block_cache
-from agent.environment.basic_info import BlockPosition
+from agent.common.basic_class import BlockPosition
 
 from utils.logger import get_logger
 

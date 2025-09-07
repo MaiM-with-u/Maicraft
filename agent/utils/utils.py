@@ -4,7 +4,7 @@ from json_repair import repair_json
 from typing import List, Dict, Any
 from utils.logger import get_logger
 from mcp_server.client import CallToolResult
-from agent.environment.basic_info import BlockPosition
+from agent.common.basic_class import BlockPosition
 from agent.to_do_list import mai_done_list
 
 logger = get_logger("Utils")
@@ -76,7 +76,7 @@ def parse_tool_result(result: CallToolResult) -> tuple[bool, str]:
     
         result_json = result.structured_content
         
-        logger.info(f"工具执行结果: {result_json}")
+        # logger.info(f"工具执行结果: {result_json}")
     
         # 检查ok字段
         if "ok" in result_json:

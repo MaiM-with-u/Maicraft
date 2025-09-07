@@ -26,6 +26,9 @@ def init_templates() -> None:
 **环境信息**
 {environment}
 
+**物品栏和工具**
+{inventory_info}
+
 **位置信息**
 {position}
 
@@ -35,9 +38,6 @@ def init_templates() -> None:
 **周围箱子信息**
 {container_cache_info}
 
-**最近游戏事件**
-{event_str}
-
 **玩家聊天记录**
 {chat_str}
 """,
@@ -46,14 +46,14 @@ def init_templates() -> None:
             "self_info",
             "mode",
             "goal",
-            "event_str",
             "task",
             "environment",
             "nearby_block_info",
             "position",
             "chat_str",
             "to_do_list",
-            "container_cache_info"],
+            "container_cache_info",
+            "inventory_info"],
     ))
     
     
@@ -145,13 +145,6 @@ def init_templates() -> None:
     "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
 }}
 
-**前往地标**
-前往指定的地标，尝试移动到名为name的坐标点
-{{
-    "action_type":"go_to_location",
-    "name":"地标名称",
-}}
-
 **进入task_edit模式**
 对任务列表进行修改，包括：
 1. 更新当前任务的进展
@@ -159,7 +152,7 @@ def init_templates() -> None:
 3. 选择其他任务
 如果当前没有正在进行的任务，最好选择一个简单合适的任务
 {{
-    "action_type":"enter_task_edit_mode",
+    "action_type":"edit_task_list",
     "reason":"修改任务列表的原因"
 }}
 
@@ -181,7 +174,6 @@ def init_templates() -> None:
 """,
         description="任务-动作选择",
         parameters=[
-            "mode",
-            "goal","event_str","task", "environment", "thinking_list", "nearby_block_info", "position", "chat_str", "basic_info","eat_action"],
+            "thinking_list", "nearby_block_info", "position", "chat_str", "basic_info","eat_action"],
     ))
     

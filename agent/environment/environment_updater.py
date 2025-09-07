@@ -6,19 +6,20 @@
 import asyncio
 import time
 import traceback
+from types import CoroutineType
 from typing import Optional, Dict, Any
 from datetime import datetime
 from utils.logger import get_logger
 from agent.environment.environment import global_environment
 import json
 from agent.block_cache.block_cache import global_block_cache
-from agent.environment.basic_info import Event, Player
+from agent.common.basic_class import Event, Player, BlockPosition
 from agent.thinking_log import global_thinking_log
-from agent.mai_mode import mai_mode
 from mcp_server.client import global_mcp_client
-from agent.environment.basic_info import BlockPosition
+from agent.chat_history import global_chat_history
+from utils.logger import get_logger
 
-
+logger = get_logger("EnvironmentUpdater")   
 class EnvironmentUpdater:
     """环境信息定期更新器"""
     
@@ -123,7 +124,7 @@ class EnvironmentUpdater:
             
             #更新周围方块
             if global_environment.block_position:
-                can_see_updated_count = await self._update_area_blocks_with_can_see(global_environment.block_position, 5)
+                can_see_updated_count: int = await self._update_area_blocks_with_can_see(center_pos=global_environment.block_position, size=5)
                 # self.logger.debug(f"[EnvironmentUpdater] 已更新 {can_see_updated_count} 个方块的 can_see 信息")
             
         except Exception as e:
@@ -151,97 +152,25 @@ class EnvironmentUpdater:
             self.last_processed_tick = max_tick + 1
             
             for event_data_item in new_events:
-                # self.logger.info(f"[EnvironmentUpdater] 处理事件: {event_data_item}")
                 try:
-                    # 处理事件数据，映射字段到Event类
-                    event_kwargs = {
-                        "type": event_data_item.get("type", ""),
-                        "timestamp": time.time(),  # 使用gameTick作为时间戳
-                        "server_id": "",  # 新格式中没有serverId
-                        "player_name": "",  # 稍后设置
-                        "game_tick": event_data_item.get("gameTick"),
-                        "weather": event_data_item.get("weather"),
-                        "health": event_data_item.get("health"),
-                        "food": event_data_item.get("food"),
-                        "saturation": event_data_item.get("saturation"),
-                        "chat_text": ""  # 初始化聊天文本字段
-                    }
+                    # 使用Event类的from_raw_data方法创建对象
+                    event = Event.from_raw_data(event_data_item)
                     
-                    # 预处理聊天事件的特殊字段
-                    if event_data_item.get("type") == "chat" and event_data_item.get("chatInfo"):
-                        chat_info = event_data_item["chatInfo"]
-                        event_kwargs["chat_text"] = chat_info.get("text", "")
-                        event_kwargs["player_name"] = chat_info.get("username", "")
-                    
-                    # 处理玩家信息
-                    if event_data_item.get("playerInfo"):
-                        player_info = event_data_item["playerInfo"]
-                        event_kwargs["player_info"] = player_info
-                        event_kwargs["player_name"] = player_info.get("username", "")
-                        
-                        # 创建Player对象
-                        event_kwargs["player"] = Player(
-                            uuid=player_info.get("uuid", ""),
-                            username=player_info.get("username", ""),
-                            display_name=player_info.get("displayName", ""),
-                            ping=player_info.get("ping", 0),
-                            gamemode=player_info.get("gamemode", 0)
-                        )
-                    elif event_data_item.get("player"):
-                        player_data = event_data_item["player"]
-                        event_kwargs["player_name"] = player_data.get("username", "")
-                        
-                        # 创建Player对象
-
-                        event_kwargs["player"] = Player(
-                            uuid=player_data.get("uuid", ""),
-                            username=player_data.get("username", ""),
-                            display_name=player_data.get("displayName", ""),
-                            ping=player_data.get("ping", 0),
-                            gamemode=player_data.get("gamemode", 0)
-                        )
-                    
-                    # 处理位置信息
-                    if event_data_item.get("position"):
-                        event_kwargs["position"] = event_data_item["position"]
-                    
-                    # 创建Event对象
-                    event = Event(**event_kwargs)
-                    
-                    # 处理聊天事件
-                    if event.type == "chat":
-                        # 从chatInfo中获取聊天文本和用户名
-                        if event_data_item.get("chatInfo"):
-                            chat_info = event_data_item["chatInfo"]
-                            chat_text = chat_info.get("text", "")
-                            chat_username = chat_info.get("username", "")
-                            # 更新事件的聊天相关字段
-                            event.chat_text = chat_text
-                            event.player_name = chat_username
+                    ignore_event_name = ["healthUpdate"]
+                    if event.type in ignore_event_name:
+                        continue
                             
-                    # 将Event对象添加到全局环境
-                    global_environment.recent_events.append(event)
                     if event.type == "chat":
-                        self.logger.info(f"[EnvironmentUpdater] 处理聊天事件: {event.chat_text}")
-                        if event.player_name != "Mai":
-                            if "麦麦" in event.chat_text or "Mai" in event.chat_text or "mai" in event.chat_text:
-                                mai_mode.mode = "chat"
-                                global_thinking_log.add_thinking_log(f"玩家 {event.player_name} 提到了你，使用chat进行回复",type = "notice")
-                        global_thinking_log.add_thinking_log(f"玩家 {event.player_name} 发送了消息：{event.chat_text}",type = "notice")
+                        global_chat_history.add_chat_history(chat_event=event)
+                    else:
+                        global_environment.add_event(event)
+                        global_thinking_log.add_thinking_log(thinking_log=event.__str__(),type = "event")
                         
                     
                 except Exception as e:
                     self.logger.error(f"[EnvironmentUpdater] 处理事件失败: {e}")
                     self.logger.error(f"事件数据: {event_data_item}")
                     continue
-                
-        if len(global_environment.recent_events) > 1000:
-            removed_count = len(global_environment.recent_events) - 1000
-            global_environment.recent_events = global_environment.recent_events[removed_count:]
-            self.logger.debug(f"[EnvironmentUpdater] 事件列表已限制大小，移除了 {removed_count} 个旧事件")
-            
-        else:
-            self.logger.debug("[EnvironmentUpdater] 没有新的事件数据")
 
                     
                     
@@ -249,7 +178,7 @@ class EnvironmentUpdater:
         """使用新的查询工具收集环境数据"""
         try:
             # 并行调用所有查询工具
-            tasks = [
+            tasks: list[CoroutineType[Any, Any, Dict[str, Any] | None]] = [
                 self._call_query_game_state(),
                 self._call_query_player_status(),
                 self._call_query_surroundings("players"),
@@ -257,15 +186,15 @@ class EnvironmentUpdater:
             ]
             
             # 等待所有查询完成
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+            results: list[Dict[str, Any] | BaseException | None] = await asyncio.gather(*tasks, return_exceptions=True)
             
             # 记录每个查询工具的结果类型，用于调试
-            for i, result in enumerate(results):
+            for i, result in enumerate[Dict[str, Any] | BaseException | None](results):
                 if isinstance(result, Exception):
                     self.logger.warning(f"[EnvironmentUpdater] 查询工具 {i} 返回异常: {result}")
             
             # 合并结果
-            combined_data = {
+            combined_data: dict[str, Any] = {
                 "ok": True,
                 "data": {},
                 "request_id": "",
@@ -437,6 +366,8 @@ class EnvironmentUpdater:
         if not result or not result.get("ok"):
             self.logger.warning("[EnvironmentUpdater] query_area_blocks 调用失败")
             return 0
+        
+        # logger.info(f"[EnvironmentUpdater] query_area_blocks 调用成功")
             
         try:
             data = result.get("data", {})

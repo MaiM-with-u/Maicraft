@@ -534,8 +534,41 @@ class RecipeFinder:
                         break
                 
                 if not is_enough:
-                    # 材料不足，尝试递归合成
+                    # 材料不足，尝试递归合成，但先检查是否有配方
                     missing_qty = ing_count - available
+                    
+                    # 检查该材料是否有合成配方
+                    has_recipe_for_material = False
+                    for mode in [True, False]:  # 检查工作台和手工配方
+                        recs = await choose_recipes(ing_name, mode)
+                        if recs:
+                            # 过滤掉空配方
+                            def extract_ings_for_check(rr):
+                                empty_names = {"empty", "air", ""}
+                                if getattr(rr, "ingredients", None):
+                                    for x in rr.ingredients:
+                                        nm = (getattr(x, "name", "") or "").strip().lower()
+                                        if nm not in empty_names:
+                                            return True
+                                in_shape = getattr(rr, "in_shape", None)
+                                if in_shape:
+                                    for row in in_shape:
+                                        for cell in row:
+                                            if cell is not None:
+                                                nm = (getattr(cell, "name", "") or "").strip().lower()
+                                                if nm not in empty_names:
+                                                    return True
+                                return False
+                            
+                            if any(extract_ings_for_check(rr) for rr in recs):
+                                has_recipe_for_material = True
+                                break
+                    
+                    if not has_recipe_for_material:
+                        self.logger.warning(f"[DEBUG] 材料 {ing_name} 没有合成配方，无法递归合成")
+                        can_craft = False
+                        break
+                    
                     self.logger.info(f"[DEBUG] 材料 {ing_name} 不足，尝试递归合成 {missing_qty} 个")
                     if not await try_craft_item(ing_name, missing_qty, depth + 1):
                         # 递归合成失败，说明这个材料无法合成
@@ -594,8 +627,41 @@ class RecipeFinder:
                         self.logger.info(f"[DEBUG] 替代配方材料 {ing_name}: 需要 {ing_count}, 库存 {available}")
                         
                         if available < ing_count:
-                            # 尝试递归合成
+                            # 尝试递归合成，但先检查是否有配方
                             missing_qty = ing_count - available
+                            
+                            # 检查该材料是否有合成配方
+                            has_recipe_for_material = False
+                            for mode in [True, False]:  # 检查工作台和手工配方
+                                recs = await choose_recipes(ing_name, mode)
+                                if recs:
+                                    # 过滤掉空配方
+                                    def extract_ings_for_check(rr):
+                                        empty_names = {"empty", "air", ""}
+                                        if getattr(rr, "ingredients", None):
+                                            for x in rr.ingredients:
+                                                nm = (getattr(x, "name", "") or "").strip().lower()
+                                                if nm not in empty_names:
+                                                    return True
+                                        in_shape = getattr(rr, "in_shape", None)
+                                        if in_shape:
+                                            for row in in_shape:
+                                                for cell in row:
+                                                    if cell is not None:
+                                                        nm = (getattr(cell, "name", "") or "").strip().lower()
+                                                        if nm not in empty_names:
+                                                            return True
+                                        return False
+                                    
+                                    if any(extract_ings_for_check(rr) for rr in recs):
+                                        has_recipe_for_material = True
+                                        break
+                            
+                            if not has_recipe_for_material:
+                                self.logger.warning(f"[DEBUG] 替代配方材料 {ing_name} 没有合成配方，无法递归合成")
+                                alt_can_craft = False
+                                break
+                            
                             self.logger.info(f"[DEBUG] 替代配方材料 {ing_name} 不足，尝试递归合成 {missing_qty} 个")
                             if not await try_craft_item(ing_name, missing_qty, depth + 1):
                                 self.logger.warning(f"[DEBUG] 替代配方递归合成 {ing_name} 失败")

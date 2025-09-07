@@ -4,6 +4,8 @@ from config import global_config
 from mcp_server.client import global_mcp_client
 from utils.logger import setup_logging
 
+from agent.mai_chat import mai_chat
+
 
 
 
@@ -18,25 +20,18 @@ async def main() -> None:
 
     # 延迟导入以避免模块顶层导入顺序告警
     from agent.mai_agent import MaiAgent
-    from agent.action.craft_action.craft_action import recipe_finder
-
+    
     connected = await global_mcp_client.connect()
     if not connected:
         print("[启动] 无法连接 MCP 服务器，退出")
         return
 
-    
-
-    # 让配方系统可用
-    recipe_finder.mcp_client = global_mcp_client
-
     agent = MaiAgent()
     await agent.initialize()
-
-    # 启动两个主循环
-    # plan_task = asyncio.create_task(agent.run_plan_loop())
-    exec_task = asyncio.create_task(agent.run_execute_loop())
-    agent.exec_task = exec_task
+    await agent.start()
+    
+    await mai_chat.start()
+    
 
     print("[启动] Maicraft-Mai 已启动，按 Ctrl+C 退出")
     try:

@@ -1,6 +1,6 @@
 from agent.environment.locations import global_location_points
 from agent.environment.environment import global_environment
-from agent.environment.basic_info import BlockPosition
+from agent.common.basic_class import BlockPosition
 from agent.utils.utils import calculate_distance,parse_tool_result
 from utils.logger import get_logger
 from mcp_server.client import global_mcp_client
@@ -20,6 +20,7 @@ async def move_to_position(x:int,y:int,z:int):
         # 如果失败
         final_position = global_environment.block_position
         distance = calculate_distance(final_position, BlockPosition(x=x, y=y, z=z))
+        distance = round(distance, 1)
         result_str = f"未移动到目标点，最终位置{final_position}，距离目标点{distance}"
     else:
         
