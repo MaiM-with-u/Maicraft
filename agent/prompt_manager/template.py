@@ -32,6 +32,9 @@ def init_templates() -> None:
 **位置信息**
 {position}
 
+**周围实体信息**
+{nearby_entities_info}
+
 **周围方块的信息**
 {nearby_block_info}
 
@@ -43,6 +46,7 @@ def init_templates() -> None:
 """,
         description="基础信息",
         parameters=[
+            "nearby_entities_info",
             "self_info",
             "mode",
             "goal",
@@ -126,6 +130,15 @@ def init_templates() -> None:
  
 {eat_action}
 
+**kill_mob**
+杀死某个实体
+杀死动物，怪物或玩家
+{{
+    "action_type":"kill_mob",
+    "entity":"需要杀死的实体名称",
+    "timeout":"杀死实体的超时时间，单位：秒",
+}}
+
 **use_item**
 使用某样物品，可以对实体使用物品
 注意，如果是使用方块或放置方块，不要使用此动作
@@ -153,7 +166,6 @@ def init_templates() -> None:
 如果当前没有正在进行的任务，最好选择一个简单合适的任务
 {{
     "action_type":"edit_task_list",
-    "reason":"修改任务列表的原因"
 }}
 
 **思考/执行的记录**
@@ -162,18 +174,46 @@ def init_templates() -> None:
 
 **注意事项**
 1.先总结之前的思考和执行的记录，对执行结果进行分析，是否达成目的，是否需要调整任务或动作
-2.你必须先查看容器的内容物，才能与容器交互
+2.当你收集或挖掘完一种资源，思考附近是否有遗漏的同类资源并采集
 3.想法要求准确全面，如果要描述坐标，完整的描述
 4.如果要修改任务列表，请你进入task_edit模式
 4.你可以通过事件知道别的玩家的位置，或者别的玩家正在做什么。
 5.然后根据现有的**动作**，**任务**,**情景**，**物品栏**,**最近事件**和**周围环境**，进行下一步规划，推进任务进度。
 6.如果一个动作反复无法完成，请反思性思考，结合周围环境尝试别的方案，不要重复尝试同一个动作
-7.如果一个动作已经执行，并且达到了目的，请不要重复执行同一个动作
+7.如果一个动作已经执行，并且达到了目的，该动作已完成
 规划内容是一段精简的平文本，不要分点
-规划后请使用动作，动作用json格式输出:
+规划后请使用动作，动作用json格式输出，如果输出多个json，每个json都要单独用```json包裹，你可以重复使用同一个动作或不同动作:
+
+**示例**
+```json
+{{
+    "action_type":"move",
+    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
+}}
+```
+
+```json
+{{
+    "action_type":"use_chest",
+    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
+}}
+```
 """,
         description="任务-动作选择",
         parameters=[
             "thinking_list", "nearby_block_info", "position", "chat_str", "basic_info","eat_action"],
     ))
     
+    
+    
+# ?暂时没想好怎么处理合成，因为合成还要考虑2x2的  
+# **use_block**
+# 使用方块，目前可以使用的方块：
+# chest:存入或取出物品，可以存入或取出多种物品
+# furnace:熔炼物品，可以熔炼或取出熔炼的物品
+# crafting_table:合成物品，可以合成多种物品
+# {{
+#     "action_type":"use_block",
+#     "block":"方块名称",
+#     "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
+# }}

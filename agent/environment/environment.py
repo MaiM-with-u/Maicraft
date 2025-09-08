@@ -20,9 +20,11 @@ from agent.prompt_manager.prompt_manager import prompt_manager
 from agent.container_cache.container_cache import global_container_cache
 from openai_client.modelconfig import ModelConfig
 from agent.chat_history import global_chat_history
-
+from agent.environment.inventory_utils import review_all_tools
 
 logger = get_logger("EnvironmentInfo")
+
+
 
 class EnvironmentInfo:
     """Minecraft环境信息存储类"""
@@ -302,6 +304,7 @@ class EnvironmentInfo:
         
         # 更新周围环境 - 实体 (来自 query_surroundings("entities"))
         if "nearbyEntities" in data:
+            # logger.info(f"附近实体: {data['nearbyEntities']}")
             nearby_entities_data = data["nearbyEntities"]
             if isinstance(nearby_entities_data, list):
                 self.nearby_entities = []
@@ -476,9 +479,23 @@ class EnvironmentInfo:
                 # 组合物品信息
                 item_str = " ".join(item_info)
                 lines.append(f"  {item_str}")
+                
+            tool_tip_str = review_all_tools(self.inventory)
+            lines.append(tool_tip_str)
+                
         else:
             lines.append("  物品栏为空")
         lines.append("")
+        return "\n".join(lines)
+    
+    def get_nearby_entities_info(self) -> str:
+        lines = []
+        if self.nearby_entities:
+            # logger.info(f"附近实体: {self.nearby_entities}")
+            
+            lines.append(f"  附近实体数量: {len(self.nearby_entities)}")
+            for i, entity in enumerate(self.nearby_entities, 1):
+                lines.append(f"  {i}. {entity.name} (ID: {entity.id}, 类型: {entity.type})")
         return "\n".join(lines)
 
     def get_summary(self) -> str:
@@ -508,19 +525,7 @@ class EnvironmentInfo:
         else:
             lines.append("  附近没有其他玩家")
         lines.append("")
-        
-        # 附近实体
-        lines.append("【附近实体】")
-        if self.nearby_entities:
-            lines.append(f"  附近实体数量: {len(self.nearby_entities)}")
-            for i, entity in enumerate(self.nearby_entities, 1):
-                pos = entity.position
-                lines.append(f"  {i}. {entity.name} (ID: {entity.id}, 类型: {entity.type})")
-                lines.append(f"     位置: X={pos.x:.2f}, Y={pos.y:.2f}, Z={pos.z:.2f}")
-        else:
-            lines.append("  附近没有其他实体")
-        lines.append("")
-        
+            
         
         if self.overview_str:
             lines.append("【周围环境鸟瞰】")
@@ -656,45 +661,6 @@ class EnvironmentInfo:
         
         else:
             return ""
-
-    def get_held_item_info(self) -> str:
-        """获取手持物品的详细信息"""
-        if not self.held_item:
-            return "没有手持物品"
-        
-        item_name = self.held_item.get("name", "未知物品")
-        item_count = self.held_item.get("count", 1)
-        durability = self.held_item.get("maxDurability", 0)
-        
-        info_lines = [f"手持物品: {item_name} x{item_count}"]
-        
-        # 添加耐久度信息
-        if durability > 1:
-            current_damage = 0
-            if self.held_item.get("components"):
-                for component in self.held_item["components"]:
-                    if component.get("type") == "damage":
-                        current_damage = component.get("data", 0)
-                        break
-            
-            remaining_durability = durability - current_damage
-            info_lines.append(f"耐久度: {remaining_durability}/{durability}")
-            
-            # 添加耐久度百分比
-            if durability > 0:
-                durability_percent = (remaining_durability / durability) * 100
-                info_lines.append(f"耐久度百分比: {durability_percent:.1f}%")
-        
-        # 添加物品类型信息
-        if self.held_item.get("material"):
-            info_lines.append(f"挖掘工具: {self.held_item['material']}")
-        
-        # 添加是否正在使用的状态
-        if self.using_held_item:
-            info_lines.append("状态: 正在使用中")
-        
-        return "\n".join(info_lines)
-
     
     async def get_all_data(self) -> dict:
         if self.food/self.food_max < 0.8:
@@ -724,7 +690,8 @@ class EnvironmentInfo:
             "task_done_list": format_task_done_list(),
             "goal": mai_goal.goal,
             "mode": mai_mode.mode,
-            "eat_action": eat_action
+            "eat_action": eat_action,
+            "nearby_entities_info": self.get_nearby_entities_info()
         }
         
         # 添加容器缓存信息

@@ -28,7 +28,7 @@ async def mine_block_by_position(x,y,z,digOnly: bool) -> tuple[bool,str]:
     digOnly是是否只挖掘，如果为True，则不收集方块
     return tuple[bool,str,bool]，bool为是否成功，bool为位置是否存在方块或方块是否可以挖掘
     """
-    result_str = f"想要挖掘位置: {x},{y},{z}\n"
+    result_str = f""
     block_cache = global_block_cache.get_block(x, y, z)
     if not block_cache:
         result_str += f"位置{x},{y},{z}不存在方块，无法挖掘\n"

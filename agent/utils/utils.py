@@ -258,22 +258,22 @@ def parse_thinking(thinking: str) -> tuple[bool, str, dict, str]:
     return success, thinking, json_obj, json_before
 
 
-async def parse_take_items_actions(thinking: str, execute_action_func) -> tuple[bool, str, list, str]:
+def parse_thinking_multiple(thinking: str) -> tuple[bool, str, list, str]:
     """
-    解析思考结果中的存取动作 (take_items 和 put_items)
-    1. 识别所有符合存取动作格式的 JSON 对象
-    2. 按顺序执行这些动作，每个动作间等待 0.3 秒
-    3. 返回: (是否成功, 思考结果, 存取动作列表, 非JSON内容)
+    解析思考结果中的多个JSON动作
+    1. 解析thinking中所有的json对象
+    2. 拆分出所有json前的内容
+    返回: (是否成功, 思考结果, json对象列表, json前内容)
     """
-    import asyncio
-    
-    # 匹配所有JSON对象（支持嵌套大括号）
-    def find_all_json_objects(text):
-        json_objects = []
+    def find_all_jsons(text):
+        """找到所有完整的JSON对象"""
+        jsons = []
         stack = []
         start = None
+        i = 0
         
-        for i, c in enumerate(text):
+        while i < len(text):
+            c = text[i]
             if c == '{':
                 if not stack:
                     start = i
@@ -283,52 +283,45 @@ async def parse_take_items_actions(thinking: str, execute_action_func) -> tuple[
                     stack.pop()
                     if not stack and start is not None:
                         json_str = text[start:i+1]
-                        json_objects.append((json_str, start, i+1))
+                        jsons.append((json_str, start, i+1))
                         start = None
+            i += 1
         
-        return json_objects
+        return jsons
     
-    # 查找所有JSON对象
-    json_objects = find_all_json_objects(thinking)
-    chest_actions = []
-    non_json_content = thinking
-    success = True
+    json_objects = []
+    json_before = ""
+    success = False
     
-    # 处理每个JSON对象
-    for json_str, start, end in json_objects:
-        try:
-            json_obj = parse_json(json_str)
-            if json_obj and json_obj.get("action_type") in ["take_items", "put_items"]:
-                chest_actions.append(json_obj)
-                # 从非JSON内容中移除这个JSON
-                non_json_content = non_json_content.replace(json_str, "").strip()
-        except Exception as e:
-            logger.error(f"[Utils] 解析存取动作 JSON时异常: {json_str}, 错误: {e}")
-            success = False
+    # 找到所有JSON对象
+    all_jsons = find_all_jsons(thinking)
     
-    # 清理非JSON内容
-    non_json_content = non_json_content.replace("```json", "").replace("```", "").strip()
-    
-    # 按顺序执行所有存取动作
-    if chest_actions and execute_action_func:
-        logger.info(f"[Utils] 发现 {len(chest_actions)} 个存取动作，开始执行...")
+    if all_jsons:
+        # 获取第一个JSON前的内容
+        first_json_start = all_jsons[0][1]
+        json_before = thinking[:first_json_start].strip()
         
-        for i, action in enumerate(chest_actions):
+        # 解析所有JSON对象
+        for json_str, start, end in all_jsons:
             try:
-                action_type = action.get("action_type")
-                logger.info(f"[Utils] 执行第 {i+1} 个 {action_type} 动作: {action}")
-                result = await execute_action_func(action)
-                logger.info(f"[Utils] 第 {i+1} 个动作执行结果: {result.result_str if hasattr(result, 'result_str') else str(result)}")
-                
-                # 等待 0.3 秒（除了最后一个动作）
-                if i < len(chest_actions) - 1:
-                    await asyncio.sleep(0.3)
-                    
+                json_obj = parse_json(json_str)
+                if json_obj:
+                    json_objects.append(json_obj)
+                    success = True
+                else:
+                    logger.warning(f"[Utils] JSON解析结果为空: {json_str}")
             except Exception as e:
-                logger.error(f"[Utils] 执行第 {i+1} 个存取动作时异常: {e}")
-                success = False
+                logger.error(f"[Utils] 解析JSON对象时异常: {json_str}, 错误: {e}")
+    else:
+        json_before = thinking.strip()
     
-    return success, thinking, chest_actions, non_json_content
+    # 移除json_before中的 ```json 和 ```
+    if "```json" in json_before:
+        json_before = json_before.replace("```json", "")
+    if "```" in json_before:
+        json_before = json_before.replace("```", "")
+    
+    return success, thinking, json_objects, json_before
 
 
 def compare_inventories(old_inventory: List[Dict[str, Any]], new_inventory: List[Dict[str, Any]]) -> Dict[str, Any]:

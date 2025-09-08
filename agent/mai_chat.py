@@ -35,6 +35,8 @@ class MaiChat:
         self.chat_task = None
         
         self.active_value = 5
+        
+        self.self_triggered = False
     
     async def start(self) -> None:
         """启动执行循环"""
@@ -42,22 +44,26 @@ class MaiChat:
     
     async def chat_loop(self):
         while True:
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(0.5)
             if global_chat_history.called_message:
                 await self.chat_when_called()
                 global_chat_history.called_message = False
                 self.active_value += 3
+                self.self_triggered = False
             elif global_chat_history.new_message:
                 if self.active_value > 0:
                     await self.chat_when_called()
                     global_chat_history.new_message = False
                     self.active_value -= 1
+                    self.self_triggered = False
                 elif random.random() < 0.1:
                     await self.chat_when_called()
                     global_chat_history.new_message = False
                     self.active_value += 2
-            elif random.random() < 0.01:
+                    self.self_triggered = False
+            elif random.random() < 0.02 and not self.self_triggered:
                 await self.chat_when_called()
+                self.self_triggered = True
         
     async def chat_when_called(self):
         input_data = await global_environment.get_all_data()

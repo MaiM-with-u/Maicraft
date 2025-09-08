@@ -333,9 +333,9 @@ class RecipeFinder:
                         missing_items = sorted_missing[:2]
                         if len(sorted_missing) > 2:
                             missing_items.append("等")
-                        recipe_parts.append(f"配方{i}缺{','.join(missing_items)}")
+                        recipe_parts.append(f"配方{i}：缺少{','.join(missing_items)}")
                     else:
-                        recipe_parts.append(f"配方{i}缺材料")
+                        recipe_parts.append(f"配方{i}：缺少材料")
             
             # 组合成紧凑的字符串
             result = "合成失败：" + ",".join(recipe_parts)
@@ -379,7 +379,39 @@ class RecipeFinder:
                 self.logger.warning(f"[DEBUG] 递归深度达到上限 {MAX_NESTING_DEPTH}，停止并视为失败：{item} x{qty}")
                 return False
 
-            # 首先检查现有库存，如果库存足够则不需要合成
+            # 首先检查该物品是否有合成配方
+            has_any_recipe = False
+            for mode in [True, False]:  # 检查工作台和手工配方
+                recs = await choose_recipes(item, mode)
+                if recs:
+                    # 过滤掉空配方
+                    def has_valid_ingredients(rr):
+                        empty_names = {"empty", "air", ""}
+                        if getattr(rr, "ingredients", None):
+                            for x in rr.ingredients:
+                                nm = (getattr(x, "name", "") or "").strip().lower()
+                                if nm not in empty_names:
+                                    return True
+                        in_shape = getattr(rr, "in_shape", None)
+                        if in_shape:
+                            for row in in_shape:
+                                for cell in row:
+                                    if cell is not None:
+                                        nm = (getattr(cell, "name", "") or "").strip().lower()
+                                        if nm not in empty_names:
+                                            return True
+                        return False
+                    
+                    if any(has_valid_ingredients(rr) for rr in recs):
+                        has_any_recipe = True
+                        break
+            
+            # 如果没有合成配方，直接返回失败
+            if not has_any_recipe:
+                self.logger.warning(f"[DEBUG] {item} 无法合成，没有可用配方")
+                return False
+            
+            # 计算需要的数量和检查库存
             need = int(qty)
             current_bag = Counter()
             for it in inventory or []:
@@ -389,13 +421,33 @@ class RecipeFinder:
                         current_bag[name] += int(it.get("count", 0))
             
             available = current_bag.get(item, 0)
-            if available >= need:
-                self.logger.info(f"[DEBUG] {item} 库存充足（{available} >= {need}），无需合成")
-                return True
             
-            # 计算实际需要合成的数量
-            actual_need = need - available
-            self.logger.info(f"[DEBUG] 尝试合成 {item} x{actual_need}（库存已有{available}，需要{need}）")
+            # 检查是否为原材料（无合成配方）
+            is_raw_material = True
+            for mode in [True, False]:
+                recs = await choose_recipes(item, mode)
+                if recs:
+                    is_raw_material = False
+                    break
+            
+            if is_raw_material:
+                # 原材料：仅检查库存，不递归合成
+                if available >= need:
+                    self.logger.info(f"[DEBUG] 原材料 {item} 库存充足（{available} >= {need}），直接使用")
+                    return True
+                else:
+                    self.logger.warning(f"[DEBUG] 原材料 {item} 库存不足（{available} < {need}），无法合成")
+                    return False
+            else:
+                # 可合成物品：需要递归合成
+                if depth == 0:
+                    # 目标产物：始终按照请求数量合成
+                    actual_need = need
+                    self.logger.info(f"[DEBUG] 目标产物 {item}，计划合成数量: {actual_need}（库存已有{available}）")
+                else:
+                    # 递归调用的可合成物品：需要合成完整的数量
+                    actual_need = need
+                    self.logger.info(f"[DEBUG] 可合成物品 {item}，需要合成 {actual_need} 个（库存已有{available}）")
             
             # 尝试找到可用配方
             recs = await choose_recipes(item, has_table_nearby)
@@ -534,10 +586,7 @@ class RecipeFinder:
                         break
                 
                 if not is_enough:
-                    # 材料不足，尝试递归合成，但先检查是否有配方
-                    missing_qty = ing_count - available
-                    
-                    # 检查该材料是否有合成配方
+                    # 材料不足，先检查是否有合成配方，再决定是否递归合成
                     has_recipe_for_material = False
                     for mode in [True, False]:  # 检查工作台和手工配方
                         recs = await choose_recipes(ing_name, mode)
@@ -569,6 +618,8 @@ class RecipeFinder:
                         can_craft = False
                         break
                     
+                    # 只有在有配方的情况下才计算需要合成的数量
+                    missing_qty = ing_count - available
                     self.logger.info(f"[DEBUG] 材料 {ing_name} 不足，尝试递归合成 {missing_qty} 个")
                     if not await try_craft_item(ing_name, missing_qty, depth + 1):
                         # 递归合成失败，说明这个材料无法合成
@@ -627,10 +678,7 @@ class RecipeFinder:
                         self.logger.info(f"[DEBUG] 替代配方材料 {ing_name}: 需要 {ing_count}, 库存 {available}")
                         
                         if available < ing_count:
-                            # 尝试递归合成，但先检查是否有配方
-                            missing_qty = ing_count - available
-                            
-                            # 检查该材料是否有合成配方
+                            # 先检查是否有合成配方，再决定是否递归合成
                             has_recipe_for_material = False
                             for mode in [True, False]:  # 检查工作台和手工配方
                                 recs = await choose_recipes(ing_name, mode)
@@ -662,6 +710,8 @@ class RecipeFinder:
                                 alt_can_craft = False
                                 break
                             
+                            # 只有在有配方的情况下才计算需要合成的数量
+                            missing_qty = ing_count - available
                             self.logger.info(f"[DEBUG] 替代配方材料 {ing_name} 不足，尝试递归合成 {missing_qty} 个")
                             if not await try_craft_item(ing_name, missing_qty, depth + 1):
                                 self.logger.warning(f"[DEBUG] 替代配方递归合成 {ing_name} 失败")
@@ -780,7 +830,7 @@ class RecipeFinder:
                     if not steps:
                         # 尝试获取具体的材料缺失信息
                         missing_info = await self._get_missing_materials_info(item_norm, count, False, inventory)
-                        return False, f"附近无工作台，但无法生成合成计划：{missing_info}"
+                        return False, f"附近无工作台，但无法合成{item}：{missing_info}"
                     
                     for step_item, step_count, step_use_table, recipe_payload in steps:
                         # 将需要的物品数量转换为执行次数（批次）
@@ -825,7 +875,7 @@ class RecipeFinder:
                     if not steps:
                         # 尝试获取具体的材料缺失信息
                         missing_info = await self._get_missing_materials_info(item_norm, count, True, inventory)
-                        return False, f"附近有工作台，但无法生成合成计划：{missing_info}"
+                        return False, f"附近有工作台，但无法合成{item}：{missing_info}"
                     
                     for step_item, step_count, step_use_table, recipe_payload in steps:
                         # 将需要的物品数量转换为执行次数（批次）

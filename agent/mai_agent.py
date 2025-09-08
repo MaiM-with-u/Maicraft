@@ -17,7 +17,7 @@ from agent.action.move_action import move_to_position
 from agent.action.place_action import place_block_action
 from agent.utils.utils import (
     convert_mcp_tools_to_openai_format, parse_tool_result, filter_action_tools,
-    parse_thinking,
+    parse_thinking, parse_thinking_multiple,
 )
 from agent.action.craft_action.craft_action import recipe_finder
 import traceback
@@ -98,17 +98,10 @@ class MaiAgent:
         # 3D 渲染器实例（需要时启动）
         self.renderer_3d = None
         
-    def add_container_to_cache(self, position: BlockPosition, container_type: str) -> None:
-        """添加容器到缓存"""
-        global_container_cache.add_container(position, container_type)
-    
-    def update_container_cache_lifetime(self) -> None:
-        """更新容器缓存生命周期"""
-        global_container_cache.update_cache_lifetime()
-    
+        
     def get_nearby_containers(self, center_position: BlockPosition, radius: float = 20.0) -> List:
         """获取附近的容器"""
-        return global_container_cache.get_nearby_containers(center_position, radius)
+        return global_container_cache.get_nearby_containers_with_verify(center_position, radius)
     
     def get_container_cache_info(self) -> str:
         """获取容器缓存信息的字符串表示"""
@@ -182,9 +175,7 @@ class MaiAgent:
             #更新截图
             await self.update_overview()
 
-            # 更新容器缓存生命周期
-            self.update_container_cache_lifetime()
-
+      
             input_data = await global_environment.get_all_data()
             
                 
@@ -196,10 +187,11 @@ class MaiAgent:
             thinking = await self.llm_client.simple_chat(prompt)
             # self.logger.info(f" 原始输出: {thinking}")
             
-            success, thinking, json_obj, thinking_log = parse_thinking(thinking)
+            # 尝试解析多个JSON动作
+            success, thinking, json_objects, thinking_log = parse_thinking_multiple(thinking)
             
             #出现意外的调试
-            if not success or not json_obj:
+            if not success or not json_objects:
                 self.logger.warning(f" 思考结果中没有json对象: {thinking}")
                 return 
             
@@ -208,17 +200,26 @@ class MaiAgent:
                 
             self.logger.info(f" 想法: {thinking_log}")
             
-            if json_obj:
-                action_type = json_obj.get("action_type", "unknown")
-                action_color = COLOR_MAP.get(action_type, "\033[0m")
+            # 执行多个动作
+            if json_objects:
+                self.logger.info(f" 检测到 {len(json_objects)} 个动作需要执行")
                 
-                await asyncio.sleep(0.1)
-                self.logger.info(f"{action_color} 动作: {json_obj}\033[0m")
-                await asyncio.sleep(0.1)
-                result = await self.excute_main_mode(json_obj)
-                global_thinking_log.add_thinking_log(f"执行：{json_obj};{result.result_str}\n",type = "action")
-                
-                self.logger.info(f"{action_color} 执行结果: {result.result_str}\033[0m")
+                for i, json_obj in enumerate(json_objects):
+                    action_type = json_obj.get("action_type", "unknown")
+                    action_color = COLOR_MAP.get(action_type, "\033[0m")
+                    
+                    self.logger.info(f"{action_color} 动作 {i+1}/{len(json_objects)}: {json_obj}\033[0m")
+                    await asyncio.sleep(0.1)
+                    
+                    result = await self.excute_main_mode(json_obj)
+                    global_thinking_log.add_thinking_log(f"执行动作 {i+1}/{len(json_objects)}：{json_obj};{result.result_str}\n",type = "action")
+                    
+                    self.logger.info(f"{action_color} 执行结果 {i+1}/{len(json_objects)}: {result.result_str}\033[0m")
+                    
+                    # 检查动作是否失败，如果失败则停止后续动作
+                    if result.result_str and ("失败" in result.result_str or "错误" in result.result_str or "无法" in result.result_str):
+                        self.logger.warning(f" 动作 {i+1} 执行失败，停止后续动作执行")
+                        break
                 
                 
         except Exception:
@@ -271,8 +272,14 @@ class MaiAgent:
             z = math.floor(float(position.get("z")))
             
             block_position = BlockPosition(x = x, y = y, z = z)
+            
+            # 验证熔炉是否实际存在
+            if not global_container_cache.verify_container_exists(block_position, "furnace"):
+                result.result_str = f"位置 {x},{y},{z} 没有熔炉，无法使用熔炉\n"
+                return result
+            
             # 添加熔炉到缓存
-            self.add_container_to_cache(block_position, "furnace")
+            global_container_cache.add_container(block_position, "furnace")
             
             result_str = f"打开熔炉: {x},{y},{z}\n"
             mai_mode.mode = "furnace_gui"
@@ -285,7 +292,7 @@ class MaiAgent:
         elif action_type == "craft":
             item = action_json.get("item")
             count = action_json.get("count")
-            result.result_str = f"想要合成: {item} 数量: {count}\n"
+            result.result_str = f"合成: {item} 数量: {count}\n"
             self.inventory_old = global_environment.inventory
             
             ok, summary = await recipe_finder.craft_item_smart(item, count, global_environment.inventory, global_environment.block_position)
@@ -301,13 +308,14 @@ class MaiAgent:
             y = math.floor(float(position.get("y")))
             z = math.floor(float(position.get("z")))
             block_position = BlockPosition(x = x, y = y, z = z)
-            block = global_block_cache.get_block(x, y, z)
-            if block.block_type != "chest":
-                result.result_str = f"位置{x},{y},{z}不是箱子，无法使用箱子\n"
+            
+            # 验证箱子是否实际存在
+            if not global_container_cache.verify_container_exists(block_position, "chest"):
+                result.result_str = f"位置{x},{y},{z}没有箱子，无法使用箱子\n"
                 return result
             
             # 添加箱子到缓存
-            self.add_container_to_cache(block_position, "chest")
+            global_container_cache.add_container(block_position, "chest")
             
             result_str += f"打开箱子: {x},{y},{z}\n"
             mai_mode.mode = "chest_gui"
@@ -319,12 +327,30 @@ class MaiAgent:
             
         elif action_type == "eat":
             item = action_json.get("item")
-            result.result_str = f"想要食用: {item}\n"
+            result.result_str = f""
             args = {"itemName": item, "useType":"consume"} #consume表示食用
             call_result = await global_mcp_client.call_tool_directly("use_item", args)
             is_success, result_content = parse_tool_result(call_result)
             self.logger.info(f"食用结果: {result_content}")
-            # result.result_str += translate_eat_tool_result(result_content)
+            if isinstance(result_content, dict):
+                result.result_str += f"食用了{result_content.get('itemName')}"
+            else:
+                result.result_str += str(result_content)
+        elif action_type == "kill_mob":
+            entity = action_json.get("entity")
+            timeout = action_json.get("timeout")
+            result.result_str = f"杀死{entity}，超时时间：{timeout}秒\n"
+            args = {"mob": entity, "timeout": timeout}
+            call_result = await global_mcp_client.call_tool_directly("kill_mob", args)
+            is_success, result_content = parse_tool_result(call_result)
+            
+            self.logger.info(f"杀死结果: {result_content}")
+            
+            if is_success:
+                result.result_str += f"杀死了{entity}"
+            else:
+                result.result_str += str(result_content)
+                
         elif action_type == "use_item":
             item = action_json.get("item")
             entity = action_json.get("entity")
@@ -337,7 +363,11 @@ class MaiAgent:
             call_result = await global_mcp_client.call_tool_directly("use_item", args)
             is_success, result_content = parse_tool_result(call_result)
             self.logger.info(f"使用结果: {result_content}")
-            # result.result_str += translate_use_item_tool_result(result_content)
+            if isinstance(result_content, str):
+                result.result_str += result_content
+            else:
+                result.result_str += f"使用{result_content.get('itemName')}"
+            
         elif action_type == "edit_task_list":
             reason = action_json.get("reason")
             result.result_str = f"选择进行修改任务列表: \n原因: {reason}\n"

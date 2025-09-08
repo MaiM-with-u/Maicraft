@@ -44,7 +44,7 @@ def init_templates_task() -> None:
  如果当前任务无法完成，需要前置任务，创建一个新任务:
  {{
      "action_type":"create_new_task",
-     "new_task":"前置任务的描述",
+     "new_task_details":"前置任务的描述",
      "new_task_criteria":"前置任务的评估标准",
  }}
  
@@ -52,12 +52,12 @@ def init_templates_task() -> None:
  如果当前没有在执行任务，请选择一个合适的任务
  {{
      "action_type":"change_task",
-     "new_task_id":"任务id，数字",
+     "task_id":"任务id，数字",
  }}
 
 **请在task_id填写数字，不要填写其他内容**
  
- 之前的思考和执行的记录：
+之前的思考和执行的记录：
 {thinking_list}
 
 **注意事项**
@@ -79,7 +79,7 @@ def init_templates_task() -> None:
 ```json
 {{
     "action_type": "create_new_task", 
-    "new_task": "前置任务的描述",
+    "new_task_details": "前置任务的描述",
     "new_task_criteria": "前置任务的评估标准",
 }}
 ```

@@ -110,6 +110,43 @@ class Block:
     type: int
     name: str
     position: Position
+    
+    
+TOOL_TAG = ["pickaxe", "axe", "shovel", "hoe", "sword"]
+MATERIAL_TAG = [
+    (1,"wooden"),
+    (2,"golden"),
+    (3,"stone"),
+    (4,"iron"),
+    (5,"diamond"),
+    (6,"netherite")
+]
+class Item:
+    """物品信息"""
+    def __init__(self, name: str, count: int, slot: int = None, durability: int = 0, max_durability: int = 0):
+        self.name = name
+        self.count = count
+        self.slot = slot
+        self.durability = durability
+        self.max_durability = max_durability
+        
+        #对工具的判断
+        self.tool_type:str = ""
+        self.tool_material:str = ""
+        self.tool_material_level:int = 0
+        
+        for tag in TOOL_TAG:
+            if tag in self.name:
+                self.tool_type = tag
+                break   
+        for tag in MATERIAL_TAG:    
+            if tag[1] in self.name:
+                self.tool_material = tag[1]
+                self.tool_material_level = tag[0]
+                break
+            
+    def __str__(self) -> str:
+        return f"{self.name} x{self.count}"
 
 
 @dataclass

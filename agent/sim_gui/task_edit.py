@@ -6,8 +6,11 @@ from agent.to_do_list import mai_to_do_list
 from agent.environment.environment import global_environment
 from agent.environment.environment_updater import global_environment_updater
 from agent.prompt_manager.prompt_manager import prompt_manager
+import asyncio
+import json
+from json_repair import repair_json
 
-logger = get_logger("TaskEditSimGui")
+logger = get_logger("\033[38;5;201m TaskEdit\033[0m")
 
 
 class TaskEditSimGui:
@@ -48,21 +51,14 @@ class TaskEditSimGui:
         logger.info(f"任务编辑思考结果: {thinking}")
         
         # 解析并执行多个任务编辑动作
-        execution_result = await self._parse_and_execute_task_actions(thinking)
+        final_result_str = await self._parse_and_execute_task_actions(thinking)
         
-        # 添加退出标志
-        execution_result["should_exit"] = True
-        
-        return execution_result
+        return final_result_str
     
     async def _parse_and_execute_task_actions(self, thinking: str) -> Dict[str, Any]:
         """
         解析并执行任务编辑动作，支持多个动作，失败时终止执行
         """
-        import asyncio
-        import json
-        from json_repair import repair_json
-        
         # 匹配所有JSON对象（支持嵌套大括号）
         def find_all_json_objects(text):
             json_objects = []
@@ -87,16 +83,7 @@ class TaskEditSimGui:
         # 查找所有JSON对象
         json_objects = find_all_json_objects(thinking)
         task_actions = []
-        executed_actions = []
-        failed_action = None
-        error_message = ""
-        success = True
         
-        # 结果字段
-        new_task_id = ""
-        task_id = ""
-        done = False
-        progress = ""
         result_parts = []
         
         # 解析所有任务动作
@@ -111,14 +98,10 @@ class TaskEditSimGui:
                         
             except Exception as e:
                 logger.error(f"[TaskEdit] 解析动作JSON时异常: {json_str}, 错误: {e}")
-                success = False
-                error_message = f"解析动作JSON失败: {e}"
-                failed_action = {"raw_json": json_str, "parse_error": str(e)}
                 break
         
         # 按顺序执行动作
-        if task_actions and success:
-            logger.info(f"[TaskEdit] 发现 {len(task_actions)} 个任务编辑动作，开始执行...")
+        if task_actions:
             
             for i, action in enumerate(task_actions):
                 try:
@@ -126,41 +109,11 @@ class TaskEditSimGui:
                     logger.info(f"[TaskEdit] 执行第 {i+1} 个 {action_type} 动作: {action}")
                     
                     # 执行动作
-                    result = await self._execute_task_action(action)
+                    success, result_str = await self._execute_task_action(action)
                     
-                    # 记录执行结果
-                    executed_action = {
-                        "action": action,
-                        "success": result.get("success", False),
-                        "result": result.get("result", ""),
-                        "error": result.get("error", "")
-                    }
-                    executed_actions.append(executed_action)
-                    
-                    # 更新结果字段
-                    if result.get("success"):
-                        if "new_task_id" in result:
-                            new_task_id = result["new_task_id"]
-                        if "task_id" in result:
-                            task_id = result["task_id"]
-                        if "done" in result:
-                            done = result["done"]
-                        if "progress" in result:
-                            progress = result["progress"]
-                        if "result_str" in result:
-                            result_parts.append(result["result_str"])
-                    
-                    # 记录到思考日志
-                    if result.get("success"):
-                        global_thinking_log.add_thinking_log(f"任务编辑动作 {action_type} 执行成功: {result.get('result', '')}", "action")
-                    else:
-                        global_thinking_log.add_thinking_log(f"任务编辑动作 {action_type} 执行失败: {result.get('error', '')}", "action")
-                    
+                    result_parts.append(result_str)
                     # 如果执行失败，终止后续动作
-                    if not result.get("success", False):
-                        success = False
-                        failed_action = executed_action
-                        error_message = result.get("error", "未知错误")
+                    if not success:
                         logger.error(f"[TaskEdit] 第 {i+1} 个动作执行失败，终止后续动作")
                         break
                     
@@ -170,32 +123,14 @@ class TaskEditSimGui:
                         
                 except Exception as e:
                     logger.error(f"[TaskEdit] 执行第 {i+1} 个任务编辑动作时异常: {e}")
-                    success = False
-                    failed_action = {
-                        "action": action,
-                        "exception": str(e)
-                    }
-                    error_message = f"执行动作时发生异常: {e}"
                     break
         
         # 构建最终结果字符串
         final_result_str = "；".join(result_parts) if result_parts else "没有执行任何动作"
-        if not success:
-            final_result_str += f"；执行失败: {error_message}"
         
-        return {
-            "success": success,
-            "executed_actions": executed_actions,
-            "failed_action": failed_action,
-            "error_message": error_message,
-            "new_task_id": new_task_id,
-            "task_id": task_id,
-            "done": done,
-            "progress": progress,
-            "result_str": final_result_str
-        }
+        return final_result_str
     
-    async def _execute_task_action(self, action_json: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_task_action(self, action_json: Dict[str, Any]) -> tuple[bool,str]:
         """
         执行单个任务编辑动作
         """
@@ -203,23 +138,13 @@ class TaskEditSimGui:
         
         try:
             if action_type == "change_task":
-                new_task_id = action_json.get("new_task_id")
-                reason = action_json.get("reason")
+                task_id = action_json.get("task_id")
                 
-                if not new_task_id:
-                    return {
-                        "success": False,
-                        "result": "",
-                        "error": "缺少new_task_id参数"
-                    }
+                if not task_id:
+                    return False, "缺少task_id参数或参数不正确"
                 
-                self.on_going_task_id = new_task_id
-                return {
-                    "success": True,
-                    "result_str": f"选择更换到任务: {new_task_id},原因是: {reason}",
-                    "error": "",
-                    "new_task_id": new_task_id
-                }
+                self.on_going_task_id = task_id
+                return True, f"选择更换到任务: {task_id}"
                 
             elif action_type == "update_task_progress":
                 progress = action_json.get("progress")
@@ -227,59 +152,33 @@ class TaskEditSimGui:
                 task_id = action_json.get("task_id")
                 
                 if not task_id:
-                    return {
-                        "success": False,
-                        "result": "",
-                        "error": "缺少task_id参数"
-                    }
+                    return False, "缺少task_id参数或参数不正确"
                 
-                result_data = {
-                    "success": True,
-                    "error": "",
-                    "task_id": task_id,
-                    "done": done,
-                    "progress": progress
-                }
-                
+                # 实际更新任务状态
                 if done:
-                    result_data["result_str"] = f"任务({task_id})已完成"
+                    mai_to_do_list.mark_task_done(task_id)
+                    return True, f"任务({task_id})已完成"
                 else:
-                    result_data["result_str"] = f"任务({task_id})进度已更新: {progress}"
+                    mai_to_do_list.update_task_progress(task_id, progress)
+                    return True, f"任务({task_id})进度已更新: {progress}"
                 
-                return result_data
-                
+                  
             elif action_type == "create_new_task":
-                new_task = action_json.get("new_task")
+                new_task_details = action_json.get("new_task_details")
                 new_task_criteria = action_json.get("new_task_criteria")
                 
-                if not new_task:
-                    return {
-                        "success": False,
-                        "result": "",
-                        "error": "缺少new_task参数"
-                    }
+                if not new_task_details:
+                    return False, "缺少new_task_details参数或参数不正确"
                 
                 # 使用全局的 mai_to_do_list
-                mai_to_do_list.add_task(new_task, new_task_criteria)
+                mai_to_do_list.add_task(new_task_details, new_task_criteria)
                 
-                return {
-                    "success": True,
-                    "result_str": f"创建新任务: {new_task},原因: {new_task_criteria}",
-                    "error": ""
-                }
+                return True, f"创建新任务: {new_task_details},评估标准: {new_task_criteria}"
                 
                   
             else:
-                return {
-                    "success": False,
-                    "result": "",
-                    "error": f"不支持的任务编辑动作类型: {action_type}"
-                }
+                return False, f"不支持的任务编辑动作类型: {action_type}"
                 
         except Exception as e:
             logger.error(f"[TaskEdit] 执行任务编辑动作时发生异常: {e}")
-            return {
-                "success": False,
-                "result": "",
-                "error": f"执行异常: {e}"
-            }
+            return False, f"执行异常: {e}"

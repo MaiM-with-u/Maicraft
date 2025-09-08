@@ -351,7 +351,7 @@ def translate_use_chest_tool_result(data: Any) -> str:
         # 添加操作结果
         if operation_results:
             for operation in operation_results:
-                readable_text += f"  {operation}\n"
+                readable_text += f"{operation};"
         
         # 添加箱子位置信息
         if chest_location:
@@ -361,17 +361,17 @@ def translate_use_chest_tool_result(data: Any) -> str:
             readable_text += f"箱子位置: ({x}, {y}, {z})\n"
         
         # 添加箱子内容信息
-        if chest_contents:
-            readable_text += "箱子内容:\n"
-            for item in chest_contents:
-                item_name = item.get("name", "未知物品")
-                count = item.get("count", 1)
-                if count == 1:
-                    readable_text += f"  {item_name}: 1个\n"
-                else:
-                    readable_text += f"  {item_name}: {count}个\n"
-        else:
-            readable_text += "箱子为空\n"
+        # if chest_contents:
+        #     readable_text += "箱子内容:\n"
+        #     for item in chest_contents:
+        #         item_name = item.get("name", "未知物品")
+        #         count = item.get("count", 1)
+        #         if count == 1:
+        #             readable_text += f"  {item_name}: 1个\n"
+        #         else:
+        #             readable_text += f"  {item_name}: {count}个\n"
+        # else:
+        #     readable_text += "箱子为空\n"
         
         return readable_text
         
