@@ -1,7 +1,6 @@
 import asyncio
 import math
 from typing import List, Any, Optional, Dict, Tuple
-from langchain_core.tools import BaseTool
 from utils.logger import get_logger
 from config import global_config
 from openai_client.llm_request import LLMClient
@@ -35,6 +34,7 @@ from agent.mai_mode import mai_mode
 from agent.environment.locations import global_location_points
 from agent.common.basic_class import BlockPosition
 from view_render.renderer_3d import get_global_renderer_3d
+from mcp_server.client import Tool
 
 COLOR_MAP = {
     "move": "\033[32m",        # 绿色
@@ -74,7 +74,7 @@ class MaiAgent:
 
         # 初始化LLM和工具适配器
         # 延迟初始化
-        self.tools: Optional[List[BaseTool]] = None
+        self.tools: Optional[List[Tool]] = None
 
 
         # 初始化状态
