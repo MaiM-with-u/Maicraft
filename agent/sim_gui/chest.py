@@ -58,7 +58,7 @@ class ChestSimGui:
         logger.info(f"箱子思考结果: {thinking}")
         
         # 解析并执行所有动作（包括单个和多个）
-        take_items_success, take_items_thinking, take_items_actions, take_items_log = await self.parse_take_items_actions(thinking, self._execute_chest_action)
+        take_items_success, take_items_actions, take_items_log, error_msg = await self.parse_take_items_actions(thinking, self._execute_chest_action)
         
         if take_items_actions:
             final_inv = await self._get_raw_chest_inventory()
@@ -68,14 +68,18 @@ class ChestSimGui:
             # 更新全局容器缓存中的库存信息
             global_container_cache.update_container_inventory(self.position, self.chest_inventory)
             # logger.info(f" 执行了 {len(take_items_actions)} 个动作")
-            return self._summarize_chest_diff()
+            if take_items_success:
+                return self._summarize_chest_diff()
+            else:
+                summary_str = self._summarize_chest_diff()
+                return f"箱子使用失败：{error_msg}，{summary_str}"
         else:
             logger.info(f"箱子x{self.position.x},y{self.position.y},z{self.position.z}没有动作")
             return f"箱子x{self.position.x},y{self.position.y},z{self.position.z}没有动作"
             
 
 
-    async def _execute_chest_action(self, action_json) -> str:
+    async def _execute_chest_action(self, action_json) -> tuple[bool,str]:
         """执行单个箱子动作"""
         args = {"x": self.position.x, "y": self.position.y, "z": self.position.z}
         action_type = action_json.get("action_type")
@@ -91,7 +95,7 @@ class ChestSimGui:
             is_success, result_content = parse_tool_result(call_result) 
             translated_result = translate_use_chest_tool_result(result_content)
             
-            return translated_result
+            return is_success,translated_result
         elif action_type == "put_items":
             item = action_json.get("item")
             count = action_json.get("count")
@@ -103,7 +107,7 @@ class ChestSimGui:
             is_success, result_content = parse_tool_result(call_result) 
             translated_result = translate_use_chest_tool_result(result_content)
             
-            return translated_result
+            return is_success,translated_result
 
     async def _get_raw_chest_inventory(self) -> Dict[str, int]:
         """查询箱子原始内容，返回 {物品名: 数量} 的字典。"""
@@ -172,7 +176,7 @@ class ChestSimGui:
         return "\n".join(lines)
     
     
-    async def parse_take_items_actions(self,thinking: str, execute_action_func) -> tuple[bool, str, list, str]:
+    async def parse_take_items_actions(self,thinking: str, execute_action_func) -> tuple[bool, str, list, str, str]:
         """
         解析思考结果中的存取动作 (take_items 和 put_items)
         1. 识别所有符合存取动作格式的 JSON 对象
@@ -180,6 +184,7 @@ class ChestSimGui:
         3. 返回: (是否成功, 思考结果, 存取动作列表, 非JSON内容)
         """
         import asyncio
+        error_msg = ""
         
         # 匹配所有JSON对象（支持嵌套大括号）
         def find_all_json_objects(text):
@@ -228,10 +233,11 @@ class ChestSimGui:
             
             for i, action in enumerate(chest_actions):
                 try:
-                    action_type = action.get("action_type")
-                    # logger.info(f"[Utils] 执行第 {i+1} 个 {action_type} 动作: {action}")
-                    result = await execute_action_func(action)
+                    action_success,result = await execute_action_func(action)
                     logger.info(f"第 {i+1} 个动作执行结果: {result.result_str if hasattr(result, 'result_str') else str(result)}")
+                    
+                    if not action_success:
+                        return False, chest_actions, non_json_content, result
                     
                     # 等待 0.3 秒（除了最后一个动作）
                     if i < len(chest_actions) - 1:
@@ -241,4 +247,4 @@ class ChestSimGui:
                     logger.error(f"[Utils] 执行第 {i+1} 个存取动作时异常: {e}")
                     success = False
         
-        return success, thinking, chest_actions, non_json_content
+        return success, chest_actions, non_json_content, error_msg

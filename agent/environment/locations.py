@@ -25,8 +25,8 @@ class LocationPoints:
         self.save_to_json()
         return final_name
         
-    def remove_location(self, position: BlockPosition):
-        self.location_list = [location for location in self.location_list if location[2] != position]
+    def remove_location(self, name: str, position: BlockPosition = None):
+        self.location_list = [location for location in self.location_list if location[0] != name and location[2] != position]
         # 保存到JSON文件
         self.save_to_json()
         
@@ -35,6 +35,15 @@ class LocationPoints:
             return "\n".join([f"坐标点: [{location[0]}] {location[1]} x={location[2].x},y={location[2].y},z={location[2].z}" for location in self.location_list])
         else:
             return "未设置任何坐标点，可以进行设置"
+        
+    def edit_location(self, name: str, info: str):
+        for location in self.location_list:
+            if location[0] == name:
+                location[1] = info
+                # 保存到JSON文件
+                self.save_to_json()
+                return True
+        return False
         
         
     def get_location(self,location_name:str) -> BlockPosition:

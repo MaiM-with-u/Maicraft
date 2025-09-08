@@ -103,6 +103,14 @@ def init_templates() -> None:
     "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
 }}
 
+**find_block**
+在视野内寻找可以直接看见的指定方块，返回方块的位置
+{{
+    "action_type":"find_block",
+    "radius": 64 //视野范围，默认64半径
+    "block":"方块名称",
+}}
+
 **craft**
 使用工作台或者背包进行合成物品
 能够进行工作台3x3合成
@@ -151,8 +159,11 @@ def init_templates() -> None:
 
 **设置标记点**
 记录一个标记点/地标，可以记录重要位置的信息，用于后续的移动，采矿，探索等
+也可以删除一个不符合现状的地表
+也可以update地标信息
 {{
     "action_type":"set_location",
+    "type":"set/delete/update", //set表示设置，delete表示删除，update表示更新
     "name":"地标名称（不要与现有地标名称重复）",
     "info":"地标信息，描述和简介",
     "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},

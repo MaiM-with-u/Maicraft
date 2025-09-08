@@ -8,8 +8,6 @@ def init_templates_furnace_gui() -> None:
         name="furnace_gui",
         template="""
 {basic_info}    
-    
-{furnace_gui}
 
 你可以进行如下操作：
 **take_items**
@@ -34,6 +32,9 @@ def init_templates_furnace_gui() -> None:
 **思考/执行的记录**
 {thinking_list}
 
+
+**当前熔炉信息**
+{furnace_gui}
 
 **检查熔炉**
 在使用前，请你检查熔炉槽位，以正确使用熔炉：

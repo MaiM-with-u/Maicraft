@@ -20,6 +20,7 @@ from agent.utils.utils import (
     parse_thinking, parse_thinking_multiple,
 )
 from agent.action.craft_action.craft_action import recipe_finder
+from agent.action.find_action import find_block_action
 import traceback
 from agent.utils.utils_tool_translation import (
     translate_chat_tool_result
@@ -262,6 +263,13 @@ class MaiAgent:
             z = action_json.get("z")
             result_str = await place_block_action(block, x, y, z)            
             result.result_str += result_str
+        elif action_type == "find_block":
+            block = action_json.get("block")
+            radius = action_json.get("radius", 16.0)  # 默认搜索半径16格
+            
+            result_str = await find_block_action(block, radius)
+            result.result_str += result_str
+            return result
         elif action_type == "use_furnace":
             position = action_json.get("position")
             x = math.floor(float(position.get("x")))
@@ -377,12 +385,8 @@ class MaiAgent:
             task_edit_gui = TaskEditSimGui(self.llm_client)
             execution_result = await task_edit_gui.task_edit_gui(reason, self.on_going_task_id)
             
-            # 更新当前任务ID
-            if execution_result.get("new_task_id"):
-                self.on_going_task_id = execution_result.get("new_task_id")
-            
             # 添加执行结果
-            result.result_str += execution_result.get("result_str", "")
+            result.result_str += execution_result
             return result
         elif action_type == "set_location":
             name = action_json.get("name")
@@ -391,10 +395,19 @@ class MaiAgent:
             x = math.floor(float(position.get("x")))
             y = math.floor(float(position.get("y")))
             z = math.floor(float(position.get("z")))
+            type = action_json.get("type")
+            if type == "set":
+                location_name = global_location_points.add_location(name, info, BlockPosition(x = x, y = y, z = z))
+                result.result_str = f"设置坐标点: {location_name} {info} {x},{y},{z}\n"
+            elif type == "delete":
+                global_location_points.remove_location(name = name,position=BlockPosition(x = x, y = y, z = z))
+                location_name = name
+                result.result_str = f"删除坐标点: {location_name} {info} {x},{y},{z}\n"
+            elif type == "update":
+                global_location_points.edit_location(name = name, info = info)
+                location_name = name
+                result.result_str = f"更新坐标点: {location_name} {info} {x},{y},{z}\n"
             
-            location_name = global_location_points.add_location(name, info, BlockPosition(x = x, y = y, z = z))
-            
-            result.result_str = f"设置坐标点: {location_name} {info} {x},{y},{z}\n"
             return result
         else:
             self.logger.warning(f" {mai_mode.mode} 不支持的action_type: {action_type}")

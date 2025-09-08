@@ -8,8 +8,6 @@ def init_templates_chest_gui() -> None:
         name="chest_gui",
         template="""
 {basic_info}
-        
-{chest_gui}
 
 你可以进行如下操作：
 **take_items**
@@ -30,6 +28,9 @@ def init_templates_chest_gui() -> None:
 
 **思考/执行的记录**
 {thinking_list}
+
+**当前箱子信息**
+{chest_gui}
 
 
 **注意事项**
