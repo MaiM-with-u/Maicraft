@@ -178,35 +178,54 @@ class GlobalContainerCache:
         
         return valid_containers
     
-    def clean_invalid_containers(self) -> int:
-        """清理所有不存在的容器，返回清理的数量"""
+    def clean_invalid_containers(self, specific_position: BlockPosition = None) -> int:
+        """清理不存在的容器，返回清理的数量"""
         removed_count = 0
         
-        # 检查箱子缓存
-        chest_keys_to_remove = []
-        for key, container in list(self.chest_cache.items()):
-            if not self.verify_container_exists(container.position, "chest"):
-                chest_keys_to_remove.append(key)
-        
-        # 检查熔炉缓存
-        furnace_keys_to_remove = []
-        for key, container in list(self.furnace_cache.items()):
-            if not self.verify_container_exists(container.position, "furnace"):
-                furnace_keys_to_remove.append(key)
-        
-        # 移除不存在的箱子
-        for key in chest_keys_to_remove:
-            container = self.chest_cache[key]
-            logger.warning(f"位置 {container.position.x}, {container.position.y}, {container.position.z} 的箱子已不存在，从缓存中移除")
-            del self.chest_cache[key]
-            removed_count += 1
-        
-        # 移除不存在的熔炉
-        for key in furnace_keys_to_remove:
-            container = self.furnace_cache[key]
-            logger.warning(f"位置 {container.position.x}, {container.position.y}, {container.position.z} 的熔炉已不存在，从缓存中移除")
-            del self.furnace_cache[key]
-            removed_count += 1
+        if specific_position:
+            # 只检查指定位置的容器
+            position_key = self._get_position_key(specific_position)
+            
+            # 检查箱子缓存
+            if position_key in self.chest_cache:
+                container = self.chest_cache[position_key]
+                if not self.verify_container_exists(container.position, "chest"):
+                    logger.warning(f"位置 {container.position.x}, {container.position.y}, {container.position.z} 的箱子已不存在，从缓存中移除")
+                    del self.chest_cache[position_key]
+                    removed_count += 1
+            
+            # 检查熔炉缓存
+            if position_key in self.furnace_cache:
+                container = self.furnace_cache[position_key]
+                if not self.verify_container_exists(container.position, "furnace"):
+                    logger.warning(f"位置 {container.position.x}, {container.position.y}, {container.position.z} 的熔炉已不存在，从缓存中移除")
+                    del self.furnace_cache[position_key]
+                    removed_count += 1
+        else:
+            # 检查所有容器（保留原功能以备后用）
+            chest_keys_to_remove = []
+            for key, container in list(self.chest_cache.items()):
+                if not self.verify_container_exists(container.position, "chest"):
+                    chest_keys_to_remove.append(key)
+            
+            furnace_keys_to_remove = []
+            for key, container in list(self.furnace_cache.items()):
+                if not self.verify_container_exists(container.position, "furnace"):
+                    furnace_keys_to_remove.append(key)
+            
+            # 移除不存在的箱子
+            for key in chest_keys_to_remove:
+                container = self.chest_cache[key]
+                logger.warning(f"位置 {container.position.x}, {container.position.y}, {container.position.z} 的箱子已不存在，从缓存中移除")
+                del self.chest_cache[key]
+                removed_count += 1
+            
+            # 移除不存在的熔炉
+            for key in furnace_keys_to_remove:
+                container = self.furnace_cache[key]
+                logger.warning(f"位置 {container.position.x}, {container.position.y}, {container.position.z} 的熔炉已不存在，从缓存中移除")
+                del self.furnace_cache[key]
+                removed_count += 1
         
         # 如果有移除的容器，保存数据
         if removed_count > 0:

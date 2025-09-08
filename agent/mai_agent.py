@@ -97,16 +97,8 @@ class MaiAgent:
         
         # 3D 渲染器实例（需要时启动）
         self.renderer_3d = None
-        
-        
-    def get_nearby_containers(self, center_position: BlockPosition, radius: float = 20.0) -> List:
-        """获取附近的容器"""
-        return global_container_cache.get_nearby_containers_with_verify(center_position, radius)
     
-    def get_container_cache_info(self) -> str:
-        """获取容器缓存信息的字符串表示"""
-        return global_container_cache.get_cache_info()
-        
+            
     async def initialize(self):
         """异步初始化"""
         try:
@@ -175,7 +167,6 @@ class MaiAgent:
             #更新截图
             await self.update_overview()
 
-      
             input_data = await global_environment.get_all_data()
             
                 
@@ -247,6 +238,9 @@ class MaiAgent:
                 count = action_json.get("count")
                 success,result_str = await mine_nearby_blocks(name, count, digOnly)
                 result.result_str += result_str
+                # 破坏方块后清理不存在的容器（附近可能被破坏的容器）
+                current_pos = global_environment.block_position
+                global_container_cache.clean_invalid_containers(current_pos)
                 return result
             elif type == "position":
                 x = action_json.get("x")
@@ -254,6 +248,9 @@ class MaiAgent:
                 z = action_json.get("z")
                 success,result_str = await mine_block_by_position(x, y, z, digOnly)
                 result.result_str += result_str
+                # 破坏方块后清理不存在的容器（指定位置）
+                block_pos = BlockPosition(x=x, y=y, z=z)
+                global_container_cache.clean_invalid_containers(block_pos)
                 return result
             else:
                 result.result_str = f"不支持的挖掘类型: {type}，请使用nearby或position\n"
@@ -276,6 +273,8 @@ class MaiAgent:
             # 验证熔炉是否实际存在
             if not global_container_cache.verify_container_exists(block_position, "furnace"):
                 result.result_str = f"位置 {x},{y},{z} 没有熔炉，无法使用熔炉\n"
+                # 清理该位置可能存在的不正确缓存记录
+                global_container_cache.clean_invalid_containers(block_position)
                 return result
             
             # 添加熔炉到缓存
@@ -312,6 +311,8 @@ class MaiAgent:
             # 验证箱子是否实际存在
             if not global_container_cache.verify_container_exists(block_position, "chest"):
                 result.result_str = f"位置{x},{y},{z}没有箱子，无法使用箱子\n"
+                # 清理该位置可能存在的不正确缓存记录
+                global_container_cache.clean_invalid_containers(block_position)
                 return result
             
             # 添加箱子到缓存
