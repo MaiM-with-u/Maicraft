@@ -379,7 +379,6 @@ class MaiAgent:
             
         elif action_type == "edit_task_list":
             reason = action_json.get("reason")
-            result.result_str = f"选择进行修改任务列表: \n原因: {reason}\n"
             
             # 创建任务编辑处理器并执行
             task_edit_gui = TaskEditSimGui(self.llm_client)

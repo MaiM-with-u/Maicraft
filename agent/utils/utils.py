@@ -142,31 +142,6 @@ def filter_action_tools(available_tools) -> List:
     
     return filtered_tools
 
-def format_executed_goals(goal_list: list[tuple[str, str, str]]) -> str:
-    """
-    以更详细、结构化的方式格式化已执行目标列表
-    """
-    if not goal_list:
-        return "无已执行目标"
-    
-    lines = []
-    for idx, (goal, status, details) in enumerate(goal_list, 1):
-        if status == "done":
-            lines.append(f"{idx}. 完成了目标：{goal}")
-            if details and "目标执行成功" in details:
-                # 提取成功时的想法
-                if "最终想法：" in details:
-                    final_thought = details.split("最终想法：")[-1]
-                    lines.append(f"   想法：{final_thought}")
-        elif status == "edit":
-            lines.append(f"{idx}. 目标需要修改：{goal}")
-            lines.append(f"   原因：{details}")
-        elif status == "fail":
-            lines.append(f"{idx}. 目标执行失败：{goal}")
-            lines.append(f"   原因：{details}")
-    
-    return "\n".join(lines)
-
 
 def format_task_done_list() -> str:
     """将任务执行记录翻译成可读文本，只取最近10条。

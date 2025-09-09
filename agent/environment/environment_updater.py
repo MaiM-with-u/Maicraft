@@ -118,29 +118,32 @@ class EnvironmentUpdater:
             environment_data = await self._gather_environment_data()
             global_environment.update_from_observation(environment_data)
             
-            #更新事件
-            event_data = await self._gather_event_data()
-            await self.update_events(event_data)
+            await self.update_nearbyentities()
+            await self.update_events()
             
             #更新周围方块
             if global_environment.block_position:
-                can_see_updated_count: int = await self._update_area_blocks_with_can_see(center_pos=global_environment.block_position, size=5)
+                await self._update_area_blocks_with_can_see(center_pos=global_environment.block_position, size=8)
                 # self.logger.debug(f"[EnvironmentUpdater] 已更新 {can_see_updated_count} 个方块的 can_see 信息")
+            
+            
             
         except Exception as e:
             self.logger.error(f"[EnvironmentUpdater] 环境更新失败: {e}")
             asyncio.sleep(1)
             self.logger.error(traceback.format_exc())
 
-    async def _gather_event_data(self) -> Optional[Dict[str, Any]]:
-        """使用新的查询工具收集事件数据"""
-        return await self._call_tool("query_recent_events", {"sinceTick": self.last_processed_tick})
+    async def update_nearbyentities(self):
+        # 处理周围环境 - 实体
+        results = await self._call_tool("query_surroundings", {"type": "entities","range":16,"useAbsoluteCoords":True})
+        nearby_entities = results.get("data", {}).get("entities", {}).get("list", [])
+        # logger.info(f"[EnvironmentUpdater] 周围实体数据: {nearby_entities}")
+        # logger.info(f"[EnvironmentUpdater] 周围实体数据类型: {type(nearby_entities)}")
+        global_environment.update_nearby_entities(nearby_entities)
     
-    async def update_events(self, event_data: Optional[Dict[str, Any]]):
+    async def update_events(self):
         """更新事件数据到环境信息中"""
-        if not event_data or not event_data.get("ok"):
-            return
-            
+        event_data = await self._call_tool("query_recent_events", {"sinceTick": self.last_processed_tick})
         recent_events = event_data.get("data", {})
         new_events = recent_events.get("events", [])
         
@@ -155,6 +158,8 @@ class EnvironmentUpdater:
                 try:
                     # 使用Event类的from_raw_data方法创建对象
                     event = Event.from_raw_data(event_data_item)
+                    
+                    # logger.info(event_data_item)
                     
                     ignore_event_name = ["healthUpdate"]
                     if event.type in ignore_event_name:
@@ -179,10 +184,9 @@ class EnvironmentUpdater:
         try:
             # 并行调用所有查询工具
             tasks: list[CoroutineType[Any, Any, Dict[str, Any] | None]] = [
-                self._call_query_game_state(),
-                self._call_query_player_status(),
-                self._call_query_surroundings("players"),
-                self._call_query_surroundings("entities"),
+                self._call_tool("query_game_state", {}),
+                self._call_tool("query_player_status", {"includeInventory":True}),
+                self._call_tool("query_surroundings", {"type": "players","range":16,"useAbsoluteCoords":True}),
             ]
             
             # 等待所有查询完成
@@ -266,21 +270,6 @@ class EnvironmentUpdater:
                     self.logger.warning(f"[EnvironmentUpdater] 处理周围玩家数据时出错: {e}")
                     combined_data["data"]["nearbyPlayers"] = []
             
-            # 处理周围环境 - 实体
-            if isinstance(results[3], dict) and results[3].get("ok"):
-                try:
-                    nearby_entities = results[3].get("data", {}).get("entities", {})
-                    if isinstance(nearby_entities, dict) and "list" in nearby_entities:
-                        combined_data["data"]["nearbyEntities"] = nearby_entities.get("list", [])
-                    else:
-                        # 如果entities不是预期的结构，设置为空列表
-                        combined_data["data"]["nearbyEntities"] = []
-                    combined_data["elapsed_ms"] = max(combined_data["elapsed_ms"], results[3].get("elapsed_ms", 0))
-                    self.logger.debug("[EnvironmentUpdater] 周围实体数据更新成功")
-                except Exception as e:
-                    self.logger.warning(f"[EnvironmentUpdater] 处理周围实体数据时出错: {e}")
-                    combined_data["data"]["nearbyEntities"] = []
-            
             return combined_data
             
         except Exception as e:
@@ -301,18 +290,6 @@ class EnvironmentUpdater:
             self.logger.error(f"[EnvironmentUpdater] 调用{tool_name}时发生异常: {e}")
             return None
 
-    async def _call_query_game_state(self) -> Optional[Dict[str, Any]]:
-        """调用query_game_state工具"""
-        return await self._call_tool("query_game_state", {})
-
-    async def _call_query_player_status(self, include_inventory: bool = False) -> Optional[Dict[str, Any]]:
-        """调用query_player_status工具"""
-        # 新的格式已经包含了物品栏信息，所以不需要额外参数
-        return await self._call_tool("query_player_status", {"includeInventory":True})
-    
-    async def _call_query_surroundings(self, env_type: str) -> Optional[Dict[str, Any]]:
-        """调用query_surroundings工具"""
-        return await self._call_tool("query_surroundings", {"type": env_type,"range":5,"useAbsoluteCoords":True})
     
     async def _call_query_area_blocks(self, center_pos: BlockPosition, size: int = 5) -> Optional[Dict[str, Any]]:
         """调用query_area_blocks工具，以指定位置为中心获取方块数据

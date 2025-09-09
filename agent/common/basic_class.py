@@ -2,6 +2,7 @@
 基础类定义
 包含系统中使用的基础数据类和结构
 """
+from ast import List
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, Set
 import math
@@ -39,7 +40,6 @@ class Position:
         } 
 
 
-@dataclass
 class BlockPosition:
     """方块位置信息（整数坐标，通常用于方块格定位）"""
     x: int
@@ -238,6 +238,28 @@ class Event:
                 gamemode=player_data.get("gamemode", 0)
             )
         
+        # 处理playerCollect事件的特殊格式
+        elif event_data_item.get("type") == "playerCollect" and event_data_item.get("collector"):
+            collector_data = event_data_item["collector"]
+            event_kwargs["player_name"] = collector_data.get("username", "")
+            
+            # 创建Player对象
+            event_kwargs["player"] = Player(
+                uuid=collector_data.get("uuid", ""),
+                username=collector_data.get("username", ""),
+                display_name=collector_data.get("displayName", ""),
+                ping=0,
+                gamemode=0
+            )
+            
+            # 处理收集的物品信息
+            collected_items = event_data_item.get("collected", [])
+            if collected_items and isinstance(collected_items, list) and len(collected_items) > 0:
+                item_info = collected_items[0]
+                item_name = item_info.get("displayName", item_info.get("name", "未知物品"))
+                item_count = item_info.get("count", 1)
+                event_kwargs["chat_text"] = f"收集了 {item_count} 个 {item_name}"
+        
         # 处理位置信息
         if event_data_item.get("position"):
             event_kwargs["position"] = event_data_item["position"]
@@ -251,6 +273,8 @@ class Event:
         # 根据事件类型返回不同的描述
         if self.type == "chat" and self.chat_text:
             return f"玩家{player_name}说: {self.chat_text}"
+        elif self.type == "playerCollect" and self.chat_text:
+            return f"玩家{player_name}{self.chat_text}"
         elif self.type == "playerJoin":
             return f"玩家{player_name}进入了游戏"
         elif self.type == "player_quit":
@@ -316,13 +340,45 @@ class Event:
 @dataclass
 class Entity:
     """实体信息"""
-    id: int
     type: str
     name: str
     position: Position
+    id: Optional[int] = None
     distance: Optional[float] = None
     health: Optional[int] = None
     max_health: Optional[int] = None
+    
+    def __str__(self) -> str:
+        return f"{self.name} - 坐标: ({self.position.x:.1f}, {self.position.y:.1f}, {self.position.z:.1f})"
+
+class AnimalEntity(Entity):
+    """动物实体信息"""
+    def __init__(self, type: str, name: str, position: Position, id: Optional[int] = None, distance: Optional[float] = None, health: Optional[int] = None, max_health: Optional[int] = None):
+        super().__init__(type, name, position, id, distance, health, max_health)
+        
+    def __str__(self) -> str:
+        return f"动物：{self.name} - 坐标: ({self.position.x:.1f}, {self.position.y:.1f}, {self.position.z:.1f})"
+
+class ItemEntity(Entity):
+    """物品实体信息"""
+    def __init__(self, type: str, name: str, position: Position, item_name: str, count: Optional[int] = None, id: Optional[int] = None, distance: Optional[float] = None, health: Optional[int] = None, max_health: Optional[int] = None):
+        super().__init__(type, name, position, id, distance, health, max_health)
+        self.item_name = item_name
+        self.count = count
+            
+    def __str__(self) -> str:
+        return f"掉落物：{self.item_name} x {self.count} - 坐标: ({self.position.x:.1f}, {self.position.y:.1f}, {self.position.z:.1f})"
+            
+class PlayerEntity(Entity):
+    """实体信息"""
+    def __init__(self, type: str, name: str, position: Position, username: str, id: Optional[int] = None, distance: Optional[float] = None, health: Optional[int] = None, max_health: Optional[int] = None):
+        super().__init__(type, name, position, id, distance, health, max_health)
+        self.username = username
+    
+    def __str__(self) -> str:
+        return f"玩家：{self.username} - 坐标: ({self.position.x:.1f}, {self.position.y:.1f}, {self.position.z:.1f})"
+    
+    
 
 
 class CachedBlock:

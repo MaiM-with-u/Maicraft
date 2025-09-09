@@ -56,7 +56,7 @@ class GlobalContainerCache:
             # 转换箱子数据
             for key, container in self.chest_cache.items():
                 data["chests"][key] = {
-                    "position": asdict(container.position),
+                    "position": container.position.to_dict(),
                     "container_type": container.container_type,
                     "inventory": container.inventory,
                     "furnace_slots": container.furnace_slots
@@ -65,7 +65,7 @@ class GlobalContainerCache:
             # 转换熔炉数据
             for key, container in self.furnace_cache.items():
                 data["furnaces"][key] = {
-                    "position": asdict(container.position),
+                    "position": container.position.to_dict(),
                     "container_type": container.container_type,
                     "inventory": container.inventory,
                     "furnace_slots": container.furnace_slots

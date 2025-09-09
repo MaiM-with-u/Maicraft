@@ -21,6 +21,8 @@ from agent.container_cache.container_cache import global_container_cache
 from openai_client.modelconfig import ModelConfig
 from agent.chat_history import global_chat_history
 from agent.environment.inventory_utils import review_all_tools
+import traceback
+from agent.common.basic_class import PlayerEntity, ItemEntity, AnimalEntity
 
 logger = get_logger("EnvironmentInfo")
 
@@ -96,10 +98,6 @@ class EnvironmentInfo:
         # 最近事件
         self.recent_events: List[Event] = []
         
-        # 系统状态
-        self.status: str = ""
-        self.request_id: str = ""
-        self.elapsed_ms: int = 0
         
         # 时间戳
         self.last_update: Optional[datetime] = None
@@ -301,79 +299,69 @@ class EnvironmentInfo:
                         print(f"玩家数据: {player_data}")
                         print(f"错误详情: {traceback.format_exc()}")
                         continue
-        
-        # 更新周围环境 - 实体 (来自 query_surroundings("entities"))
-        if "nearbyEntities" in data:
-            # logger.info(f"附近实体: {data['nearbyEntities']}")
-            nearby_entities_data = data["nearbyEntities"]
-            if isinstance(nearby_entities_data, list):
-                self.nearby_entities = []
-                for entity_data in nearby_entities_data:
-                    try:
-                        if isinstance(entity_data, dict):
-                            # 位置兼容：支持 {x,y,z} 与 [x,y,z]
-                            position = Position(0.0, 0.0, 0.0)
-                            if "position" in entity_data:
-                                pos_data = entity_data["position"]
-                                if isinstance(pos_data, dict):
-                                    position = Position(
-                                        x=pos_data.get("x", 0.0),
-                                        y=pos_data.get("y", 0.0),
-                                        z=pos_data.get("z", 0.0)
-                                    )
-                                elif isinstance(pos_data, list) and len(pos_data) >= 3:
-                                    position = Position(
-                                        x=float(pos_data[0]) if pos_data[0] is not None else 0.0,
-                                        y=float(pos_data[1]) if pos_data[1] is not None else 0.0,
-                                        z=float(pos_data[2]) if pos_data[2] is not None else 0.0
-                                    )
-
-                            # 字段兼容：优先取标准字段，不存在则回退
-                            # name: name -> displayName -> type/kind -> "未知实体"
-                            raw_name = (
-                                entity_data.get("name")
-                                or entity_data.get("displayName")
-                                or entity_data.get("type")
-                                or entity_data.get("kind")
-                                or "未知实体"
-                            )
-
-                            # type: type -> kind -> "other"
-                            raw_type = entity_data.get("type") or entity_data.get("kind") or "other"
-
-                            # id: id -> entityId -> 尝试由(name+pos)派生稳定整数
-                            raw_id = entity_data.get("id") or entity_data.get("entityId")
-                            if raw_id is None:
-                                try:
-                                    stable_key = f"{raw_name}|{position.x:.3f},{position.y:.3f},{position.z:.3f}"
-                                    raw_id = abs(hash(stable_key)) % 1000000
-                                except Exception:
-                                    raw_id = 0
-
-                            entity = Entity(
-                                id=int(raw_id) if isinstance(raw_id, (int, float, str)) and str(raw_id).isdigit() else 0,
-                                type=str(raw_type),
-                                name=str(raw_name),
-                                position=position,
-                                distance=(float(entity_data.get("distance")) if entity_data.get("distance") is not None else None),
-                                health=(int(entity_data.get("health")) if entity_data.get("health") is not None else None),
-                                max_health=(int(entity_data.get("maxHealth")) if entity_data.get("maxHealth") is not None else None)
-                            )
-                            self.nearby_entities.append(entity)
-                    except Exception as e:
-                        # 记录实体处理错误，但继续处理其他实体
-                        import traceback
-                        print(f"处理实体数据时出错: {e}")
-                        print(f"实体数据: {entity_data}")
-                        print(f"错误详情: {traceback.format_exc()}")
-                        continue
-        
-        # 更新请求信息
-        self.request_id = observation_data.get("request_id", "")
-        self.elapsed_ms = observation_data.get("elapsed_ms", 0)
-        
         # 更新时间戳
         self.last_update = datetime.now()
+        
+    def update_nearby_entities(self, entities_list: List[Dict[str, Any]]):
+        self.nearby_entities = []
+        for entity_data in entities_list:
+            # logger.info(entity_data)
+            # 解析位置 [x, y, z]
+            position = Position(0.0, 0.0, 0.0)
+            pos_data = entity_data["position"]
+            position = Position(
+                x=float(pos_data[0]) if pos_data[0] is not None else 0.0,
+                y=float(pos_data[1]) if pos_data[1] is not None else 0.0,
+                z=float(pos_data[2]) if pos_data[2] is not None else 0.0
+            )
+            # 解析实体信息
+            entity_type = entity_data.get("type", "other")
+            entity_name = entity_data.get("name", "未知实体")
+            
+            # 特殊处理玩家实体
+            if entity_type == "player":
+                entity = PlayerEntity(
+                    type=entity_type,
+                    name=entity_name,
+                    username= entity_data.get("username"),
+                    position=position,
+                    distance=(float(entity_data.get("distance")) if entity_data.get("distance") is not None else None),
+                    health=(int(entity_data.get("health")) if entity_data.get("health") is not None else None),
+                    max_health=(int(entity_data.get("maxHealth")) if entity_data.get("maxHealth") is not None else None)
+                )
+            # 特殊处理物品实体
+            elif entity_type == "animal":
+                entity = AnimalEntity(
+                    type=entity_type,
+                    name=entity_name,
+                    position=position,
+                    distance=(float(entity_data.get("distance")) if entity_data.get("distance") is not None else None),
+                    health=(int(entity_data.get("health")) if entity_data.get("health") is not None else None),
+                    max_health=(int(entity_data.get("maxHealth")) if entity_data.get("maxHealth") is not None else None)
+                )
+            else:
+                if entity_name == "item":
+                    item_info = entity_data.get("itemsInfo", [])[0]
+                    item_name = item_info.get("name")
+                    item_count = item_info.get("count", 1)
+                    entity = ItemEntity(
+                        type=entity_type,
+                        name=entity_name,
+                        item_name=item_name,
+                        count=item_count,
+                        position=position,
+                    )
+                else:
+                    entity = Entity(
+                        type=entity_type,
+                        name=entity_name,
+                        position=position,
+                        distance=(float(entity_data.get("distance")) if entity_data.get("distance") is not None else None),
+                        health=(int(entity_data.get("health")) if entity_data.get("health") is not None else None),
+                        max_health=(int(entity_data.get("maxHealth")) if entity_data.get("maxHealth") is not None else None)
+                    )
+
+            self.nearby_entities.append(entity)
         
     def get_position_str(self) -> str:
         """获取位置信息"""
@@ -495,7 +483,8 @@ class EnvironmentInfo:
             
             lines.append(f"  附近实体数量: {len(self.nearby_entities)}")
             for i, entity in enumerate(self.nearby_entities, 1):
-                lines.append(f"  {i}. {entity.name} (ID: {entity.id}, 类型: {entity.type})")
+                # 物品实体显示名称和坐标
+                lines.append(f"  {i}. {entity.__str__()}")
         return "\n".join(lines)
 
     def get_summary(self) -> str:
@@ -590,77 +579,7 @@ class EnvironmentInfo:
         
         return "\n".join(lines)
     
-    
-    def _get_event_description(self, event: Event) -> str:
-        """获取事件描述"""
-        
-        # logger.info(f"事件: {event}")
-        
-        # 获取玩家名称，优先使用事件中的玩家名称
-        if event.player_name:
-            player_name = event.player_name
-        else:
-            return ""
-        
-        if player_name == global_config.bot.player_name:
-            base_desc = f"你({player_name})"
-        else:
-            base_desc = f"玩家{player_name}"
-        
-        if event.type == "playerJoin":
-            return f"{base_desc} 加入了游戏"
-        
-        elif event.type == "playerLeave":
-            return f"{base_desc} 离开了游戏"
-        
-        elif event.type == "playerDeath":
-            return f"{base_desc} 死亡了"
-        
-        elif event.type == "playerRespawn":
-            if event.new_position:
-                pos = event.new_position
-                return f"{base_desc} 重生于 ({pos.x:.1f}, {pos.y:.1f}, {pos.z:.1f})"
-            else:
-                return f"{base_desc} 重生了"
-        
-        elif event.type == "playerKick":
-            if hasattr(event, 'kick_reason') and event.kick_reason:
-                return f"{base_desc} 被踢出游戏: {event.kick_reason}"
-            else:
-                return f"{base_desc} 被踢出游戏"
-        
-        elif event.type == "entityHurt":
-            if hasattr(event, 'entity_name') and event.entity_name:
-                entity_name = event.entity_name
-                if hasattr(event, 'damage') and event.damage is not None:
-                    return f"{base_desc} 对 {entity_name} 造成了 {event.damage} 点伤害"
-                else:
-                    return f"{base_desc} 攻击了 {entity_name}"
-            else:
-                return f"{base_desc} 攻击了实体"
-        
-        elif event.type == "entityDeath":
-            if hasattr(event, 'entity_name') and event.entity_name:
-                entity_name = event.entity_name
-                if hasattr(event, 'entity_position') and event.entity_position:
-                    pos = event.entity_position
-                    return f"{base_desc} 击杀了 {entity_name} 在 ({pos.x:.1f}, {pos.y:.1f}, {pos.z:.1f})"
-                else:
-                    return f"{base_desc} 击杀了 {entity_name}"
-            else:
-                return f"{base_desc} 击杀了实体"
-        
-        elif event.type == "weatherChange":
-            if hasattr(event, 'weather') and event.weather:
-                return f"{base_desc} 天气变为: {event.weather}"
-            else:
-                return f"{base_desc} 天气发生了变化"
-        
-        elif event.type == "spawnPointReset":
-            return f"{base_desc} 重置了出生点"
-        
-        else:
-            return ""
+
     
     async def get_all_data(self) -> dict:
         if self.food/self.food_max < 0.8:

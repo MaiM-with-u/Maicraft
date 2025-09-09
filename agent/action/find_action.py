@@ -51,9 +51,10 @@ async def find_block_action(block_type: str, radius: float = 16.0) -> str:
             "endY": end_y,
             "endZ": end_z,
             "useRelativeCoords": False,
-            "maxBlocks": 5000,
+            "maxBlocks": 10000,
             "compressionMode": True,
-            "includeBlockCounts": False
+            "includeBlockCounts": False,
+            "filterInvisibleBlocks": True
         })
         
         # 解析工具结果
@@ -71,9 +72,9 @@ async def find_block_action(block_type: str, radius: float = 16.0) -> str:
                 if current_block_type != block_type:
                     continue
                     
-                can_see = block_data.get("canSee", False)
-                if not can_see:
-                    continue
+                # can_see = block_data.get("canSee", False)
+                # if not can_see:
+                #     continue
                     
                 positions = block_data.get("positions", [])
                 for pos in positions:
