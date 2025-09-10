@@ -17,12 +17,14 @@ class ChatHistory:
         
     def get_chat_history_str(self) -> str:
         lines = []
-        # 只获取最近30分钟以内的聊天记录
+        # 只获取最近30分钟以内且最多30条聊天记录
         current_time = datetime.now().timestamp()
         recent_chats = []
         for chat_event in self.chat_history:
             if current_time - chat_event.timestamp <= 1800:  # 30分钟 = 1800秒
                 recent_chats.append(chat_event)
+        # 限制最多30条
+        recent_chats = recent_chats[-30:] if len(recent_chats) > 30 else recent_chats
         for chat_event in recent_chats:
             dt = datetime.fromtimestamp(chat_event.timestamp)
             timestamp_str = f"[{dt.strftime('%H:%M:%S')}]"

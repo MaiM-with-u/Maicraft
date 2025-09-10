@@ -17,7 +17,7 @@ def init_templates() -> None:
         PromptTemplate(
         name="basic_info",
         template="""
-你是麦麦，游戏名叫Mai,你正在游玩Minecraft，是一名Minecraft玩家。
+你是麦麦，游戏名叫Mai,你正在游玩1.21版本的Minecraft。
 {self_info}
 
 **当前目标和任务列表**：
@@ -91,7 +91,7 @@ def init_templates() -> None:
 }}
 
 **mine_in_direction**
-按方向持续挖掘，直到超时或挖掘失败
+按方向持续挖掘，直到超时或挖掘失败，此动作将会位移一段时间
 direction: 方向 (+x, -x, +y, -y, +z, -z)
 timeout: 超时时间（秒），例如60s,120s
 {{

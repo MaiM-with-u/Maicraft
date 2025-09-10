@@ -89,7 +89,7 @@ class EnvironmentInfo:
         self.biome: str = ""  # 新增：生物群系
         
         # 附近玩家
-        self.nearby_players: List[Player] = []
+        # self.nearby_players: List[Player] = []
         
         # 附近实体
         self.nearby_entities: List[Entity] = []
@@ -265,40 +265,40 @@ class EnvironmentInfo:
         self.empty_slot_count = inventory_data.get('emptySlotCount', 0)
         self.slot_count = inventory_data.get('slotCount', 0)
         
-        # 更新周围环境 - 玩家 (来自 query_surroundings("players"))
-        if "nearbyPlayers" in data:
-            nearby_players_data = data["nearbyPlayers"]
-            if isinstance(nearby_players_data, list):
-                # 如果nearbyPlayers是列表，直接使用
-                self.nearby_players = []
-                for player_data in nearby_players_data:
-                    try:
-                        if isinstance(player_data, dict):
-                            player = Player(
-                                uuid=player_data.get("uuid", ""),
-                                username=player_data.get("username", ""),
-                                display_name=player_data.get("displayName", ""),
-                                ping=player_data.get("ping", 0),
-                                gamemode=player_data.get("gamemode", 0)
-                            )
-                            self.nearby_players.append(player)
-                        else:
-                            # 如果只是玩家名称字符串
-                            player = Player(
-                                uuid="",
-                                username=str(player_data),
-                                display_name=str(player_data),
-                                ping=0,
-                                gamemode=0
-                            )
-                            self.nearby_players.append(player)
-                    except Exception as e:
-                        # 记录玩家处理错误，但继续处理其他玩家
-                        import traceback
-                        print(f"处理玩家数据时出错: {e}")
-                        print(f"玩家数据: {player_data}")
-                        print(f"错误详情: {traceback.format_exc()}")
-                        continue
+        # # 更新周围环境 - 玩家 (来自 query_surroundings("players"))
+        # if "nearbyPlayers" in data:
+        #     nearby_players_data = data["nearbyPlayers"]
+        #     if isinstance(nearby_players_data, list):
+        #         # 如果nearbyPlayers是列表，直接使用
+        #         self.nearby_players = []
+        #         for player_data in nearby_players_data:
+        #             try:
+        #                 if isinstance(player_data, dict):
+        #                     player = Player(
+        #                         uuid=player_data.get("uuid", ""),
+        #                         username=player_data.get("username", ""),
+        #                         display_name=player_data.get("displayName", ""),
+        #                         ping=player_data.get("ping", 0),
+        #                         gamemode=player_data.get("gamemode", 0)
+        #                     )
+        #                     self.nearby_players.append(player)
+        #                 else:
+        #                     # 如果只是玩家名称字符串
+        #                     player = Player(
+        #                         uuid="",
+        #                         username=str(player_data),
+        #                         display_name=str(player_data),
+        #                         ping=0,
+        #                         gamemode=0
+        #                     )
+        #                     self.nearby_players.append(player)
+        #             except Exception as e:
+        #                 # 记录玩家处理错误，但继续处理其他玩家
+        #                 import traceback
+        #                 print(f"处理玩家数据时出错: {e}")
+        #                 print(f"玩家数据: {player_data}")
+        #                 print(f"错误详情: {traceback.format_exc()}")
+        #                 continue
         # 更新时间戳
         self.last_update = datetime.now()
         
@@ -484,12 +484,11 @@ class EnvironmentInfo:
     
     def get_nearby_entities_info(self) -> str:
         lines = []
-        if self.nearby_players:
-            lines.append("附近玩家:")
-            for i, player in enumerate(self.nearby_players, 1):
-                lines.append(f"  {i}. {player.display_name} ({player.username})")
-                # lines.append(f"     延迟: {player.ping}ms, 游戏模式: {player.gamemode}")
-        
+        # if self.nearby_players:
+        #     lines.append("附近玩家:")
+        #     for i, player in enumerate(self.nearby_players, 1):
+        #         lines.append(f"  {i}. {player.display_name} ({player.username})")
+        #         # lines.append(f"     延迟: {player.ping}ms, 游戏模式: {player.gamemode}")
         
         if self.nearby_entities:
             # logger.info(f"附近实体: {self.nearby_entities}")
@@ -617,11 +616,9 @@ class EnvironmentInfo:
             "inventory_info": self.get_inventory_info(),
             "full_thinking_list": global_thinking_log.get_thinking_log_full(),
             "thinking_list": global_thinking_log.get_thinking_log(),
-            # "nearby_block_info": await nearby_block_manager.get_block_details_mix_str(self.block_position,full_distance=4,can_see_distance=8),
             "nearby_block_info": await nearby_block_manager.get_visible_blocks_str(self.block_position,distance=16),
             "position": self.get_position_str(),
             "chat_str": global_chat_history.get_chat_history_str(),
-            # "event_str": self.get_event_str(),
             "to_do_list": mai_to_do_list.__str__(),
             "task_done_list": format_task_done_list(),
             "goal": mai_goal.goal,

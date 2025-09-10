@@ -858,9 +858,9 @@ class RecipeFinder:
                     # 没有无需工作台的配方
                     has_recipe_with_table = await has_recipe(True)
                     if has_recipe_with_table:
-                        return False, "附近无工作台；若找到工作台即可合成。"
+                        return False, "附近无工作台，若找到工作台即可合成。请找到附近的工作台或直接合成工作台"
                     else:
-                        return False, "附近无工作台；此物品无法合成。或该物品不存在"
+                        return False, "此物品无法合成。或该物品不存在"
 
             # 分支 2：附近有工作台
             else:

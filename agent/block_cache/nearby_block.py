@@ -492,9 +492,13 @@ class NearbyBlockManager:
             else:
                 result_str = "\n".join(parts) + "\n"
             
-            result_str += f"玩家所在位置: x={position.x}, y={position.y}, z={position.z}\n"
+            result_str += f"玩家所在位置: x={position.x}, y={position.y}, z={position.z}\n玩家头部位置: x={position.x}, y={position.y+1}, z={position.z}\n"
             # result_str += f"搜索距离: {distance}格\n"
             result_str += f"可见方块数量: {block_num}\n"
+            
+            # 添加可放置方块位置检测
+            placement_info = await self._get_placement_positions(position, distance=5)
+            result_str += f"\n**可放置方块位置**:\n{placement_info}"
             
             return result_str
     

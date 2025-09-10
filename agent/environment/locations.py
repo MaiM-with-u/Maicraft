@@ -32,7 +32,7 @@ class LocationPoints:
         
     def all_location_str(self) -> str:
         if self.location_list:
-            return "\n".join([f"坐标点: [{location[0]}] {location[1]} x={location[2].x},y={location[2].y},z={location[2].z}" for location in self.location_list])
+            return "\n".join([f"坐标点:(x={location[2].x},y={location[2].y},z={location[2].z}) [{location[0]}] {location[1]}" for location in self.location_list])
         else:
             return "未设置任何坐标点，可以进行设置"
         

@@ -20,6 +20,7 @@ class ChestSimGui:
         self.llm_client = llm_client
         self.position = position
         self.block = global_block_cache.get_block(position.x, position.y, position.z)
+        self.upper_block = global_block_cache.get_block(position.x, position.y+1, position.z)
         
         # 运行时维护：当前箱子物品与初始化时的快照
         self.chest_inventory: Dict[str, int] = {}
@@ -30,22 +31,19 @@ class ChestSimGui:
         await global_environment_updater.perform_update()
         input_data = await global_environment.get_all_data()
         
+        if self.upper_block.block_type != "air" or self.upper_block.block_type != "cave_air":
+            return f"位置{self.position.x},{self.position.y},{self.position.z}上方存在方块，箱子无法打开，请移除({self.upper_block.block_type},x = {self.upper_block.x},y = {self.upper_block.y},z = {self.upper_block.z})"
+
         if self.block.block_type != "chest":
             return f"位置{self.position.x},{self.position.y},{self.position.z}不是箱子"
         
         # 初始化：读取一次原始箱子内容，建立两份快照
-        try:
-            init_inv = await self._get_raw_chest_inventory()
-            self.chest_inventory = dict(init_inv)
-            self.temp_chest_inventory = dict(init_inv)
-            # logger.info(f"[Chest] 初始箱子内容: {init_inv}")
-            # 添加到全局容器缓存
-            global_container_cache.add_container(self.position, "chest", init_inv)
-        except Exception as e:
-            # 即使读取失败，也不阻塞后续流程
-            self.chest_inventory = {}
-            self.temp_chest_inventory = {}
-            logger.warning(f"[Chest] 读取初始箱子内容失败: {e}")
+
+        init_inv = await self._get_raw_chest_inventory()
+        self.chest_inventory = dict(init_inv)
+        self.temp_chest_inventory = dict(init_inv)
+        # logger.info(f"[Chest] 初始箱子内容: {init_inv}")
+        global_container_cache.add_container(self.position, "chest", init_inv)
 
 
         result_content = await view_container(self.position.x, self.position.y, self.position.z, self.block.block_type)
@@ -93,7 +91,13 @@ class ChestSimGui:
             
             call_result = await global_mcp_client.call_tool_directly("use_chest", args)
             is_success, result_content = parse_tool_result(call_result) 
-            translated_result = translate_use_chest_tool_result(result_content)
+            if is_success:
+                translated_result = translate_use_chest_tool_result(result_content)
+            else:
+                if "箱子中没有" in str(result_content):
+                    translated_result = f"箱子中的{item}数量不足，无法取出{count}个"
+                else:
+                    translated_result = str(result_content)
             
             return is_success,translated_result
         elif action_type == "put_items":
@@ -105,7 +109,13 @@ class ChestSimGui:
             
             call_result = await global_mcp_client.call_tool_directly("use_chest", args)
             is_success, result_content = parse_tool_result(call_result) 
-            translated_result = translate_use_chest_tool_result(result_content)
+            if is_success:
+                translated_result = translate_use_chest_tool_result(result_content)
+            else:
+                if "物品栏中没有" in str(result_content):
+                    translated_result = f"物品栏中的{item}数量不足，无法放入{count}个"
+                else:
+                    translated_result = str(result_content)
             
             return is_success,translated_result
 

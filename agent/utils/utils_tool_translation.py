@@ -239,7 +239,7 @@ def translate_view_chest_result(result: Any) -> str:
                 items.append(f"{item_name} x {count}")
         
         # 构建可读文本
-        readable_text = "箱子chest({x}, {y}, {z})的内容：\n"
+        readable_text = f"箱子chest({x}, {y}, {z})的内容：\n"
         readable_text += f"容量: {total_slots}格，已占用: {occupied_slots}格，空闲: {empty_slots}格 ({occupancy_rate})\n"
         
         if items:

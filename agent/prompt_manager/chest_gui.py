@@ -15,26 +15,26 @@ def init_templates_chest_gui() -> None:
 任务列表：
 {to_do_list}
 
-**物品栏和工具**
-{inventory_info}
-
 **玩家聊天记录**
 {chat_str}
 
+**物品栏**
+{inventory_info}
+
 你可以进行如下操作：
 **take_items**
-从箱子中取出物品
+从箱子中取出物品放入物品栏
 {{
     "action_type":"take_items",
-    "item":"需要取出的物品名称",
+    "item":"需要从箱子取出的物品名称",
     "count":"数量",
 }}
 
 **put_items**
-将物品放入箱子
+将物品从物品栏放入箱子
 {{
     "action_type":"put_items",
-    "item":"需要放入的物品名称",
+    "item":"需要放入箱子的物品名称",
     "count":"数量",
 }}
 
@@ -71,12 +71,10 @@ def init_templates_chest_gui() -> None:
         description="箱子面板",
         parameters=[
             "self_info",
-            "mode",
             "goal",
             "task",
-            "chat_str",
             "to_do_list",
-            "inventory_info"
+            "inventory_info",
             "chest_gui",
             "basic_info",
             "thinking_list",
