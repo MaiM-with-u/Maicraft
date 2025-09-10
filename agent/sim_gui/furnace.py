@@ -28,7 +28,7 @@ class FurnaceSimGui:
         
     
     async def furnace_gui(self):
-        await global_environment_updater.perform_update()
+        # await global_environment_updater.perform_update()
         input_data = await global_environment.get_all_data()
         
         if not self.block:
@@ -63,7 +63,7 @@ class FurnaceSimGui:
             self.fuel_slot = {}
             self.output_slot = {}
 
-        await global_environment_updater.perform_update()
+        # await global_environment_updater.perform_update()
         input_data = await global_environment.get_all_data()
         result_content = await view_container(self.position.x, self.position.y, self.position.z, self.block.block_type)
         input_data["furnace_gui"] = result_content

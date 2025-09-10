@@ -32,7 +32,7 @@ class NearbyBlockManager:
         
         for block in all_blocks:
             # 跳过空气方块，不加入显示
-            if block.block_type == "air":
+            if block.block_type == "air" or block.block_type == "cave_air":
                 continue
             
             # 计算方块到中心的距离
@@ -70,294 +70,231 @@ class NearbyBlockManager:
         
         # 添加可放置方块位置检测
         placement_info = await self._get_placement_positions(position, distance=5)
-        around_blocks_str += f"\n可放置方块位置:\n{placement_info}"
+        around_blocks_str += f"\n**可放置方块位置**:\n{placement_info}"
         
         # 添加可移动位置检测
-        movement_info = await self._get_movement_positions(position, distance=5)
-        around_blocks_str += f"\n可作为Move终点位置:\n{movement_info}"
+        # movement_info = await self._get_movement_positions(position, distance=5)
+        # around_blocks_str += f"\n可作为Move终点位置:\n{movement_info}"
         
         return around_blocks_str
 
     def _format_coords_compact(self, coords: list[tuple[int, int, int]]) -> str:
-        """将 (x,y,z) 列表尽量压缩为区间表示。
-        按三个轴向分别尝试：
-        - 固定 (y,z)，合并 x 连续区间 → 输出形如 "(y=Y, z=Z): x=a ~ b, c"。
-        - 固定 (x,z)，合并 y 连续区间。
-        - 固定 (x,y)，合并 z 连续区间。
-        选择字符数最少的结果；若压缩无收益则回退到逐点列出。
-        """
+        """将 (x,y,z) 列表压缩为统一的格式：()包裹，逗号分隔，xxx-xxxx范围"""
         if not coords:
             return ""
-        # 去重并排序，避免重复坐标影响展示
+        
+        # 去重并排序
         unique = sorted(set(coords))
-        # 原始逐点：按 (x,z,y) 顺序输出
-        plain = ",".join([f"(x={x},z={z},y={y})" for x, y, z in unique])
         
-        def build_ranges(values: list[int]) -> list[tuple[int, int]]:
-            if not values:
-                return []
-            values = sorted(set(values))
-            ranges: list[tuple[int, int]] = []
-            start = prev = values[0]
-            for v in values[1:]:
-                if v == prev + 1:
-                    prev = v
-                    continue
-                ranges.append((start, prev))
-                start = prev = v
-            ranges.append((start, prev))
-            return ranges
+        # 如果坐标很少，直接输出
+        if len(unique) <= 2:
+            return ",".join([f"(x={x},y={y},z={z})" for x, y, z in unique])
         
-        def fmt_ranges(label: str, values: list[int]) -> str:
-            range_list = build_ranges(values)
-            parts = []
-            for s, e in range_list:
-                if s == e:
-                    parts.append(f"{label}={s}")
-                else:
-                    parts.append(f"{label}={s} ~ {e}")
-            return ", ".join(parts)
+        # 尝试不同的压缩策略，选择最简洁的
+        strategies = [
+            self._format_by_height,      # 按高度(y)分组
+            self._format_by_layer,       # 按层(z)分组  
+            self._format_by_column,      # 按列(x)分组
+        ]
         
-        # 方案 A：固定 (y,z)，合并 x
+        best_format = None
+        best_length = float('inf')
+        
+        for strategy in strategies:
+            try:
+                result = strategy(unique)
+                if len(result) < best_length:
+                    best_format = result
+                    best_length = len(result)
+            except:
+                continue
+        
+        # 如果所有压缩策略都不好，使用原始格式
+        plain = ",".join([f"(x={x},y={y},z={z})" for x, y, z in unique])
+        return best_format if best_format and len(best_format) < len(plain) else plain
+    
+    def _format_by_height(self, coords: list[tuple[int, int, int]]) -> str:
+        """按高度(y)分组格式化"""
         from collections import defaultdict
-        by_yz: dict[tuple[int, int], list[int]] = defaultdict(list)
-        for x, y, z in unique:
-            by_yz[(y, z)].append(x)
-        plan_a_items: list[str] = []
-        for (y, z), xs in sorted(by_yz.items()):
-            for s, e in build_ranges(xs):
-                if s == e:
-                    plan_a_items.append(f"(x={s},z={z},y={y})")
-                else:
-                    plan_a_items.append(f"(x={s}~{e},z={z},y={y})")
-        plan_a = ",".join(plan_a_items)
+        by_y = defaultdict(list)
+        for x, y, z in coords:
+            by_y[y].append((x, z))
         
-        # 方案 B：固定 (x,z)，合并 y
-        by_xz: dict[tuple[int, int], list[int]] = defaultdict(list)
-        for x, y, z in unique:
-            by_xz[(x, z)].append(y)
-        plan_b_items: list[str] = []
-        for (x, z), ys in sorted(by_xz.items()):
-            for s, e in build_ranges(ys):
-                if s == e:
-                    plan_b_items.append(f"(x={x},z={z},y={s})")
-                else:
-                    plan_b_items.append(f"(x={x},z={z},y={s}~{e})")
-        plan_b = ",".join(plan_b_items)
+        parts = []
+        for y in sorted(by_y.keys()):
+            points = by_y[y]
+            if len(points) == 1:
+                x, z = points[0]
+                parts.append(f"(x={x},y={y},z={z})")
+            else:
+                # 按x,z坐标排序并分组
+                xz_list = sorted(points)
+                xz_str = self._format_xz_pairs(xz_list)
+                parts.append(f"({xz_str},y={y})")
         
-        # 方案 C：固定 (x,y)，合并 z
-        by_xy: dict[tuple[int, int], list[int]] = defaultdict(list)
-        for x, y, z in unique:
-            by_xy[(x, y)].append(z)
-        plan_c_items: list[str] = []
-        for (x, y), zs in sorted(by_xy.items()):
-            for s, e in build_ranges(zs):
-                if s == e:
-                    plan_c_items.append(f"(x={x},z={s},y={y})")
-                else:
-                    plan_c_items.append(f"(x={x},z={s}~{e},y={y})")
-        plan_c = ",".join(plan_c_items)
+        return ",".join(parts)
+    
+    def _format_by_layer(self, coords: list[tuple[int, int, int]]) -> str:
+        """按层(z)分组格式化"""
+        from collections import defaultdict
+        by_z = defaultdict(list)
+        for x, y, z in coords:
+            by_z[z].append((x, y))
         
-        candidates = [plain, plan_a, plan_b, plan_c]
-        # 进一步方案：按单轴做标题分组，减少标签重复
-        def join_range_tokens(label: str, values: list[int]) -> str:
-            parts = []
-            for s, e in build_ranges(values):
-                if s == e:
-                    parts.append(f"{label}={s}")
-                else:
-                    parts.append(f"{label}={s}~{e}")
-            return "|".join(parts)
-
-        def plan_factored_by_z() -> str:
-            from collections import defaultdict
-            by_z: dict[int, list[tuple[int, int]]] = defaultdict(list)
-            for x, y, z in unique:
-                by_z[z].append((x, y))
-            z_parts: list[str] = []
-            for z, xys in sorted(by_z.items()):
-                # y -> x ranges signature
-                y_to_xsig: dict[int, str] = {}
-                from collections import defaultdict as dd
-                y_to_xs: dict[int, list[int]] = dd(list)
-                for x, y in xys:
-                    y_to_xs[y].append(x)
-                for y, xs in y_to_xs.items():
-                    xsig = join_range_tokens('x', xs)
-                    y_to_xsig[y] = xsig
-                # 合并相邻 y 且签名相同
-                items: list[str] = []
-                for y in sorted(y_to_xsig.keys()):
-                    pass
-                ys_sorted = sorted(y_to_xsig.keys())
-                if not ys_sorted:
-                    z_parts.append(f"z={z}:")
-                    continue
-                start_y = prev_y = ys_sorted[0]
-                prev_sig = y_to_xsig[prev_y]
-                def emit(seg_start: int, seg_end: int, sig: str):
-                    # sig like "x=1~3|x=5" → 转为 "x=1~3|x=5" 保持
-                    if seg_start == seg_end:
-                        items.append(f"({sig},y={seg_start})")
-                    else:
-                        items.append(f"({sig},y={seg_start}~{seg_end})")
-                for y in ys_sorted[1:]:
-                    sig = y_to_xsig[y]
-                    if y == prev_y + 1 and sig == prev_sig:
-                        prev_y = y
-                        continue
-                    emit(start_y, prev_y, prev_sig)
-                    start_y = prev_y = y
-                    prev_sig = sig
-                emit(start_y, prev_y, prev_sig)
-                z_parts.append(f"z={z}: " + ",".join(items))
-            return "; ".join(z_parts)
-
-        def plan_factored_by_y() -> str:
-            from collections import defaultdict
-            by_y: dict[int, list[tuple[int, int]]] = defaultdict(list)
-            for x, y, z in unique:
-                by_y[y].append((x, z))
-            y_parts: list[str] = []
-            for y, xzs in sorted(by_y.items()):
-                z_to_xsig: dict[int, str] = {}
-                from collections import defaultdict as dd
-                z_to_xs: dict[int, list[int]] = dd(list)
-                for x, z in xzs:
-                    z_to_xs[z].append(x)
-                for z, xs in z_to_xs.items():
-                    xsig = join_range_tokens('x', xs)
-                    z_to_xsig[z] = xsig
-                items: list[str] = []
-                zs_sorted = sorted(z_to_xsig.keys())
-                if not zs_sorted:
-                    y_parts.append(f"y={y}:")
-                    continue
-                start_z = prev_z = zs_sorted[0]
-                prev_sig = z_to_xsig[prev_z]
-                def emit(seg_start: int, seg_end: int, sig: str):
-                    if seg_start == seg_end:
-                        items.append(f"({sig},z={seg_start})")
-                    else:
-                        items.append(f"({sig},z={seg_start}~{seg_end})")
-                for z in zs_sorted[1:]:
-                    sig = z_to_xsig[z]
-                    if z == prev_z + 1 and sig == prev_sig:
-                        prev_z = z
-                        continue
-                    emit(start_z, prev_z, prev_sig)
-                    start_z = prev_z = z
-                    prev_sig = sig
-                emit(start_z, prev_z, prev_sig)
-                y_parts.append(f"y={y}: " + ",".join(items))
-            return "; ".join(y_parts)
-
-        def plan_factored_by_x() -> str:
-            from collections import defaultdict
-            by_x: dict[int, list[tuple[int, int]]] = defaultdict(list)
-            for x, y, z in unique:
-                by_x[x].append((y, z))
-            x_parts: list[str] = []
-            for x, yzs in sorted(by_x.items()):
-                z_to_ysig: dict[int, str] = {}
-                from collections import defaultdict as dd
-                z_to_ys: dict[int, list[int]] = dd(list)
-                for y, z in yzs:
-                    z_to_ys[z].append(y)
-                for z, ys in z_to_ys.items():
-                    ysig = join_range_tokens('y', ys)
-                    z_to_ysig[z] = ysig
-                items: list[str] = []
-                zs_sorted = sorted(z_to_ysig.keys())
-                if not zs_sorted:
-                    x_parts.append(f"x={x}:")
-                    continue
-                start_z = prev_z = zs_sorted[0]
-                prev_sig = z_to_ysig[prev_z]
-                def emit(seg_start: int, seg_end: int, sig: str):
-                    if seg_start == seg_end:
-                        items.append(f"({sig},z={seg_start})")
-                    else:
-                        items.append(f"({sig},z={seg_start}~{seg_end})")
-                for z in zs_sorted[1:]:
-                    sig = z_to_ysig[z]
-                    if z == prev_z + 1 and sig == prev_sig:
-                        prev_z = z
-                        continue
-                    emit(start_z, prev_z, prev_sig)
-                    start_z = prev_z = z
-                    prev_sig = sig
-                emit(start_z, prev_z, prev_sig)
-                x_parts.append(f"x={x}: " + ",".join(items))
-            return "; ".join(x_parts)
-
-        plan_d = plan_factored_by_z()
-        plan_e = plan_factored_by_y()
-        plan_f = plan_factored_by_x()
-
-        candidates.extend([plan_d, plan_e, plan_f])
-
-        # 方案 G：三维盒子合并（x 连续 → 合并成条；同形 y 段在同 z 合并；再跨 z 合并同形）
-        def plan_boxes() -> str:
-            from collections import defaultdict
-            # (y,z) -> list of x ranges
-            by_yz: dict[tuple[int, int], list[int]] = defaultdict(list)
-            for x, y, z in unique:
-                by_yz[(y, z)].append(x)
-            yz_to_runs: dict[tuple[int, int], list[tuple[int, int]]] = {}
-            for (y, z), xs in by_yz.items():
-                yz_to_runs[(y, z)] = build_ranges(xs)
-            # 对每个 z，将相邻 y 且 run 集合相同的合并
-            z_to_y_segments: dict[int, list[tuple[int, int, tuple[tuple[int, int], ...]]]] = {}
-            zs = sorted({z for _, z in by_yz.keys()})
-            for z in zs:
-                ys = sorted({y for (y2, z2) in yz_to_runs.keys() if z2 == z and y2 is not None})
-                segments: list[tuple[int, int, tuple[tuple[int, int], ...]]] = []
-                if not ys:
-                    z_to_y_segments[z] = segments
-                    continue
-                start_y = prev_y = ys[0]
-                prev_runs = tuple(yz_to_runs.get((prev_y, z), []))
-                for y in ys[1:]:
-                    runs = tuple(yz_to_runs.get((y, z), []))
-                    if y == prev_y + 1 and runs == prev_runs:
-                        prev_y = y
-                        continue
-                    segments.append((start_y, prev_y, prev_runs))
-                    start_y = prev_y = y
-                    prev_runs = runs
-                segments.append((start_y, prev_y, prev_runs))
-                z_to_y_segments[z] = segments
-            # 跨 z 合并：对每个 (y1,y2,runs) 在相邻 z 若相同则扩展
-            # 先将每个 z 的段落索引为可比较键
-            boxes: list[tuple[int, int, int, int, int, int]] = []  # (x1,x2,z1,z2,y1,y2)
-            # 为了便于跨 z 合并，建立按键 (y1,y2,runs) -> 按 z 排序的 z 列表
-            key_to_zlist: dict[tuple[int, int, tuple[tuple[int, int], ...]], list[int]] = defaultdict(list)
-            for z, segs in z_to_y_segments.items():
-                for (y1, y2, runs) in segs:
-                    key_to_zlist[(y1, y2, runs)].append(z)
-            # 对每个键的 z 列表合并连续 z，形成 z 区间
-            for (y1, y2, runs), zlist in key_to_zlist.items():
-                zlist = sorted(set(zlist))
-                for z_start, z_end in build_ranges(zlist):
-                    # 对于该 (y1,y2,z_start~z_end) 的每个 x-run 生成盒子
-                    for x1, x2 in runs:
-                        boxes.append((x1, x2, z_start, z_end, y1, y2))
-            # 输出
-            def fmt(a: int, b: int, label: str) -> str:
-                if a == b:
-                    return f"{label}={a}"
-                return f"{label}={a}~{b}"
-            items = []
-            for x1, x2, z1, z2, y1, y2 in sorted(boxes):
-                items.append(f"({fmt(x1,x2,'x')},{fmt(z1,z2,'z')},{fmt(y1,y2,'y')})")
-            return ",".join(items)
-
-        plan_g = plan_boxes()
-        candidates.append(plan_g)
-        # 选择字符最短的表示
-        best = min(candidates, key=len)
-        return best
+        parts = []
+        for z in sorted(by_z.keys()):
+            points = by_z[z]
+            if len(points) == 1:
+                x, y = points[0]
+                parts.append(f"(x={x},y={y},z={z})")
+            else:
+                # 按x,y坐标排序并分组
+                xy_list = sorted(points)
+                xy_str = self._format_xy_pairs(xy_list)
+                parts.append(f"({xy_str},z={z})")
+        
+        return ",".join(parts)
+    
+    def _format_by_column(self, coords: list[tuple[int, int, int]]) -> str:
+        """按列(x)分组格式化"""
+        from collections import defaultdict
+        by_x = defaultdict(list)
+        for x, y, z in coords:
+            by_x[x].append((y, z))
+        
+        parts = []
+        for x in sorted(by_x.keys()):
+            points = by_x[x]
+            if len(points) == 1:
+                y, z = points[0]
+                parts.append(f"(x={x},y={y},z={z})")
+            else:
+                # 按y,z坐标排序并分组
+                yz_list = sorted(points)
+                yz_str = self._format_yz_pairs(yz_list)
+                parts.append(f"({yz_str},x={x})")
+        
+        return ",".join(parts)
+    
+    def _format_xz_pairs(self, xz_pairs: list[tuple[int, int]]) -> str:
+        """格式化x,z坐标对"""
+        if len(xz_pairs) <= 2:
+            x_parts = []
+            z_parts = []
+            for x, z in xz_pairs:
+                x_parts.append(str(x))
+                z_parts.append(str(z))
+            x_str = self._compress_range([int(x) for x in x_parts])
+            z_str = self._compress_range([int(z) for z in z_parts])
+            return f"x={x_str},z={z_str}"
+        
+        # 尝试按x坐标分组
+        from collections import defaultdict
+        by_x = defaultdict(list)
+        for x, z in xz_pairs:
+            by_x[x].append(z)
+        
+        x_parts = []
+        z_parts = []
+        for x in sorted(by_x.keys()):
+            x_parts.append(str(x))
+            zs = sorted(by_x[x])
+            z_parts.extend([str(z) for z in zs])
+        
+        x_str = self._compress_range([int(x) for x in x_parts])
+        z_str = self._compress_range([int(z) for z in z_parts])
+        return f"x={x_str},z={z_str}"
+    
+    def _format_xy_pairs(self, xy_pairs: list[tuple[int, int]]) -> str:
+        """格式化x,y坐标对"""
+        if len(xy_pairs) <= 2:
+            x_parts = []
+            y_parts = []
+            for x, y in xy_pairs:
+                x_parts.append(str(x))
+                y_parts.append(str(y))
+            x_str = self._compress_range([int(x) for x in x_parts])
+            y_str = self._compress_range([int(y) for y in y_parts])
+            return f"x={x_str},y={y_str}"
+        
+        # 尝试按x坐标分组
+        from collections import defaultdict
+        by_x = defaultdict(list)
+        for x, y in xy_pairs:
+            by_x[x].append(y)
+        
+        x_parts = []
+        y_parts = []
+        for x in sorted(by_x.keys()):
+            x_parts.append(str(x))
+            ys = sorted(by_x[x])
+            y_parts.extend([str(y) for y in ys])
+        
+        x_str = self._compress_range([int(x) for x in x_parts])
+        y_str = self._compress_range([int(y) for y in y_parts])
+        return f"x={x_str},y={y_str}"
+    
+    def _format_yz_pairs(self, yz_pairs: list[tuple[int, int]]) -> str:
+        """格式化y,z坐标对"""
+        if len(yz_pairs) <= 2:
+            y_parts = []
+            z_parts = []
+            for y, z in yz_pairs:
+                y_parts.append(str(y))
+                z_parts.append(str(z))
+            y_str = self._compress_range([int(y) for y in y_parts])
+            z_str = self._compress_range([int(z) for z in z_parts])
+            return f"y={y_str},z={z_str}"
+        
+        # 尝试按y坐标分组
+        from collections import defaultdict
+        by_y = defaultdict(list)
+        for y, z in yz_pairs:
+            by_y[y].append(z)
+        
+        y_parts = []
+        z_parts = []
+        for y in sorted(by_y.keys()):
+            y_parts.append(str(y))
+            zs = sorted(by_y[y])
+            z_parts.extend([str(z) for z in zs])
+        
+        y_str = self._compress_range([int(y) for y in y_parts])
+        z_str = self._compress_range([int(z) for z in z_parts])
+        return f"y={y_str},z={z_str}"
+    
+    def _compress_range(self, numbers: list[int]) -> str:
+        """压缩数字范围为区间表示，使用xxx-xxxx格式"""
+        if not numbers:
+            return ""
+        
+        numbers = sorted(set(numbers))
+        if len(numbers) == 1:
+            return str(numbers[0])
+        
+        # 找出连续的区间
+        ranges = []
+        start = numbers[0]
+        prev = numbers[0]
+        
+        for num in numbers[1:]:
+            if num == prev + 1:
+                prev = num
+            else:
+                ranges.append((start, prev))
+                start = prev = num
+        
+        ranges.append((start, prev))
+        
+        # 构建压缩字符串
+        parts = []
+        for s, e in ranges:
+            if s == e:
+                parts.append(str(s))
+            else:
+                parts.append(f"{s}-{e}")
+        
+        return ",".join(parts)
     
     async def _get_placement_positions(self, position: BlockPosition, distance: int = 5):
         """检测可以放置方块的位置
@@ -400,7 +337,7 @@ class NearbyBlockManager:
                         continue
                     
                     # 只检查空气、水或岩浆位置
-                    if current_block_type not in ["air", "water", "lava"]:
+                    if current_block_type not in ["air", "water", "lava","cave_air"]:
                         continue
                     
                     # 计算相邻固体方块数量
@@ -414,12 +351,12 @@ class NearbyBlockManager:
                             continue
                         
                         # 检查是否为固体方块（非空气、水、岩浆）
-                        if adj_block_type not in ["air", "water", "lava"]:
+                        if adj_block_type not in ["air", "water", "lava", "cave_air"]:
                             solid_adjacent_count += 1
                     
                     # 检查相邻固体方块数量是否在1-5之间
                     if 1 <= solid_adjacent_count <= 5:
-                        if current_block_type == "air":
+                        if current_block_type == "air" or current_block_type == "cave_air":
                             placement_positions.append((x, y, z))
                         elif current_block_type in ["water", "lava"]:
                             water_lava_positions.append((x, y, z, current_block_type))
@@ -429,7 +366,7 @@ class NearbyBlockManager:
         
         if placement_positions:
             coord_str = self._format_coords_compact(placement_positions)
-            result_parts.append(f"可直接放置: {coord_str}")
+            result_parts.append(f"可place_block: {coord_str}")
         
         if water_lava_positions:
             water_coords = [(x, y, z) for x, y, z, block_type in water_lava_positions if block_type == "water"]
@@ -478,7 +415,7 @@ class NearbyBlockManager:
                         continue
                     
                     # 当前位置必须为空气
-                    if current_block_type != "air":
+                    if current_block_type != "air" and current_block_type != "cave_air":
                         continue
                     
                     # 检查下方是否有方块（不为air或none）
@@ -486,7 +423,7 @@ class NearbyBlockManager:
                     below_block_type = block_map.get(below_pos)
                     
                     # 跳过未知方块或空气
-                    if below_block_type is None or below_block_type == "air":
+                    if below_block_type is None or below_block_type == "air" or below_block_type == "cave_air":
                         continue
                     
                     # 检查上方是否为空气（确保有足够空间站立）
@@ -494,7 +431,7 @@ class NearbyBlockManager:
                     above_block_type = block_map.get(above_pos)
                     
                     # 跳过未知方块或非空气
-                    if above_block_type is None or above_block_type != "air":
+                    if above_block_type is None or above_block_type != "air" or above_block_type != "cave_air":
                         continue
                     
                     # 符合条件，可以移动到此位置
@@ -507,4 +444,90 @@ class NearbyBlockManager:
         coord_str = self._format_coords_compact(movement_positions)
         return f"{coord_str}"
     
+    async def get_visible_blocks_str(self, position: BlockPosition, distance: int = 32) -> str:
+            """
+            只返回附近可见方块的字符串
+            
+            Args:
+                position: 中心位置
+                distance: 可见方块的搜索距离
+            """
+            # 获取距离范围内的方块
+            if not position:
+                return ""
+            
+            blocks = self.block_cache.get_blocks_in_range(position.x, position.y, position.z, distance)
+            
+            # 过滤只保留可见方块
+            visible_blocks = []
+            for block in blocks:
+                # 跳过空气方块
+                if block.block_type == "air" or block.block_type == "cave_air":
+                    continue
+                
+                # 只保留可见方块
+                if block.can_see:
+                    visible_blocks.append(block)
+            
+            # 按方块类型分组
+            grouped_positions = {}
+            block_num = 0
+            
+            for block in visible_blocks:
+                block_num += 1
+                key = block.block_type
+                if key not in grouped_positions:
+                    grouped_positions[key] = []
+                grouped_positions[key].append((block.position.x, block.position.y, block.position.z))
+            
+            # 组装输出：同类方块在同一行内以坐标列表形式展示
+            parts = []
+            # logger.info(grouped_positions)
+            for key, coords in grouped_positions.items():
+                coord_str = self._format_coords_compact(coords)
+                parts.append(f"{key}: {coord_str}")
+            
+            if not parts:
+                result_str = f"视野内无可见方块\n"
+            else:
+                result_str = "\n".join(parts) + "\n"
+            
+            result_str += f"玩家所在位置: x={position.x}, y={position.y}, z={position.z}\n"
+            # result_str += f"搜索距离: {distance}格\n"
+            result_str += f"可见方块数量: {block_num}\n"
+            
+            return result_str
+    
+    async def get_visible_blocks_list(self, position: BlockPosition, distance: int = 32) -> list[dict]:
+        """
+        只返回附近可见方块的列表
+        
+        Args:
+            position: 中心位置
+            distance: 可见方块的搜索距离
+            
+        Returns:
+            包含可见方块信息的字典列表，每个字典包含位置和类型信息
+        """
+        # 获取距离范围内的方块
+        blocks = self.block_cache.get_blocks_in_range(position.x, position.y, position.z, distance)
+        
+        # 过滤只保留可见方块
+        visible_blocks = []
+        for block in blocks:
+            # 跳过空气方块
+            if block.block_type == "air" or block.block_type == "cave_air":
+                continue
+            
+            # 只保留可见方块
+            if block.can_see:
+                visible_blocks.append({
+                    "x": block.position.x,
+                    "y": block.position.y,
+                    "z": block.position.z,
+                    "type": block.block_type
+                })
+        
+        return visible_blocks
+
 nearby_block_manager = NearbyBlockManager()

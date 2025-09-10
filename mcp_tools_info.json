@@ -1,0 +1,2014 @@
+[
+  {
+    "name": "basic_control",
+    "description": "提供基础的游戏控制功能，包括移动、跳跃、潜行、视角调整和物品丢弃",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "toss",
+            "move",
+            "jump",
+            "sneak",
+            "look_at",
+            "sleep",
+            "wake",
+            "stop_move",
+            "stop_sneak"
+          ],
+          "description": "控制类型 (toss | move | jump | sneak | look_at | sleep | wake | stop_move | stop_sneak)"
+        },
+        "item": {
+          "type": "string",
+          "description": "物品名称或ID (用于 toss 类型)"
+        },
+        "count": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "物品数量 (用于 toss 类型，默认 1)"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "forward",
+            "back",
+            "left",
+            "right"
+          ],
+          "description": "移动方向 (用于 move 类型：forward | back | left | right)"
+        },
+        "lookType": {
+          "type": "string",
+          "enum": [
+            "angle",
+            "position",
+            "player",
+            "entity",
+            "block"
+          ],
+          "description": "注视类型 (用于 look_at 类型：angle | position | player | entity | block)"
+        },
+        "yaw": {
+          "type": "number",
+          "description": "视角偏航角，弧度 (用于 angle 注视类型)"
+        },
+        "pitch": {
+          "type": "number",
+          "description": "视角俯仰角，弧度 (用于 angle 注视类型)"
+        },
+        "x": {
+          "type": "number",
+          "description": "目标坐标 X (用于 position 注视类型)"
+        },
+        "y": {
+          "type": "number",
+          "description": "目标坐标 Y (用于 position 注视类型)"
+        },
+        "z": {
+          "type": "number",
+          "description": "目标坐标 Z (用于 position 注视类型)"
+        },
+        "force": {
+          "type": "boolean",
+          "description": "是否强制看向 (用于所有注视类型，默认 false)"
+        },
+        "player": {
+          "type": "string",
+          "description": "目标玩家名称 (用于 player 注视类型)"
+        },
+        "entity": {
+          "type": "string",
+          "description": "目标实体类型 (用于 entity 注视类型)，例如 cow, pig, zombie 等"
+        },
+        "block": {
+          "type": "string",
+          "description": "目标方块名称 (用于 block 注视类型)，例如 dirt, stone, diamond_ore 等"
+        },
+        "maxDistance": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "搜索距离 (用于 entity 和 block 注视类型，默认 64)"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "type": {
+        "type": "string",
+        "enum": [
+          "toss",
+          "move",
+          "jump",
+          "sneak",
+          "look_at",
+          "sleep",
+          "wake",
+          "stop_move",
+          "stop_sneak"
+        ],
+        "description": "控制类型 (toss | move | jump | sneak | look_at | sleep | wake | stop_move | stop_sneak)"
+      },
+      "item": {
+        "type": "string",
+        "description": "物品名称或ID (用于 toss 类型)"
+      },
+      "count": {
+        "type": "integer",
+        "exclusiveMinimum": 0,
+        "description": "物品数量 (用于 toss 类型，默认 1)"
+      },
+      "direction": {
+        "type": "string",
+        "enum": [
+          "forward",
+          "back",
+          "left",
+          "right"
+        ],
+        "description": "移动方向 (用于 move 类型：forward | back | left | right)"
+      },
+      "lookType": {
+        "type": "string",
+        "enum": [
+          "angle",
+          "position",
+          "player",
+          "entity",
+          "block"
+        ],
+        "description": "注视类型 (用于 look_at 类型：angle | position | player | entity | block)"
+      },
+      "yaw": {
+        "type": "number",
+        "description": "视角偏航角，弧度 (用于 angle 注视类型)"
+      },
+      "pitch": {
+        "type": "number",
+        "description": "视角俯仰角，弧度 (用于 angle 注视类型)"
+      },
+      "x": {
+        "type": "number",
+        "description": "目标坐标 X (用于 position 注视类型)"
+      },
+      "y": {
+        "type": "number",
+        "description": "目标坐标 Y (用于 position 注视类型)"
+      },
+      "z": {
+        "type": "number",
+        "description": "目标坐标 Z (用于 position 注视类型)"
+      },
+      "force": {
+        "type": "boolean",
+        "description": "是否强制看向 (用于所有注视类型，默认 false)"
+      },
+      "player": {
+        "type": "string",
+        "description": "目标玩家名称 (用于 player 注视类型)"
+      },
+      "entity": {
+        "type": "string",
+        "description": "目标实体类型 (用于 entity 注视类型)，例如 cow, pig, zombie 等"
+      },
+      "block": {
+        "type": "string",
+        "description": "目标方块名称 (用于 block 注视类型)，例如 dirt, stone, diamond_ore 等"
+      },
+      "maxDistance": {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "description": "搜索距离 (用于 entity 和 block 注视类型，默认 64)"
+      }
+    },
+    "required_fields": [
+      "type"
+    ],
+    "optional_fields": [
+      "item",
+      "count",
+      "direction",
+      "lookType",
+      "yaw",
+      "pitch",
+      "x",
+      "y",
+      "z",
+      "force",
+      "player",
+      "entity",
+      "block",
+      "maxDistance"
+    ],
+    "examples": [
+      {
+        "type": "最小参数（必需字段）",
+        "params": {
+          "type": "示例字符串"
+        }
+      },
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "type": "示例字符串",
+          "item": "示例字符串",
+          "count": 42,
+          "direction": "示例字符串",
+          "lookType": "示例字符串",
+          "yaw": 3.14,
+          "pitch": 3.14,
+          "x": 3.14,
+          "y": 3.14,
+          "z": 3.14,
+          "force": true,
+          "player": "示例字符串",
+          "entity": "示例字符串",
+          "block": "示例字符串",
+          "maxDistance": 3.14
+        }
+      }
+    ]
+  },
+  {
+    "name": "chat",
+    "description": "发送聊天消息",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "要发送的聊天消息 (字符串)"
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "message": {
+        "type": "string",
+        "description": "要发送的聊天消息 (字符串)"
+      }
+    },
+    "required_fields": [
+      "message"
+    ],
+    "optional_fields": [],
+    "examples": [
+      {
+        "type": "最小参数（必需字段）",
+        "params": {
+          "message": "示例字符串"
+        }
+      },
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "message": "示例字符串"
+        }
+      }
+    ]
+  },
+  {
+    "name": "craft_item",
+    "description": "合成指定物品",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "type": "string",
+          "description": "要合成的物品名称 (字符串)"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "合成数量 (数字，可选，默认为1)"
+        },
+        "preferredMaterials": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "偏好的材料列表，按优先级排序 (字符串数组，可选)"
+        },
+        "without_crafting_table": {
+          "type": "boolean",
+          "description": "是否强制不使用工作台 (布尔值，可选，默认false)"
+        }
+      },
+      "required": [
+        "item"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "item": {
+        "type": "string",
+        "description": "要合成的物品名称 (字符串)"
+      },
+      "count": {
+        "type": "integer",
+        "minimum": 1,
+        "description": "合成数量 (数字，可选，默认为1)"
+      },
+      "preferredMaterials": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "偏好的材料列表，按优先级排序 (字符串数组，可选)"
+      },
+      "without_crafting_table": {
+        "type": "boolean",
+        "description": "是否强制不使用工作台 (布尔值，可选，默认false)"
+      }
+    },
+    "required_fields": [
+      "item"
+    ],
+    "optional_fields": [
+      "count",
+      "preferredMaterials",
+      "without_crafting_table"
+    ],
+    "examples": [
+      {
+        "type": "最小参数（必需字段）",
+        "params": {
+          "item": "示例字符串"
+        }
+      },
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "item": "示例字符串",
+          "count": 42,
+          "preferredMaterials": [
+            "示例1",
+            "示例2"
+          ],
+          "without_crafting_table": true
+        }
+      }
+    ]
+  },
+  {
+    "name": "craft_with_recipe",
+    "description": "使用指定的配方合成物品",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "recipe": {
+          "description": "配方对象，直接传入bot.craft的第一个参数\n结构说明：\n- result: RecipeItem - 合成结果\n- inShape?: RecipeItem[][] - 输入形状（有序配方）\n- outShape?: RecipeItem[][] - 输出形状\n- ingredients?: RecipeItem[] - 配方材料（无序配方）\n- delta?: RecipeItem[] - 合成前后材料变化\n- requiresTable: boolean - 是否需要工作台\nRecipeItem结构：{ id: number, metadata: number|null, count: number }"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "合成数量 (数字，可选，默认为1)"
+        },
+        "withoutCraftingTable": {
+          "type": "boolean",
+          "description": "是否强制不使用工作台 (布尔值，可选，默认false)"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "recipe": {
+        "description": "配方对象，直接传入bot.craft的第一个参数\n结构说明：\n- result: RecipeItem - 合成结果\n- inShape?: RecipeItem[][] - 输入形状（有序配方）\n- outShape?: RecipeItem[][] - 输出形状\n- ingredients?: RecipeItem[] - 配方材料（无序配方）\n- delta?: RecipeItem[] - 合成前后材料变化\n- requiresTable: boolean - 是否需要工作台\nRecipeItem结构：{ id: number, metadata: number|null, count: number }"
+      },
+      "count": {
+        "type": "integer",
+        "minimum": 1,
+        "description": "合成数量 (数字，可选，默认为1)"
+      },
+      "withoutCraftingTable": {
+        "type": "boolean",
+        "description": "是否强制不使用工作台 (布尔值，可选，默认false)"
+      }
+    },
+    "required_fields": [],
+    "optional_fields": [
+      "recipe",
+      "count",
+      "withoutCraftingTable"
+    ],
+    "examples": [
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "recipe": "示例字符串",
+          "count": 42,
+          "withoutCraftingTable": true
+        }
+      }
+    ]
+  },
+  {
+    "name": "kill_mob",
+    "description": "击杀指定名称的生物",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "mob": {
+          "type": "string",
+          "description": "目标生物名称 (字符串)"
+        },
+        "timeout": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "等待超时时间 (秒，可选，默认 300)"
+        }
+      },
+      "required": [
+        "mob"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "mob": {
+        "type": "string",
+        "description": "目标生物名称 (字符串)"
+      },
+      "timeout": {
+        "type": "integer",
+        "exclusiveMinimum": 0,
+        "description": "等待超时时间 (秒，可选，默认 300)"
+      }
+    },
+    "required_fields": [
+      "mob"
+    ],
+    "optional_fields": [
+      "timeout"
+    ],
+    "examples": [
+      {
+        "type": "最小参数（必需字段）",
+        "params": {
+          "mob": "示例字符串"
+        }
+      },
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "mob": "示例字符串",
+          "timeout": 42
+        }
+      }
+    ]
+  },
+  {
+    "name": "mine_block",
+    "description": "挖掘方块，支持三种模式：按名称搜索、精准坐标指定、方向挖掘，可选择只挖掘不收集，支持自定义移动目标类型",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "方块名称 (字符串，当提供坐标时可选，用于验证方块类型)"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "挖掘数量 (数字，可选，默认 1)"
+        },
+        "bypassAllCheck": {
+          "type": "boolean",
+          "description": "是否绕过所有检查，直接挖掘，默认false"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "+y",
+            "-y",
+            "+z",
+            "-z",
+            "+x",
+            "-x"
+          ],
+          "description": "挖掘方向 (+y | -y | +z | -z | +x | -x，可选，默认附近搜索)"
+        },
+        "maxDistance": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "搜索距离 (数字，可选，默认 48，最大100格)"
+        },
+        "x": {
+          "type": "integer",
+          "description": "目标坐标 X (整数，当指定坐标时必需)"
+        },
+        "y": {
+          "type": "integer",
+          "description": "目标坐标 Y (整数，当指定坐标时必需)"
+        },
+        "z": {
+          "type": "integer",
+          "description": "目标坐标 Z (整数，当指定坐标时必需)"
+        },
+        "useRelativeCoords": {
+          "type": "boolean",
+          "description": "是否使用相对坐标 (布尔值，可选，默认false为绝对坐标)"
+        },
+        "digOnly": {
+          "type": "boolean",
+          "description": "是否只挖掘不收集，默认false（会移动到方块位置并收集掉落物）"
+        },
+        "enable_xray": {
+          "type": "boolean",
+          "description": "是否启用透视模式 (布尔值，可选，默认false为限制可见方块)"
+        },
+        "use_movement_utils": {
+          "type": "boolean",
+          "description": "是否使用 MovementUtils 而不是 collectBlock (布尔值，可选，默认false)"
+        },
+        "goalType": {
+          "type": "string",
+          "enum": [
+            "goalBlock",
+            "goalNear",
+            "goalXZ",
+            "goalNearXZ",
+            "goalY",
+            "goalGetToBlock",
+            "goalFollow",
+            "goalPlaceBlock",
+            "goalLookAtBlock"
+          ],
+          "description": "移动目标类型 (当 use_movement_utils 为 true 时有效，可选，默认 goalNearXZ)\n• goalBlock: 移动到指定方块，玩家站在方块内脚部水平位置\n• goalNear: 移动到指定位置的指定半径范围内\n• goalXZ: 移动到指定X、Z坐标，不关心具体Y坐标\n• goalNearXZ: 移动到指定X、Z坐标附近，不关心具体Y坐标（推荐用于挖掘）\n• goalY: 移动到指定Y坐标高度\n• goalGetToBlock: 移动到方块旁边（不进入方块）\n• goalFollow: 跟随实体移动\n• goalPlaceBlock: 移动到适合放置方块的位置\n• goalLookAtBlock: 移动到可以看到指定方块面的位置"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "方块名称 (字符串，当提供坐标时可选，用于验证方块类型)"
+      },
+      "count": {
+        "type": "integer",
+        "minimum": 1,
+        "description": "挖掘数量 (数字，可选，默认 1)"
+      },
+      "bypassAllCheck": {
+        "type": "boolean",
+        "description": "是否绕过所有检查，直接挖掘，默认false"
+      },
+      "direction": {
+        "type": "string",
+        "enum": [
+          "+y",
+          "-y",
+          "+z",
+          "-z",
+          "+x",
+          "-x"
+        ],
+        "description": "挖掘方向 (+y | -y | +z | -z | +x | -x，可选，默认附近搜索)"
+      },
+      "maxDistance": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100,
+        "description": "搜索距离 (数字，可选，默认 48，最大100格)"
+      },
+      "x": {
+        "type": "integer",
+        "description": "目标坐标 X (整数，当指定坐标时必需)"
+      },
+      "y": {
+        "type": "integer",
+        "description": "目标坐标 Y (整数，当指定坐标时必需)"
+      },
+      "z": {
+        "type": "integer",
+        "description": "目标坐标 Z (整数，当指定坐标时必需)"
+      },
+      "useRelativeCoords": {
+        "type": "boolean",
+        "description": "是否使用相对坐标 (布尔值，可选，默认false为绝对坐标)"
+      },
+      "digOnly": {
+        "type": "boolean",
+        "description": "是否只挖掘不收集，默认false（会移动到方块位置并收集掉落物）"
+      },
+      "enable_xray": {
+        "type": "boolean",
+        "description": "是否启用透视模式 (布尔值，可选，默认false为限制可见方块)"
+      },
+      "use_movement_utils": {
+        "type": "boolean",
+        "description": "是否使用 MovementUtils 而不是 collectBlock (布尔值，可选，默认false)"
+      },
+      "goalType": {
+        "type": "string",
+        "enum": [
+          "goalBlock",
+          "goalNear",
+          "goalXZ",
+          "goalNearXZ",
+          "goalY",
+          "goalGetToBlock",
+          "goalFollow",
+          "goalPlaceBlock",
+          "goalLookAtBlock"
+        ],
+        "description": "移动目标类型 (当 use_movement_utils 为 true 时有效，可选，默认 goalNearXZ)\n• goalBlock: 移动到指定方块，玩家站在方块内脚部水平位置\n• goalNear: 移动到指定位置的指定半径范围内\n• goalXZ: 移动到指定X、Z坐标，不关心具体Y坐标\n• goalNearXZ: 移动到指定X、Z坐标附近，不关心具体Y坐标（推荐用于挖掘）\n• goalY: 移动到指定Y坐标高度\n• goalGetToBlock: 移动到方块旁边（不进入方块）\n• goalFollow: 跟随实体移动\n• goalPlaceBlock: 移动到适合放置方块的位置\n• goalLookAtBlock: 移动到可以看到指定方块面的位置"
+      }
+    },
+    "required_fields": [],
+    "optional_fields": [
+      "name",
+      "count",
+      "bypassAllCheck",
+      "direction",
+      "maxDistance",
+      "x",
+      "y",
+      "z",
+      "useRelativeCoords",
+      "digOnly",
+      "enable_xray",
+      "use_movement_utils",
+      "goalType"
+    ],
+    "examples": [
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "name": "示例字符串",
+          "count": 42,
+          "bypassAllCheck": true,
+          "direction": "示例字符串",
+          "maxDistance": 42,
+          "x": 42,
+          "y": 42,
+          "z": 42,
+          "useRelativeCoords": true,
+          "digOnly": true,
+          "enable_xray": true,
+          "use_movement_utils": true,
+          "goalType": "示例字符串"
+        }
+      }
+    ]
+  },
+  {
+    "name": "move",
+    "description": "移动到指定位置",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "coordinate",
+            "block",
+            "player",
+            "entity"
+          ],
+          "description": "移动类型 (coordinate | block | player | entity)"
+        },
+        "useRelativeCoords": {
+          "type": "boolean",
+          "description": "是否使用相对坐标 (布尔值，可选，默认 false)"
+        },
+        "x": {
+          "type": "integer",
+          "description": "目标坐标 X (整数，当 type 为 coordinate 时必需)"
+        },
+        "y": {
+          "type": "integer",
+          "description": "目标坐标 Y (整数，当 type 为 coordinate 时必需)"
+        },
+        "z": {
+          "type": "integer",
+          "description": "目标坐标 Z (整数，当 type 为 coordinate 时必需)"
+        },
+        "block": {
+          "type": "string",
+          "description": "目标方块名称 (当 type 为 block 时必需)"
+        },
+        "player": {
+          "type": "string",
+          "description": "目标玩家名称 (当 type 为 player 时必需)"
+        },
+        "entity": {
+          "type": "string",
+          "description": "目标实体类型 (当 type 为 entity 时必需)，例如cow,pig,zombie等"
+        },
+        "distance": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "到达距离 (数字，可选，默认 1)"
+        },
+        "maxDistance": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "最大移动距离 (数字，可选，默认 200)"
+        },
+        "goalType": {
+          "type": "string",
+          "enum": [
+            "goalBlock",
+            "goalNear",
+            "goalXZ",
+            "goalNearXZ",
+            "goalY",
+            "goalGetToBlock",
+            "goalFollow",
+            "goalPlaceBlock",
+            "goalLookAtBlock"
+          ],
+          "description": "移动目标类型 (可选，默认根据移动类型自动选择)\n• goalBlock: 移动到指定方块，玩家站在方块内脚部水平位置\n• goalNear: 移动到指定位置的指定半径范围内（最常用）\n• goalXZ: 移动到指定X、Z坐标，不关心具体Y坐标\n• goalNearXZ: 移动到指定X、Z坐标附近，不关心具体Y坐标\n• goalY: 移动到指定Y坐标高度\n• goalGetToBlock: 移动到方块旁边（不进入方块），适用于箱子\n• goalFollow: 跟随实体移动\n• goalPlaceBlock: 移动到适合放置方块的位置\n• goalLookAtBlock: 移动到可以看到指定方块面的位置"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "type": {
+        "type": "string",
+        "enum": [
+          "coordinate",
+          "block",
+          "player",
+          "entity"
+        ],
+        "description": "移动类型 (coordinate | block | player | entity)"
+      },
+      "useRelativeCoords": {
+        "type": "boolean",
+        "description": "是否使用相对坐标 (布尔值，可选，默认 false)"
+      },
+      "x": {
+        "type": "integer",
+        "description": "目标坐标 X (整数，当 type 为 coordinate 时必需)"
+      },
+      "y": {
+        "type": "integer",
+        "description": "目标坐标 Y (整数，当 type 为 coordinate 时必需)"
+      },
+      "z": {
+        "type": "integer",
+        "description": "目标坐标 Z (整数，当 type 为 coordinate 时必需)"
+      },
+      "block": {
+        "type": "string",
+        "description": "目标方块名称 (当 type 为 block 时必需)"
+      },
+      "player": {
+        "type": "string",
+        "description": "目标玩家名称 (当 type 为 player 时必需)"
+      },
+      "entity": {
+        "type": "string",
+        "description": "目标实体类型 (当 type 为 entity 时必需)，例如cow,pig,zombie等"
+      },
+      "distance": {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "description": "到达距离 (数字，可选，默认 1)"
+      },
+      "maxDistance": {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "description": "最大移动距离 (数字，可选，默认 200)"
+      },
+      "goalType": {
+        "type": "string",
+        "enum": [
+          "goalBlock",
+          "goalNear",
+          "goalXZ",
+          "goalNearXZ",
+          "goalY",
+          "goalGetToBlock",
+          "goalFollow",
+          "goalPlaceBlock",
+          "goalLookAtBlock"
+        ],
+        "description": "移动目标类型 (可选，默认根据移动类型自动选择)\n• goalBlock: 移动到指定方块，玩家站在方块内脚部水平位置\n• goalNear: 移动到指定位置的指定半径范围内（最常用）\n• goalXZ: 移动到指定X、Z坐标，不关心具体Y坐标\n• goalNearXZ: 移动到指定X、Z坐标附近，不关心具体Y坐标\n• goalY: 移动到指定Y坐标高度\n• goalGetToBlock: 移动到方块旁边（不进入方块），适用于箱子\n• goalFollow: 跟随实体移动\n• goalPlaceBlock: 移动到适合放置方块的位置\n• goalLookAtBlock: 移动到可以看到指定方块面的位置"
+      }
+    },
+    "required_fields": [
+      "type"
+    ],
+    "optional_fields": [
+      "useRelativeCoords",
+      "x",
+      "y",
+      "z",
+      "block",
+      "player",
+      "entity",
+      "distance",
+      "maxDistance",
+      "goalType"
+    ],
+    "examples": [
+      {
+        "type": "最小参数（必需字段）",
+        "params": {
+          "type": "示例字符串"
+        }
+      },
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "type": "示例字符串",
+          "useRelativeCoords": true,
+          "x": 42,
+          "y": 42,
+          "z": 42,
+          "block": "示例字符串",
+          "player": "示例字符串",
+          "entity": "示例字符串",
+          "distance": 3.14,
+          "maxDistance": 3.14,
+          "goalType": "示例字符串"
+        }
+      }
+    ]
+  },
+  {
+    "name": "place_block",
+    "description": "在指定位置放置方块",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "integer",
+          "description": "目标位置X坐标 (整数)"
+        },
+        "y": {
+          "type": "integer",
+          "description": "目标位置Y坐标 (整数)"
+        },
+        "z": {
+          "type": "integer",
+          "description": "目标位置Z坐标 (整数)"
+        },
+        "block": {
+          "type": "string",
+          "description": "要放置的方块名称 (字符串)"
+        },
+        "face": {
+          "type": "string",
+          "description": "放置面向 (字符串，可选): +y, -y, +z, -z, +x, -x"
+        },
+        "useRelativeCoords": {
+          "type": "boolean",
+          "description": "是否使用相对坐标 (布尔值，可选，默认false为绝对坐标)"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z",
+        "block"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "x": {
+        "type": "integer",
+        "description": "目标位置X坐标 (整数)"
+      },
+      "y": {
+        "type": "integer",
+        "description": "目标位置Y坐标 (整数)"
+      },
+      "z": {
+        "type": "integer",
+        "description": "目标位置Z坐标 (整数)"
+      },
+      "block": {
+        "type": "string",
+        "description": "要放置的方块名称 (字符串)"
+      },
+      "face": {
+        "type": "string",
+        "description": "放置面向 (字符串，可选): +y, -y, +z, -z, +x, -x"
+      },
+      "useRelativeCoords": {
+        "type": "boolean",
+        "description": "是否使用相对坐标 (布尔值，可选，默认false为绝对坐标)"
+      }
+    },
+    "required_fields": [
+      "x",
+      "y",
+      "z",
+      "block"
+    ],
+    "optional_fields": [
+      "face",
+      "useRelativeCoords"
+    ],
+    "examples": [
+      {
+        "type": "最小参数（必需字段）",
+        "params": {
+          "x": 42,
+          "y": 42,
+          "z": 42,
+          "block": "示例字符串"
+        }
+      },
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "x": 42,
+          "y": 42,
+          "z": 42,
+          "block": "示例字符串",
+          "face": "示例字符串",
+          "useRelativeCoords": true
+        }
+      }
+    ]
+  },
+  {
+    "name": "query_area_blocks",
+    "description": "查询指定对角线区域内的所有非空气方块信息，支持相对坐标、透视模式和压缩模式",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "startX": {
+          "type": "integer",
+          "description": "区域起始坐标 X (整数)"
+        },
+        "startY": {
+          "type": "integer",
+          "description": "区域起始坐标 Y (整数)"
+        },
+        "startZ": {
+          "type": "integer",
+          "description": "区域起始坐标 Z (整数)"
+        },
+        "endX": {
+          "type": "integer",
+          "description": "区域结束坐标 X (整数)"
+        },
+        "endY": {
+          "type": "integer",
+          "description": "区域结束坐标 Y (整数)"
+        },
+        "endZ": {
+          "type": "integer",
+          "description": "区域结束坐标 Z (整数)"
+        },
+        "useRelativeCoords": {
+          "type": "boolean",
+          "description": "是否使用相对坐标 (布尔值，可选，默认 false 为绝对坐标)"
+        },
+        "maxBlocks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50000,
+          "description": "最大查询方块数量 (整数，可选，默认5000，最大50000)"
+        },
+        "compressionMode": {
+          "type": "boolean",
+          "description": "是否启用压缩模式，按方块类型分组统计 (布尔值，可选，默认false)"
+        },
+        "includeBlockCounts": {
+          "type": "boolean",
+          "description": "是否包含方块数量统计 (布尔值，可选，默认true)"
+        },
+        "filterInvisibleBlocks": {
+          "type": "boolean",
+          "description": "是否过滤不可见方块 (布尔值，可选，默认false不过滤)"
+        }
+      },
+      "required": [
+        "startX",
+        "startY",
+        "startZ",
+        "endX",
+        "endY",
+        "endZ"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "startX": {
+        "type": "integer",
+        "description": "区域起始坐标 X (整数)"
+      },
+      "startY": {
+        "type": "integer",
+        "description": "区域起始坐标 Y (整数)"
+      },
+      "startZ": {
+        "type": "integer",
+        "description": "区域起始坐标 Z (整数)"
+      },
+      "endX": {
+        "type": "integer",
+        "description": "区域结束坐标 X (整数)"
+      },
+      "endY": {
+        "type": "integer",
+        "description": "区域结束坐标 Y (整数)"
+      },
+      "endZ": {
+        "type": "integer",
+        "description": "区域结束坐标 Z (整数)"
+      },
+      "useRelativeCoords": {
+        "type": "boolean",
+        "description": "是否使用相对坐标 (布尔值，可选，默认 false 为绝对坐标)"
+      },
+      "maxBlocks": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 50000,
+        "description": "最大查询方块数量 (整数，可选，默认5000，最大50000)"
+      },
+      "compressionMode": {
+        "type": "boolean",
+        "description": "是否启用压缩模式，按方块类型分组统计 (布尔值，可选，默认false)"
+      },
+      "includeBlockCounts": {
+        "type": "boolean",
+        "description": "是否包含方块数量统计 (布尔值，可选，默认true)"
+      },
+      "filterInvisibleBlocks": {
+        "type": "boolean",
+        "description": "是否过滤不可见方块 (布尔值，可选，默认false不过滤)"
+      }
+    },
+    "required_fields": [
+      "startX",
+      "startY",
+      "startZ",
+      "endX",
+      "endY",
+      "endZ"
+    ],
+    "optional_fields": [
+      "useRelativeCoords",
+      "maxBlocks",
+      "compressionMode",
+      "includeBlockCounts",
+      "filterInvisibleBlocks"
+    ],
+    "examples": [
+      {
+        "type": "最小参数（必需字段）",
+        "params": {
+          "startX": 42,
+          "startY": 42,
+          "startZ": 42,
+          "endX": 42,
+          "endY": 42,
+          "endZ": 42
+        }
+      },
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "startX": 42,
+          "startY": 42,
+          "startZ": 42,
+          "endX": 42,
+          "endY": 42,
+          "endZ": 42,
+          "useRelativeCoords": true,
+          "maxBlocks": 42,
+          "compressionMode": true,
+          "includeBlockCounts": true,
+          "filterInvisibleBlocks": true
+        }
+      }
+    ]
+  },
+  {
+    "name": "query_block",
+    "description": "查询指定坐标处方块的详细信息，包括方块类型、状态、实体等，支持容器内容查询",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "integer",
+          "description": "目标坐标 X (整数)"
+        },
+        "y": {
+          "type": "integer",
+          "description": "目标坐标 Y (整数)"
+        },
+        "z": {
+          "type": "integer",
+          "description": "目标坐标 Z (整数)"
+        },
+        "useRelativeCoords": {
+          "type": "boolean",
+          "description": "是否使用相对坐标 (布尔值，可选，默认 false 为绝对坐标)"
+        },
+        "includeContainerInfo": {
+          "type": "boolean",
+          "description": "是否包含容器信息 (布尔值，可选，默认 false)"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "x": {
+        "type": "integer",
+        "description": "目标坐标 X (整数)"
+      },
+      "y": {
+        "type": "integer",
+        "description": "目标坐标 Y (整数)"
+      },
+      "z": {
+        "type": "integer",
+        "description": "目标坐标 Z (整数)"
+      },
+      "useRelativeCoords": {
+        "type": "boolean",
+        "description": "是否使用相对坐标 (布尔值，可选，默认 false 为绝对坐标)"
+      },
+      "includeContainerInfo": {
+        "type": "boolean",
+        "description": "是否包含容器信息 (布尔值，可选，默认 false)"
+      }
+    },
+    "required_fields": [
+      "x",
+      "y",
+      "z"
+    ],
+    "optional_fields": [
+      "useRelativeCoords",
+      "includeContainerInfo"
+    ],
+    "examples": [
+      {
+        "type": "最小参数（必需字段）",
+        "params": {
+          "x": 42,
+          "y": 42,
+          "z": 42
+        }
+      },
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "x": 42,
+          "y": 42,
+          "z": 42,
+          "useRelativeCoords": true,
+          "includeContainerInfo": true
+        }
+      }
+    ]
+  },
+  {
+    "name": "query_game_state",
+    "description": "查询游戏状态信息，包括天气、时间、维度、世界信息、当前在线玩家等",
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {},
+    "required_fields": [],
+    "optional_fields": [],
+    "examples": []
+  },
+  {
+    "name": "query_player_status",
+    "description": "查询Bot自身的状态信息，包括位置、生命值、经验、饱食度、物品栏、装备栏等",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "includeInventory": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否包含物品栏信息，默认不包含"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "includeInventory": {
+        "type": "boolean",
+        "default": false,
+        "description": "是否包含物品栏信息，默认不包含"
+      }
+    },
+    "required_fields": [],
+    "optional_fields": [
+      "includeInventory"
+    ],
+    "examples": [
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "includeInventory": false
+        }
+      }
+    ]
+  },
+  {
+    "name": "query_raw_recipe",
+    "description": "查询物品的原始合成配方，支持工作台和材料检查选项",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "type": "string",
+          "description": "要查询配方的物品名称 (字符串)"
+        },
+        "minResultCount": {
+          "type": "number",
+          "description": "最少能生产多少个物品，默认1"
+        },
+        "useCraftingTable": {
+          "type": "boolean",
+          "description": "是否使用工作台，默认true"
+        },
+        "checkMaterials": {
+          "type": "boolean",
+          "description": "是否检查身上材料是否足够，默认false"
+        }
+      },
+      "required": [
+        "item"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "item": {
+        "type": "string",
+        "description": "要查询配方的物品名称 (字符串)"
+      },
+      "minResultCount": {
+        "type": "number",
+        "description": "最少能生产多少个物品，默认1"
+      },
+      "useCraftingTable": {
+        "type": "boolean",
+        "description": "是否使用工作台，默认true"
+      },
+      "checkMaterials": {
+        "type": "boolean",
+        "description": "是否检查身上材料是否足够，默认false"
+      }
+    },
+    "required_fields": [
+      "item"
+    ],
+    "optional_fields": [
+      "minResultCount",
+      "useCraftingTable",
+      "checkMaterials"
+    ],
+    "examples": [
+      {
+        "type": "最小参数（必需字段）",
+        "params": {
+          "item": "示例字符串"
+        }
+      },
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "item": "示例字符串",
+          "minResultCount": 3.14,
+          "useCraftingTable": true,
+          "checkMaterials": true
+        }
+      }
+    ]
+  },
+  {
+    "name": "query_recent_events",
+    "description": "查询最近发生的游戏事件，包括聊天、玩家加入/离开、方块变化等",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "eventType": {
+          "type": "string",
+          "description": "事件类型过滤（如：chat, playerJoin, blockBreak等）"
+        },
+        "sinceTick": {
+          "type": "number",
+          "description": "查询指定游戏刻之后的事件"
+        },
+        "timestampAfter": {
+          "type": "number",
+          "description": "查询指定时间戳（毫秒）之后的事件"
+        },
+        "timestampBefore": {
+          "type": "number",
+          "description": "查询指定时间戳（毫秒）之前的事件"
+        },
+        "limit": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "返回事件数量限制（1-100）"
+        },
+        "includeDetails": {
+          "type": "boolean",
+          "description": "是否包含详细事件信息"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "eventType": {
+        "type": "string",
+        "description": "事件类型过滤（如：chat, playerJoin, blockBreak等）"
+      },
+      "sinceTick": {
+        "type": "number",
+        "description": "查询指定游戏刻之后的事件"
+      },
+      "timestampAfter": {
+        "type": "number",
+        "description": "查询指定时间戳（毫秒）之后的事件"
+      },
+      "timestampBefore": {
+        "type": "number",
+        "description": "查询指定时间戳（毫秒）之前的事件"
+      },
+      "limit": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 100,
+        "description": "返回事件数量限制（1-100）"
+      },
+      "includeDetails": {
+        "type": "boolean",
+        "description": "是否包含详细事件信息"
+      }
+    },
+    "required_fields": [],
+    "optional_fields": [
+      "eventType",
+      "sinceTick",
+      "timestampAfter",
+      "timestampBefore",
+      "limit",
+      "includeDetails"
+    ],
+    "examples": [
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "eventType": "示例字符串",
+          "sinceTick": 3.14,
+          "timestampAfter": 3.14,
+          "timestampBefore": 3.14,
+          "limit": 3.14,
+          "includeDetails": true
+        }
+      }
+    ]
+  },
+  {
+    "name": "query_recipe",
+    "description": "查询指定物品的合成配方所需的材料及数量，返回数组中每一组材料都可以合成目标物品",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "type": "string",
+          "description": "要查询配方的物品名称 (字符串)"
+        }
+      },
+      "required": [
+        "item"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "item": {
+        "type": "string",
+        "description": "要查询配方的物品名称 (字符串)"
+      }
+    },
+    "required_fields": [
+      "item"
+    ],
+    "optional_fields": [],
+    "examples": [
+      {
+        "type": "最小参数（必需字段）",
+        "params": {
+          "item": "示例字符串"
+        }
+      },
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "item": "示例字符串"
+        }
+      }
+    ]
+  },
+  {
+    "name": "query_surroundings",
+    "description": "查询周围环境信息，包括附近玩家、实体、方块等",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "players",
+            "entities",
+            "blocks"
+          ],
+          "description": "要查询的环境信息类型（必填）：players、entities、blocks"
+        },
+        "range": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 50,
+          "description": "玩家、实体查询范围（1-50格），默认10格"
+        },
+        "blockRange": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 5,
+          "description": "方块查询范围（1-5格），默认2格"
+        },
+        "entityTypes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "实体类型过滤，可填多个（如：player, mob, animal等）"
+        },
+        "useRelativeCoords": {
+          "type": "boolean",
+          "description": "是否使用相对坐标 (布尔值，可选，默认false为绝对坐标)"
+        },
+        "filterInvisibleBlocks": {
+          "type": "boolean",
+          "description": "是否过滤不可见方块 (布尔值，可选，默认false不过滤)"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "type": {
+        "type": "string",
+        "enum": [
+          "players",
+          "entities",
+          "blocks"
+        ],
+        "description": "要查询的环境信息类型（必填）：players、entities、blocks"
+      },
+      "range": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 50,
+        "description": "玩家、实体查询范围（1-50格），默认10格"
+      },
+      "blockRange": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 5,
+        "description": "方块查询范围（1-5格），默认2格"
+      },
+      "entityTypes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "实体类型过滤，可填多个（如：player, mob, animal等）"
+      },
+      "useRelativeCoords": {
+        "type": "boolean",
+        "description": "是否使用相对坐标 (布尔值，可选，默认false为绝对坐标)"
+      },
+      "filterInvisibleBlocks": {
+        "type": "boolean",
+        "description": "是否过滤不可见方块 (布尔值，可选，默认false不过滤)"
+      }
+    },
+    "required_fields": [
+      "type"
+    ],
+    "optional_fields": [
+      "range",
+      "blockRange",
+      "entityTypes",
+      "useRelativeCoords",
+      "filterInvisibleBlocks"
+    ],
+    "examples": [
+      {
+        "type": "最小参数（必需字段）",
+        "params": {
+          "type": "示例字符串"
+        }
+      },
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "type": "示例字符串",
+          "range": 3.14,
+          "blockRange": 3.14,
+          "entityTypes": [
+            "示例1",
+            "示例2"
+          ],
+          "useRelativeCoords": true,
+          "filterInvisibleBlocks": true
+        }
+      }
+    ]
+  },
+  {
+    "name": "screenshot",
+    "description": "生成当前时刻的第一人称截图并以base64格式返回",
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {},
+    "required_fields": [],
+    "optional_fields": [],
+    "examples": []
+  },
+  {
+    "name": "swim_to_land",
+    "description": "游向最近的陆地",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "maxDistance": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "最大搜索距离 (数字，可选，默认 64)"
+        },
+        "timeout": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "超时时间 (秒，可选，默认 60)"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "maxDistance": {
+        "type": "integer",
+        "exclusiveMinimum": 0,
+        "description": "最大搜索距离 (数字，可选，默认 64)"
+      },
+      "timeout": {
+        "type": "integer",
+        "exclusiveMinimum": 0,
+        "description": "超时时间 (秒，可选，默认 60)"
+      }
+    },
+    "required_fields": [],
+    "optional_fields": [
+      "maxDistance",
+      "timeout"
+    ],
+    "examples": [
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "maxDistance": 42,
+          "timeout": 42
+        }
+      }
+    ]
+  },
+  {
+    "name": "use_chest",
+    "description": "与箱子交互，默认存储操作，支持为每种物品指定不同数量。取出操作时，如果未指定特定箱子，会自动从附近多个箱子中取够所需物品，并返回所有相关箱子的内容信息",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "store",
+            "withdraw"
+          ],
+          "description": "操作类型 (store | withdraw，默认是 store)"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "物品名称"
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "物品数量"
+              }
+            },
+            "required": [
+              "name",
+              "count"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "description": "物品及其数量的对象数组，格式：[{\"name\": \"物品名\", \"count\": 数量}, ...]，至少包含一个物品"
+        },
+        "x": {
+          "type": "integer",
+          "description": "箱子X坐标 (整数，可选)"
+        },
+        "y": {
+          "type": "integer",
+          "description": "箱子Y坐标 (整数，可选)"
+        },
+        "z": {
+          "type": "integer",
+          "description": "箱子Z坐标 (整数，可选)"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "store",
+          "withdraw"
+        ],
+        "description": "操作类型 (store | withdraw，默认是 store)"
+      },
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "物品名称"
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "物品数量"
+            }
+          },
+          "required": [
+            "name",
+            "count"
+          ],
+          "additionalProperties": false
+        },
+        "minItems": 1,
+        "description": "物品及其数量的对象数组，格式：[{\"name\": \"物品名\", \"count\": 数量}, ...]，至少包含一个物品"
+      },
+      "x": {
+        "type": "integer",
+        "description": "箱子X坐标 (整数，可选)"
+      },
+      "y": {
+        "type": "integer",
+        "description": "箱子Y坐标 (整数，可选)"
+      },
+      "z": {
+        "type": "integer",
+        "description": "箱子Z坐标 (整数，可选)"
+      }
+    },
+    "required_fields": [
+      "items"
+    ],
+    "optional_fields": [
+      "action",
+      "x",
+      "y",
+      "z"
+    ],
+    "examples": [
+      {
+        "type": "最小参数（必需字段）",
+        "params": {
+          "items": [
+            "示例1",
+            "示例2"
+          ]
+        }
+      },
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "action": "示例字符串",
+          "items": [
+            "示例1",
+            "示例2"
+          ],
+          "x": 42,
+          "y": 42,
+          "z": 42
+        }
+      }
+    ]
+  },
+  {
+    "name": "use_furnace",
+    "description": "熔炉操作：1.put放入物品（支持input/fuel位置，燃料不能放input）；2.take按槽位取出；3.view查看状态。容器默认furnace，auto_search默认false，每个槽位只能操作一次。参数结构：{container_type:\"furnace\",action:\"put\",items:[{name:\"iron_ore\",count:10,position:\"input\"}],x?:number,y?:number,z?:number,auto_search?:false}",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "container_type": {
+          "type": "string",
+          "enum": [
+            "furnace",
+            "blast_furnace",
+            "smoker"
+          ],
+          "default": "furnace",
+          "description": "容器方块名称: furnace、blast_furnace、smoker (默认furnace)"
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "put",
+            "take",
+            "view"
+          ],
+          "default": "put",
+          "description": "操作类型：put(放入，默认)、take(取出)或view(查看)"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "物品名称：put操作必需，take操作不需要，view操作不需要"
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "物品数量，默认为1（仅put操作使用）"
+              },
+              "position": {
+                "type": "string",
+                "enum": [
+                  "input",
+                  "fuel",
+                  "output"
+                ],
+                "description": "语义化位置：put操作可选（自动判断），take操作必需"
+              }
+            },
+            "additionalProperties": false
+          },
+          "description": "物品数组：put操作必需（指定物品），take操作必需（指定槽位），view操作不需要。注意：每个槽位只能出现一次"
+        },
+        "x": {
+          "type": "integer",
+          "description": "容器X坐标 (整数，可选)"
+        },
+        "y": {
+          "type": "integer",
+          "description": "容器Y坐标 (整数，可选)"
+        },
+        "z": {
+          "type": "integer",
+          "description": "容器Z坐标 (整数，可选)"
+        },
+        "auto_search": {
+          "type": "boolean",
+          "default": false,
+          "description": "未指定容器位置时是否自动查找附近其他容器 (默认false)"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "container_type": {
+        "type": "string",
+        "enum": [
+          "furnace",
+          "blast_furnace",
+          "smoker"
+        ],
+        "default": "furnace",
+        "description": "容器方块名称: furnace、blast_furnace、smoker (默认furnace)"
+      },
+      "action": {
+        "type": "string",
+        "enum": [
+          "put",
+          "take",
+          "view"
+        ],
+        "default": "put",
+        "description": "操作类型：put(放入，默认)、take(取出)或view(查看)"
+      },
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "物品名称：put操作必需，take操作不需要，view操作不需要"
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "物品数量，默认为1（仅put操作使用）"
+            },
+            "position": {
+              "type": "string",
+              "enum": [
+                "input",
+                "fuel",
+                "output"
+              ],
+              "description": "语义化位置：put操作可选（自动判断），take操作必需"
+            }
+          },
+          "additionalProperties": false
+        },
+        "description": "物品数组：put操作必需（指定物品），take操作必需（指定槽位），view操作不需要。注意：每个槽位只能出现一次"
+      },
+      "x": {
+        "type": "integer",
+        "description": "容器X坐标 (整数，可选)"
+      },
+      "y": {
+        "type": "integer",
+        "description": "容器Y坐标 (整数，可选)"
+      },
+      "z": {
+        "type": "integer",
+        "description": "容器Z坐标 (整数，可选)"
+      },
+      "auto_search": {
+        "type": "boolean",
+        "default": false,
+        "description": "未指定容器位置时是否自动查找附近其他容器 (默认false)"
+      }
+    },
+    "required_fields": [],
+    "optional_fields": [
+      "container_type",
+      "action",
+      "items",
+      "x",
+      "y",
+      "z",
+      "auto_search"
+    ],
+    "examples": [
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "container_type": "furnace",
+          "action": "put",
+          "items": [
+            "示例1",
+            "示例2"
+          ],
+          "x": 42,
+          "y": 42,
+          "z": 42,
+          "auto_search": false
+        }
+      }
+    ]
+  },
+  {
+    "name": "use_item",
+    "description": "使用手中物品，或切换到指定物品并使用，支持食用、激活、对实体使用等操作",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "itemName": {
+          "type": "string",
+          "description": "物品名称，可选，不指定则使用当前手持物品"
+        },
+        "useType": {
+          "type": "string",
+          "enum": [
+            "consume",
+            "activate",
+            "useOn"
+          ],
+          "description": "使用类型：consume（食用）, activate（激活）, useOn（对实体使用，例如剪羊毛，装备鞍，喂羊等），默认为根据物品类型自动判断"
+        },
+        "targetEntityName": {
+          "type": "string",
+          "description": "目标实体名称，仅在使用 useOn 类型时需要"
+        },
+        "targetPlayerName": {
+          "type": "string",
+          "description": "目标玩家名称，仅在使用 useOn 类型时需要"
+        },
+        "offHand": {
+          "type": "boolean",
+          "description": "是否使用副手，默认为主手"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "properties": {
+      "itemName": {
+        "type": "string",
+        "description": "物品名称，可选，不指定则使用当前手持物品"
+      },
+      "useType": {
+        "type": "string",
+        "enum": [
+          "consume",
+          "activate",
+          "useOn"
+        ],
+        "description": "使用类型：consume（食用）, activate（激活）, useOn（对实体使用，例如剪羊毛，装备鞍，喂羊等），默认为根据物品类型自动判断"
+      },
+      "targetEntityName": {
+        "type": "string",
+        "description": "目标实体名称，仅在使用 useOn 类型时需要"
+      },
+      "targetPlayerName": {
+        "type": "string",
+        "description": "目标玩家名称，仅在使用 useOn 类型时需要"
+      },
+      "offHand": {
+        "type": "boolean",
+        "description": "是否使用副手，默认为主手"
+      }
+    },
+    "required_fields": [],
+    "optional_fields": [
+      "itemName",
+      "useType",
+      "targetEntityName",
+      "targetPlayerName",
+      "offHand"
+    ],
+    "examples": [
+      {
+        "type": "完整参数（所有字段）",
+        "params": {
+          "itemName": "示例字符串",
+          "useType": "示例字符串",
+          "targetEntityName": "示例字符串",
+          "targetPlayerName": "示例字符串",
+          "offHand": true
+        }
+      }
+    ]
+  }
+]

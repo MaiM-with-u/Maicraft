@@ -64,38 +64,38 @@ def review_pickaxe(inventory:List[Item]) -> str:
         
     tool_tip_str = ""
     if len(tool_list) == 0:
-        tool_tip_str = "背包中没有任何稿子，挖掘石质方块和矿物将会很困难，需要合成\n"
+        tool_tip_str = "背包中没有任何pickaxe，挖掘石质方块和矿物将会很困难，需要合成\n请你**尽可能**利用背包中的物品和身边的环境合成pickaxe\n"
     elif len(tool_list) == 1:
         if max_tool_material_level == 1:
-            tool_tip_str = "背包中只有一把木质稿子，只能挖掘石头和煤矿，无法开采更高级的矿物，需要合成更高级的稿子。\n"
+            tool_tip_str = "背包中只有一把wooden_pickaxe，只能挖掘石头和煤矿，无法开采更高级的矿物，需要合成更高级的pickaxe。\n"
         elif max_tool_material_level == 2:
-            tool_tip_str = "背包中只有一把金质稿子，只能挖掘石头和煤矿，无法开采更高级的矿物，需要合成更高级的稿子。\n"
+            tool_tip_str = "背包中只有一把golden_pickaxe，只能挖掘石头和煤矿，无法开采更高级的矿物，需要合成更高级的pickaxe。\n"
         elif max_tool_material_level == 3:
-            tool_tip_str = "背包中只有一把石质稿子，能够挖掘铁矿以及更低级的矿物，无法开采更高级的矿物，需要合成更高级的稿子。如果需要挖矿或建造，可以多携带几把稿子。\n"
+            tool_tip_str = "背包中只有一把stone_pickaxe，能够挖掘铁矿以及更低级的矿物，无法开采更高级的矿物，需要合成更高级的pickaxe。如果需要挖矿或建造，可以多携带几把稿子。\n"
         elif max_tool_material_level == 4:
-            tool_tip_str = "背包中只有一把铁质稿子，能够开采石头至钻石块的所有矿物。如果需要挖矿或建造，可以多携带几把稿子。\n"
+            tool_tip_str = "背包中只有一把iron_pickaxe，能够开采石头至钻石块的所有矿物。如果需要挖矿或建造，可以多携带几把稿子。\n"
         elif max_tool_material_level == 5:
-            tool_tip_str = "背包中有一把钻石稿子，能够开采石头至下界合金块的所有矿物，挖掘速度很快。如果需要挖矿或建造，可以多携带几把稿子。\n"
+            tool_tip_str = "背包中有一把diamond_pickaxe，能够开采石头至下界合金块的所有矿物，挖掘速度很快。如果需要挖矿或建造，可以多携带几把稿子。\n"
         elif max_tool_material_level == 6:
-            tool_tip_str = "背包中有一把下界合金稿子，能够开采所有石质方块\n"
+            tool_tip_str = "背包中有一把netherite_pickaxe，能够开采所有石质方块\n"
     elif len(tool_list) > 1:
         all_pickaxe_str = ""
         for item in tool_list:
-            all_pickaxe_str += f"{item.tool_material}稿子, "
+            all_pickaxe_str += f"{item.tool_material}pickaxe, "
         all_pickaxe_str = f"背包中有:[{all_pickaxe_str}]"
         
         if max_tool_material_level == 1:
-            tool_tip_str = f"{all_pickaxe_str}，最高等级为木质稿子，能够挖掘石头和煤矿，无法开采更高级的矿物，需要合成更高级的稿子\n"
+            tool_tip_str = f"{all_pickaxe_str}，最高等级为木质pickaxe，能够挖掘石头和煤矿，无法开采更高级的矿物，需要合成更高级的pickaxe\n"
         elif max_tool_material_level == 2:
-            tool_tip_str = f"{all_pickaxe_str}，最高等级为金质稿子，能够挖掘石头和煤矿，无法开采更高级的矿物，需要合成更高级的稿子\n"
+            tool_tip_str = f"{all_pickaxe_str}，最高等级为金质pickaxe，能够挖掘石头和煤矿，无法开采更高级的矿物，需要合成更高级的pickaxe\n"
         elif max_tool_material_level == 3:
-            tool_tip_str = f"{all_pickaxe_str}，最高等级为石质稿子，能够挖掘铁矿以及更低级的矿物，无法开采更高级的矿物，需要合成更高级的稿子\n"
+            tool_tip_str = f"{all_pickaxe_str}，最高等级为石质pickaxe，能够挖掘铁矿以及更低级的矿物，无法开采更高级的矿物，需要合成更高级的pickaxe\n"
         elif max_tool_material_level == 4:
-            tool_tip_str = f"{all_pickaxe_str}，最高等级为铁质稿子，能够开采石头至钻石块的所有矿物\n"
+            tool_tip_str = f"{all_pickaxe_str}，最高等级为铁质pickaxe，能够开采石头至钻石块的所有矿物\n"
         elif max_tool_material_level == 5:
-            tool_tip_str = f"{all_pickaxe_str}，最高等级为钻石稿子，能够开采石头至下界合金块的所有矿物，挖掘速度很快\n"
+            tool_tip_str = f"{all_pickaxe_str}，最高等级为钻石pickaxe，能够开采石头至下界合金块的所有矿物，挖掘速度很快\n"
         elif max_tool_material_level == 6:
-            tool_tip_str = f"{all_pickaxe_str}，最高等级为下界合金稿子，能够开采所有石质方块\n"
+            tool_tip_str = f"{all_pickaxe_str}，最高等级为下界合金pickaxe，能够开采所有石质方块\n"
     return tool_tip_str
         
 def review_axe(inventory:List[Item]) -> str:
@@ -111,38 +111,38 @@ def review_axe(inventory:List[Item]) -> str:
         
     tool_tip_str = ""
     if len(tool_list) == 0:
-        tool_tip_str = "背包中没有任何斧子，砍树或挖掘木制方块将会很困难，需要合成\n"
+        tool_tip_str = "背包中没有任何斧子，砍树或挖掘木制方块将会很困难，需要合成\n请你**尽可能**利用背包中的物品和身边的环境合成斧子\n"
     elif len(tool_list) == 1:
         if max_tool_material_level == 1:
-            tool_tip_str = "背包中只有一把木质斧子，但是耐久度低，需要尽快升级\n"
+            tool_tip_str = "背包中只有一把wooden_axe，但是耐久度低，需要尽快升级\n"
         elif max_tool_material_level == 2:
-            tool_tip_str = "背包中只有一把金质斧子，但是耐久度低，需要尽快升级\n"
+            tool_tip_str = "背包中只有一把golden_axe，但是耐久度低，需要尽快升级\n"
         elif max_tool_material_level == 3:
-            tool_tip_str = "背包中只有一把石质斧子，挖掘速度一般，如果有富余的材料，可以合成更高级的斧子\n"
+            tool_tip_str = "背包中只有一把stone_axe，挖掘速度一般，如果有富余的材料，可以合成更高级的斧子\n"
         elif max_tool_material_level == 4:
-            tool_tip_str = "背包中只有一把铁质斧子，如果有非常富余的材料，可以合成更高级的斧子\n"
+            tool_tip_str = "背包中只有一把iron_axe，如果有非常富余的材料，可以合成更高级的斧子\n"
         elif max_tool_material_level == 5:
-            tool_tip_str = "背包中只有一把钻石斧子，可以快速采集所有木质方块。\n"
+            tool_tip_str = "背包中只有一把diamond_axe，可以快速采集所有木质方块。\n"
         elif max_tool_material_level == 6:
-            tool_tip_str = "背包中只有一把下界合金斧子，可以极快速采集所有木质方块。\n"
+            tool_tip_str = "背包中只有一把netherite_axe，可以极快速采集所有木质方块。\n"
     elif len(tool_list) > 1:
         all_axe_str = ""
         for item in tool_list:
-            all_axe_str += f"{item.tool_material}斧子, "
+            all_axe_str += f"{item.tool_material}axe, "
         all_axe_str = f"背包中有:[{all_axe_str}]"
         
         if max_tool_material_level == 1:
-            tool_tip_str = f"{all_axe_str}，最高等级为木质斧子，但是耐久度低，需要尽快升级\n"
+            tool_tip_str = f"{all_axe_str}，最高等级为wooden_axe，但是耐久度低，需要尽快升级\n"
         elif max_tool_material_level == 2:
-            tool_tip_str = f"{all_axe_str}，最高等级为金质斧子，但是耐久度低，需要尽快升级\n"
+            tool_tip_str = f"{all_axe_str}，最高等级为golden_axe，但是耐久度低，需要尽快升级\n"
         elif max_tool_material_level == 3:
-            tool_tip_str = f"{all_axe_str}，最高等级为石质斧子，挖掘速度一般，如果有富余的材料，可以合成更高级的斧子\n"
+            tool_tip_str = f"{all_axe_str}，最高等级为stone_axe，挖掘速度一般，如果有富余的材料，可以合成更高级的斧子\n"
         elif max_tool_material_level == 4:
-            tool_tip_str = f"{all_axe_str}，最高等级为铁质斧子，如果有非常富余的材料，可以合成更高级的斧子\n"
+            tool_tip_str = f"{all_axe_str}，最高等级为iron_axe，如果有非常富余的材料，可以合成更高级的斧子\n"
         elif max_tool_material_level == 5:
-            tool_tip_str = f"{all_axe_str}，最高等级为钻石斧子，可以快速采集所有木质方块。\n"
+            tool_tip_str = f"{all_axe_str}，最高等级为diamond_axe，可以快速采集所有木质方块。\n"
         elif max_tool_material_level == 6:
-            tool_tip_str = f"{all_axe_str}，最高等级为下界合金斧子，可以极快速采集所有木质方块。\n"
+            tool_tip_str = f"{all_axe_str}，最高等级为netherite_axe，可以极快速采集所有木质方块。\n"
         
     return tool_tip_str
 
@@ -159,38 +159,38 @@ def review_shovel(inventory:List[Item]) -> str:
                 
     tool_tip_str = ""
     if len(tool_list) == 0:
-        tool_tip_str = "背包中没有任何shovel，挖掘泥土，沙子或砂砾等方块效率较低，需要合成shovel\n"
+        tool_tip_str = "背包中没有任何shovel，挖掘泥土，沙子或砂砾等方块效率较低，需要合成shovel\n请你**尽可能**利用背包中的物品和身边的环境合成shovel\n"
     elif len(tool_list) == 1:
         if max_tool_material_level == 1:
-            tool_tip_str = "背包中有一把木质铲子，耐久度极低，需要尽快升级\n"
+            tool_tip_str = "背包中有一把wooden_shovel，耐久度极低，需要尽快升级\n"
         elif max_tool_material_level == 2:
-            tool_tip_str = "背包中有一把金质铲子，耐久度极低，需要尽快升级\n"
+            tool_tip_str = "背包中有一把golden_shovel，耐久度极低，需要尽快升级\n"
         elif max_tool_material_level == 3:
-            tool_tip_str = "背包中有一把石质铲子，挖掘速度一般，如果有富余的材料，可以合成更高级的铲子\n"
+            tool_tip_str = "背包中有一把stone_shovel，挖掘速度一般，如果有富余的材料，可以合成更高级的铲子\n"
         elif max_tool_material_level == 4:
-            tool_tip_str = "背包中有一把铁质铲子，如果有非常富余的材料，可以合成更高级的铲子\n"
+            tool_tip_str = "背包中有一把iron_shovel，如果有非常富余的材料，可以合成更高级的铲子\n"
         elif max_tool_material_level == 5:
-            tool_tip_str = "背包中有一把钻石铲子，可以快速挖掘泥土，沙子或砂砾等方块\n"
+            tool_tip_str = "背包中有一把diamond_shovel，可以快速挖掘泥土，沙子或砂砾等方块\n"
         elif max_tool_material_level == 6:
-            tool_tip_str = "背包中有一把下界合金铲子，可以极快速挖掘泥土，沙子或砂砾等方块\n"
+            tool_tip_str = "背包中有一把netherite_shovel，可以极快速挖掘泥土，沙子或砂砾等方块\n"
     elif len(tool_list) > 1:
         all_shovel_str = ""
         for item in tool_list:
-            all_shovel_str += f"{item.tool_material}铲子, "
+            all_shovel_str += f"{item.tool_material}shovel, "
         all_shovel_str = f"背包中有:[{all_shovel_str}]"
         
         if max_tool_material_level == 1:
-            tool_tip_str = f"{all_shovel_str}，最高等级为木质铲子，耐久度极低，需要尽快升级\n"
+            tool_tip_str = f"{all_shovel_str}，最高等级为wooden_shovel，耐久度极低，需要尽快升级\n"
         elif max_tool_material_level == 2:
-            tool_tip_str = f"{all_shovel_str}，最高等级为金质铲子，耐久度极低，需要尽快升级\n"
+            tool_tip_str = f"{all_shovel_str}，最高等级为golden_shovel，耐久度极低，需要尽快升级\n"
         elif max_tool_material_level == 3:
-            tool_tip_str = f"{all_shovel_str}，最高等级为石质铲子，挖掘速度一般，如果有富余的材料，可以合成更高级的铲子\n"
+            tool_tip_str = f"{all_shovel_str}，最高等级为stone_shovel，挖掘速度一般，如果有富余的材料，可以合成更高级的铲子\n"
         elif max_tool_material_level == 4:
-            tool_tip_str = f"{all_shovel_str}，最高等级为铁质铲子，如果有非常富余的材料，可以合成更高级的铲子\n"
+            tool_tip_str = f"{all_shovel_str}，最高等级为iron_shovel，如果有非常富余的材料，可以合成更高级的铲子\n"
         elif max_tool_material_level == 5:
-            tool_tip_str = f"{all_shovel_str}，最高等级为钻石铲子，可以快速挖掘泥土，沙子或砂砾等方块\n"
+            tool_tip_str = f"{all_shovel_str}，最高等级为diamond_shovel，可以快速挖掘泥土，沙子或砂砾等方块\n"
         elif max_tool_material_level == 6:
-            tool_tip_str = f"{all_shovel_str}，最高等级为下界合金铲子，可以极快速挖掘泥土，沙子或砂砾等方块\n"
+            tool_tip_str = f"{all_shovel_str}，最高等级为netherite_shovel，可以极快速挖掘泥土，沙子或砂砾等方块\n"
         
 
     return tool_tip_str

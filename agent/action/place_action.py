@@ -1,5 +1,6 @@
 from agent.block_cache.block_cache import global_block_cache
 from agent.environment.environment import global_environment
+from agent.common.basic_class import BlockPosition
 from mcp_server.client import global_mcp_client
 from agent.utils.utils import parse_tool_result
 from agent.utils.utils_tool_translation import translate_place_block_tool_result
@@ -21,6 +22,8 @@ async def place_block_action(block_type: str, x: int, y: int, z: int):
     call_result = await global_mcp_client.call_tool_directly("place_block", args)
     is_success, result_content = parse_tool_result(call_result)
     result_str += translate_place_block_tool_result(result_content)
+    
+    global_block_cache.add_block(block_type, can_see=True, position= BlockPosition(x=x, y=y, z=z))
     
     return result_str
     

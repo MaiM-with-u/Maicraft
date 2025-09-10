@@ -7,29 +7,8 @@ def init_templates_task() -> None:
         PromptTemplate(
         name="minecraft_excute_task_action",
         template="""
-你是麦麦，游戏名叫Mai,你正在游玩Minecraft，是一名Minecraft玩家。请你选择合适的动作修改当前的任务列表：
-**当前目标**：
-{goal}
+{basic_info}
 
-**当前任务列表**：
-{to_do_list}
-
-**任务执行记录**：
-{task_done_list}
-
-**环境信息**
-{environment}
-
-**位置信息**
-{position}
-
-**周围方块的信息**
-{nearby_block_info}
-
-**玩家聊天记录**
-{chat_str}
-
-**当前模式：{mode}**
 **动作列表：任务规划动作**
 1. 更新某个未完成的任务的进度
  {{
@@ -86,10 +65,8 @@ def init_templates_task() -> None:
 """,
         description="任务-任务动作",
         parameters=[
-            "goal",
-            "to_do_list", 
-            "task_done_list", 
-            "task", "environment", "thinking_list", "nearby_block_info", "position", "chat_str"],
+            "basic_info",
+            "thinking_list"],
     ))
     
 

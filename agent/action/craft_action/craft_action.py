@@ -860,7 +860,7 @@ class RecipeFinder:
                     if has_recipe_with_table:
                         return False, "附近无工作台；若找到工作台即可合成。"
                     else:
-                        return False, "附近无工作台；此物品无可用合成表。"
+                        return False, "附近无工作台；此物品无法合成。或该物品不存在"
 
             # 分支 2：附近有工作台
             else:
@@ -900,7 +900,7 @@ class RecipeFinder:
                             return False, "\n".join(logs)
                     return True, "\n".join(logs)
                 else:
-                    return False, "附近有工作台，但该物品无可用合成表，无法合成"
+                    return False, "附近有工作台，但该物品无法合成。或该物品不存在"
 
         except Exception as e:
             self.logger.error(f"craft_item_smart 发生异常：{e}")

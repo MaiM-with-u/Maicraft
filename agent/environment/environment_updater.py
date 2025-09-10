@@ -23,7 +23,7 @@ logger = get_logger("EnvironmentUpdater")
 class EnvironmentUpdater:
     """环境信息定期更新器"""
     
-    def __init__(self,update_interval: int = 0.2):
+    def __init__(self,update_interval: int = 0.1):
         """
         初始化环境更新器
         
@@ -105,8 +105,6 @@ class EnvironmentUpdater:
             except Exception as e:
                 self.logger.error(f"[EnvironmentUpdater] 更新循环异常: {e}")
                 await asyncio.sleep(1)  # 出错时等待1秒再继续
-        
-        self.logger.info("[EnvironmentUpdater] 异步更新循环已结束")
     
     
     async def perform_update(self):
@@ -123,7 +121,7 @@ class EnvironmentUpdater:
             
             #更新周围方块
             if global_environment.block_position:
-                await self._update_area_blocks_with_can_see(center_pos=global_environment.block_position, size=8)
+                await self._update_area_blocks_with_can_see(center_pos=global_environment.block_position, size=12)
                 # self.logger.debug(f"[EnvironmentUpdater] 已更新 {can_see_updated_count} 个方块的 can_see 信息")
             
             
@@ -289,44 +287,6 @@ class EnvironmentUpdater:
         except Exception as e:
             self.logger.error(f"[EnvironmentUpdater] 调用{tool_name}时发生异常: {e}")
             return None
-
-    
-    async def _call_query_area_blocks(self, center_pos: BlockPosition, size: int = 5) -> Optional[Dict[str, Any]]:
-        """调用query_area_blocks工具，以指定位置为中心获取方块数据
-        
-        Args:
-            center_pos: 中心位置
-            size: 区域大小（size x size）
-            
-        Returns:
-            查询结果字典
-        """
-        if not center_pos:
-            self.logger.warning("[EnvironmentUpdater] 中心位置为空，无法查询区域方块")
-            return None
-            
-        # 计算区域边界
-        half_size = size // 2
-        start_x = center_pos.x - half_size
-        start_y = center_pos.y - half_size
-        start_z = center_pos.z - half_size
-        end_x = center_pos.x + half_size
-        end_y = center_pos.y + half_size
-        end_z = center_pos.z + half_size
-        
-        # 调用工具
-        return await self._call_tool("query_area_blocks", {
-            "startX": start_x,
-            "startY": start_y,
-            "startZ": start_z,
-            "endX": end_x,
-            "endY": end_y,
-            "endZ": end_z,
-            "useRelativeCoords": False,
-            "maxBlocks": 5000,
-            "compressionMode": True,
-            "includeBlockCounts": False
-        })
     
     async def _update_area_blocks_with_can_see(self, center_pos: BlockPosition, size: int = 8) -> int:
         """更新区域方块数据，包括 can_see 信息
@@ -339,7 +299,30 @@ class EnvironmentUpdater:
             更新的方块数量
         """
         # 调用 query_area_blocks 工具
-        result = await self._call_query_area_blocks(center_pos, size)
+        # 计算区域边界
+        half_size = size // 2
+        start_x = center_pos.x - half_size
+        start_y = center_pos.y - half_size
+        start_z = center_pos.z - half_size
+        end_x = center_pos.x + half_size
+        end_y = center_pos.y + half_size
+        end_z = center_pos.z + half_size
+        
+        # 调用工具
+        result = await self._call_tool("query_area_blocks", {
+            "startX": start_x,
+            "startY": start_y,
+            "startZ": start_z,
+            "endX": end_x,
+            "endY": end_y,
+            "endZ": end_z,
+            "useRelativeCoords": False,
+            "maxBlocks": 10000,
+            "compressionMode": False,
+            "includeBlockCounts": False
+        })
+        
+        
         if not result or not result.get("ok"):
             self.logger.warning("[EnvironmentUpdater] query_area_blocks 调用失败")
             return 0
@@ -348,42 +331,31 @@ class EnvironmentUpdater:
             
         try:
             data = result.get("data", {})
-            compressed_blocks = data.get("compressedBlocks", [])
+            # logger.info(f"[EnvironmentUpdater] query_area_blocks 调用成功: {data}")
+            blocks = data.get("blocks", [])
             updated_count = 0
-            
-            # 计算查询范围的边界
-            half_size = size // 2
-            start_x = center_pos.x - half_size
-            start_y = center_pos.y - half_size
-            start_z = center_pos.z - half_size
-            end_x = center_pos.x + half_size
-            end_y = center_pos.y + half_size
-            end_z = center_pos.z + half_size
             
             # 创建所有位置的集合，用于标记哪些位置已经有数据
             positions_with_data = set()
             
             # 首先处理从查询结果中获得的方块数据
-            for block_data in compressed_blocks:
+            for block_data in blocks:
+                # self.logger.info(f"[EnvironmentUpdater] 处理方块数据: {block_data}")
                 block_type = block_data.get("name", "")
                 can_see = block_data.get("canSee", False)  # 注意：返回的是 canSee，不是 can_see
-                positions = block_data.get("positions", [])
+                x = block_data.get("x", 0)
+                y = block_data.get("y", 0)
+                z = block_data.get("z", 0)
                 
-                # 更新每个位置的方块
-                for pos in positions:
-                    x = pos.get("x", 0)
-                    y = pos.get("y", 0)
-                    z = pos.get("z", 0)
-                    
-                    # 标记这个位置已经有数据
-                    positions_with_data.add((x, y, z))
-                    
-                    # 获取或创建方块位置对象
-                    block_pos = BlockPosition(x=x, y=y, z=z)
-                    
-                    # 更新方块缓存，包括 can_see 信息
-                    cached_block = global_block_cache.add_block(block_type, can_see, block_pos)
-                    updated_count += 1
+                # 标记这个位置已经有数据
+                positions_with_data.add((x, y, z))
+                
+                # 获取或创建方块位置对象
+                block_pos = BlockPosition(x=x, y=y, z=z)
+                
+                # 更新方块缓存，包括 can_see 信息
+                cached_block = global_block_cache.add_block(block_type, can_see, block_pos)
+                updated_count += 1
             
             # 然后处理查询范围内但没有数据的位置，设置为air且can_see=True
             for x in range(start_x, end_x + 1):
@@ -395,7 +367,7 @@ class EnvironmentUpdater:
                             cached_block = global_block_cache.add_block("air", True, block_pos)
                             updated_count += 1
             
-            # self.logger.info(f"[EnvironmentUpdater] 已更新 {updated_count} 个方块的 can_see 信息")
+            # self.logger.info(f"[EnvironmentUpdater] 已更新 {updated_count} 个方块的信息")
             return updated_count
             
         except Exception as e:

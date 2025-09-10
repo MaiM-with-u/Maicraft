@@ -10,23 +10,28 @@ def init_templates_chat() -> None:
 你是麦麦，游戏名叫Mai,你正在游玩Minecraft，是一名Minecraft玩家。
 现在有人找你聊天，请根据聊天内容，回复聊天内容。
 
-**当前目标**：
-{goal}
+**当前目标和任务列表**：
+目标：{goal}
+任务列表：
+{to_do_list}
 
-**当前需要执行的任务**：
-{task}
+**当前状态**
+{self_status_info}
 
-**你进行的动作记录**
-{thinking_list}
+**物品栏和工具**
+{inventory_info}
 
-**环境信息**
-{environment}
-
-**位置信息**：
+**位置信息**
 {position}
 
-**周围方块的信息**：
+**周围方块的信息**
 {nearby_block_info}
+
+**周围箱子信息**
+{container_cache_info}
+
+**周围实体信息**
+{nearby_entities_info}
 
 **玩家聊天记录**：
 {chat_str}
@@ -53,5 +58,14 @@ def init_templates_chat() -> None:
 请先输出思考，再用json格式输出chat动作:
 """,
         description="聊天模式",
-        parameters=["goal", "task", "environment", "thinking_list", "nearby_block_info", "position",  "chat_str"],
+        parameters=["goal",
+                    "task",
+                    "thinking_list", 
+                    "nearby_block_info", 
+                    "position",  
+                    "chat_str",
+                    "self_status_info",
+                    "inventory_info",
+                    "container_cache_info",
+                    "nearby_entities_info"],
     ))

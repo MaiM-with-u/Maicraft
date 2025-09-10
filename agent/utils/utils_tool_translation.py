@@ -300,9 +300,10 @@ def translate_view_furnace_result(result: Any) -> str:
         # 获取物品列表并映射槽位
         slots = container_info.get("slots", [])
         slot_names = {0: "input", 1: "fuel", 2: "output"}
+        slot_display_names = {0: "input - 输入", 1: "fuel - 燃料", 2: "output - 产物"}
         
-        readable_text = f"✅ 熔炉 ({x}, {y}, {z})\n"
-        readable_text += f"状态: {'🔥 燃烧中' if lit else '❄️ 未燃烧'}\n"
+        readable_text = f"熔炉[位于：({x}, {y}, {z})] \n"
+        readable_text += f"状态: {'正在燃烧' if lit else '未燃烧，可能是没有燃料或input位物品无法被熔炼'}\n"
         
         if fuel > 0:
             readable_text += f"燃料: {fuel}%\n"
@@ -313,10 +314,10 @@ def translate_view_furnace_result(result: Any) -> str:
             for slot in slots:
                 if slot.get("name") != "air" and slot.get("count", 0) > 0:
                     slot_num = slot.get("slot", 0)
-                    slot_name = slot_names.get(slot_num, f"槽位{slot_num}")
+                    slot_name = slot_display_names.get(slot_num, f"槽位{slot_num}")
                     item_name = slot.get("name", "未知")
                     count = slot.get("count", 1)
-                    readable_text += f"{slot_name}: {count}个{item_name}\n"
+                    readable_text += f"{slot_name}: {item_name} x {count}\n"
         else:
             readable_text += "熔炉为空"
         

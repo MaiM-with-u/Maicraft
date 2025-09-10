@@ -539,12 +539,8 @@ class BlockCache:
         if position in self._position_cache:
             # 更新现有方块
             existing_block = self._position_cache[position]
-            if existing_block.block_type == block_type:
-                if not existing_block.can_see:
-                    existing_block.can_see = can_see
-            else:
-                existing_block.block_type = block_type
-                existing_block.can_see = can_see
+            existing_block.block_type = block_type
+            existing_block.can_see = can_see
             
             
             existing_block.last_seen = now

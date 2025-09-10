@@ -362,6 +362,12 @@ class EnvironmentInfo:
                     )
 
             self.nearby_entities.append(entity)
+            
+    def mob_nearby(self):
+        for entity in self.nearby_entities:
+            if entity.type == "player" or entity.type == "animal":
+                return True
+        return False
         
     def get_position_str(self) -> str:
         """获取位置信息"""
@@ -478,21 +484,24 @@ class EnvironmentInfo:
     
     def get_nearby_entities_info(self) -> str:
         lines = []
+        if self.nearby_players:
+            lines.append("附近玩家:")
+            for i, player in enumerate(self.nearby_players, 1):
+                lines.append(f"  {i}. {player.display_name} ({player.username})")
+                # lines.append(f"     延迟: {player.ping}ms, 游戏模式: {player.gamemode}")
+        
+        
         if self.nearby_entities:
             # logger.info(f"附近实体: {self.nearby_entities}")
-            
-            lines.append(f"  附近实体数量: {len(self.nearby_entities)}")
+            lines.append(f" 附近实体数量: {len(self.nearby_entities)}")
             for i, entity in enumerate(self.nearby_entities, 1):
                 # 物品实体显示名称和坐标
                 lines.append(f"  {i}. {entity.__str__()}")
+                
         return "\n".join(lines)
-
-    def get_summary(self) -> str:
-        """以可读文本形式返回所有环境信息"""
+    
+    def get_self_status_info(self) -> str:
         lines = []
-        
-        # 状态信息
-        lines.append("【状态信息】")
         lines.append(f"  生命值: {self.health}/{self.health_max}")
         
         if self.food/self.food_max < 0.5:
@@ -503,19 +512,11 @@ class EnvironmentInfo:
             lines.append(f"  饥饿值: {self.food}/{self.food_max}")
             
         lines.append(f"  等级: {self.level}")
-        
-        # 附近玩家
-        lines.append("【附近玩家】")
-        if self.nearby_players:
-            lines.append(f"  附近玩家数量: {len(self.nearby_players)}")
-            for i, player in enumerate(self.nearby_players, 1):
-                lines.append(f"  {i}. {player.display_name} ({player.username})")
-                # lines.append(f"     延迟: {player.ping}ms, 游戏模式: {player.gamemode}")
-        else:
-            lines.append("  附近没有其他玩家")
-        lines.append("")
-            
-        
+        return "\n".join(lines)
+
+    def get_visual_info(self) -> str:
+        """以可读文本形式返回所有环境信息"""
+        lines = []
         if self.overview_str:
             lines.append("【周围环境鸟瞰】")
             lines.append(self.overview_str)
@@ -585,23 +586,39 @@ class EnvironmentInfo:
         if self.food/self.food_max < 0.8:
             eat_action = """**eat**
 食用某样物品回复饱食度
-食用背包中的物品
+食用背包中的物品。
+如果背包中没有食物，可以尝试找寻苹果，或寻找附近的动物以获得食物
 {
     "action_type":"eat",
     "item":"食物名称",
 }"""
         else:
             eat_action = ""
+            
+            
+        if self.mob_nearby():
+            kill_mob_action = """**kill_mob**
+杀死某个实体
+杀死动物，怪物或玩家
+{{
+    "action_type":"kill_mob",
+    "entity":"需要杀死的实体名称",
+    "timeout":"杀死实体的超时时间，单位：秒",
+}}"""
+        else:
+            kill_mob_action = ""
         
         
         input_data = {
             "self_info": self.get_self_info(),
             "basic_info": "",
             "task": "当前没有选择明确的任务",
-            "environment": self.get_summary(),
+            "visual_info": self.get_visual_info(),
             "inventory_info": self.get_inventory_info(),
+            "full_thinking_list": global_thinking_log.get_thinking_log_full(),
             "thinking_list": global_thinking_log.get_thinking_log(),
-            "nearby_block_info": await nearby_block_manager.get_block_details_mix_str(self.block_position,full_distance=4,can_see_distance=16),
+            # "nearby_block_info": await nearby_block_manager.get_block_details_mix_str(self.block_position,full_distance=4,can_see_distance=8),
+            "nearby_block_info": await nearby_block_manager.get_visible_blocks_str(self.block_position,distance=16),
             "position": self.get_position_str(),
             "chat_str": global_chat_history.get_chat_history_str(),
             # "event_str": self.get_event_str(),
@@ -610,7 +627,11 @@ class EnvironmentInfo:
             "goal": mai_goal.goal,
             "mode": mai_mode.mode,
             "eat_action": eat_action,
-            "nearby_entities_info": self.get_nearby_entities_info()
+            "kill_mob_action": kill_mob_action,
+            "nearby_entities_info": self.get_nearby_entities_info(),
+            "failed_hint": "",
+            "judge_guidance": global_thinking_log.judge_guidance,
+            "self_status_info": self.get_self_status_info(),
         }
         
         # 添加容器缓存信息

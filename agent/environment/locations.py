@@ -37,9 +37,10 @@ class LocationPoints:
             return "未设置任何坐标点，可以进行设置"
         
     def edit_location(self, name: str, info: str):
-        for location in self.location_list:
+        for i, location in enumerate(self.location_list):
             if location[0] == name:
-                location[1] = info
+                # 创建新的元组替换旧的元组
+                self.location_list[i] = (location[0], info, location[2])
                 # 保存到JSON文件
                 self.save_to_json()
                 return True

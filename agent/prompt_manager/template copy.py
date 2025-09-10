@@ -3,7 +3,6 @@ from agent.prompt_manager.template_chat import init_templates_chat
 from agent.prompt_manager.chest_gui import init_templates_chest_gui
 from agent.prompt_manager.furnace_gui import init_templates_furnace_gui
 from agent.prompt_manager.template_task import init_templates_task
-from agent.prompt_manager.judge import init_templates_judge
 
 def init_templates() -> None:
     """初始化提示词模板"""
@@ -11,7 +10,6 @@ def init_templates() -> None:
     init_templates_task()
     init_templates_chest_gui()
     init_templates_furnace_gui()
-    init_templates_judge()
     
     prompt_manager.register_template(
         PromptTemplate(
@@ -25,8 +23,8 @@ def init_templates() -> None:
 任务列表：
 {to_do_list}
 
-**当前状态**
-{self_status_info}
+**环境信息**
+{environment}
 
 **物品栏和工具**
 {inventory_info}
@@ -53,13 +51,13 @@ def init_templates() -> None:
             "mode",
             "goal",
             "task",
+            "environment",
             "nearby_block_info",
             "position",
             "chat_str",
             "to_do_list",
             "container_cache_info",
-            "inventory_info",
-            "self_status_info"],
+            "inventory_info"],
     ))
     
     
@@ -71,33 +69,24 @@ def init_templates() -> None:
 {basic_info}
 
 **动作**
-**mine_block**
-挖掘并收集附近的方块
-可选挖掘附近count个name类型的方块，会自动寻找并挖掘附近count个name类型的方块挖掘，不需要额外使用move
-{{
-    "action_type":"mine_block",
-    "name":"挖掘方块名称（可选）",
-    "count":"挖掘数量（可选）",
-}}
-
-**mine_block_by_position**
+**break_block**
 挖掘某个位置指定的方块
-1.可选择挖掘指定位置的方块，会挖掘xyz指定的方块
+1.可选择挖掘指定位置的方块，使用type = "position"，只会挖掘xyz指定的方块
+2.可选挖掘附近count个name类型的方块，使用type = "nearby"，会自动寻找并挖掘附近count个name类型的方块，不需要额外使用move
 {{
-    "action_type":"mine_block_by_position",
+    "action_type":"break_block",
+    "type":"position",
     "x":"挖掘x位置(可选)",
     "y":"挖掘y位置(可选)",
     "z":"挖掘z位置(可选)",
+    "digOnly":"是否只挖掘，如果为True，则不收集方块（可选，默认为True）",
 }}
 
-**mine_in_direction**
-按方向持续挖掘，直到超时或挖掘失败
-direction: 方向 (+x, -x, +y, -y, +z, -z)
-timeout: 超时时间（秒），例如60s,120s
 {{
-    "action_type":"mine_in_direction",
-    "direction":"方向",
-    "timeout":"超时时间", 
+    "action_type":"break_block",
+    "type":"nearby",
+    "name":"挖掘方块名称（可选）",
+    "count":"挖掘数量（可选）",
 }}
 
 **place_block**
@@ -113,7 +102,7 @@ timeout: 超时时间（秒），例如60s,120s
 
 **move**
 移动到一个能够到达的位置，如果已经到达，则不需要移动
-移动会自动进行搭路和清理障碍物，无需手动铺路，只需要指定移动坐标即可
+请选择可以移动的位置
 {{
     "action_type":"move",
     "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
@@ -154,16 +143,14 @@ timeout: 超时时间（秒），例如60s,120s
  
 {eat_action}
 
-**toss_item**
-将物品丢弃，扔在地上成为掉落物
-分享给别人或丢弃
+**kill_mob**
+杀死某个实体
+杀死动物，怪物或玩家
 {{
-    "action_type":"toss_item",
-    "item":"物品名称",
-    "count":"数量",
+    "action_type":"kill_mob",
+    "entity":"需要杀死的实体名称",
+    "timeout":"杀死实体的超时时间，单位：秒",
 }}
-
-{kill_mob_action}
 
 **设置标记点**
 记录一个标记点/地标，可以记录重要位置的信息
@@ -187,19 +174,17 @@ timeout: 超时时间（秒），例如60s,120s
     "action_type":"edit_task_list",
 }}
 
-{failed_hint}
+**思考/执行的记录**
+{thinking_list}
 
-你必须以下格式进行进一步思考
-**分析动作**
-1.分析上次执行的动作是否成功，是否达到了目的
-2.如果动作失败，分析失败原因，并尝试使用别的方案
-3.如果一个动作反复无法完成，可能是参数错误或缺少必要条件，请结合周围环境尝试别的方案，不要重复尝试同一个动作
 
 **行为准则**
 1.先总结之前的思考和执行的记录，对执行结果进行分析，上一次使用的动作是否达到了目的
-2.你不需要搭建方块来前往某个地方，直接使用move动作，会自动搭建并移动
-3.task_edit可以帮助你规划当前任务并保持专注。
-4.set_location可以帮助你记录重要位置的信息，用于后续的移动，采矿，探索等。如果不需要使用某个地标，必须删除地标
+2.如果目的已达成，进行下一轮动作。如果目的未达成，根据结果进行修正。
+3.如果一个动作反复无法完成，可能是参数错误或缺少必要条件，请结合周围环境尝试别的方案，不要重复尝试同一个动作
+4.你不需要搭建方块来前往某个地方，直接使用move动作，会自动搭建并移动
+5.task_edit可以帮助你规划当前任务并保持专注。
+6.set_location可以帮助你记录重要位置的信息，用于后续的移动，采矿，探索等
 
 **游戏指南**
 1.当你收集或挖掘一种资源，搜索一下附近是否有遗漏的同类资源，尽可能采集
@@ -208,41 +193,28 @@ timeout: 超时时间（秒），例如60s,120s
 4.不同的环境拥有不同的资源，你需要根据当前目的进行移动和搜集资源
 5.请思考你的移动方向，你可以在y轴上下移动来前往地面，地下和不同的高度。
 
-**上一阶段的反思**
-{judge_guidance}
-
-**思考/执行的记录**
-{thinking_list}
-
 **输出**
-现在请你根据现有的**动作**，**任务**,**情景**，**物品栏**,**最近事件**和**周围环境**，进行下一步的简洁思考，推进任务进度。
-规划内容是一段简短文本，不要分点。规划后请使用动作，动作用json格式输出，如果输出多个json，每个json都要单独用```json包裹，你可以重复使用同一个动作或不同动作:
+现在请你根据现有的**动作**，**任务**,**情景**，**物品栏**,**最近事件**和**周围环境**，进行下一步规划，推进任务进度。
+规划内容是一段文本，不要分点。规划后请使用动作，动作用json格式输出，如果输出多个json，每个json都要单独用```json包裹，你可以重复使用同一个动作或不同动作:
 
 **示例**
 //规划的文字内容
 ```json
 {{
-    "action_type":"动作名",
-    //对应参数
+    "action_type":"move",
+    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
 }}
 ```
 ```json
 {{
-    "action_type":"动作名",
-    //对应参数
+    "action_type":"use_chest",
+    "position":{{"x": x坐标, "y": y坐标, "z": z坐标}},
 }}
 ```
 """,
         description="任务-动作选择",
         parameters=[
-            "failed_hint",
-            "thinking_list", 
-            "nearby_block_info", 
-            "position", 
-            "chat_str", 
-            "basic_info",
-            "eat_action",
-            "kill_mob_action"],
+            "thinking_list", "nearby_block_info", "position", "chat_str", "basic_info","eat_action"],
     ))
     
     

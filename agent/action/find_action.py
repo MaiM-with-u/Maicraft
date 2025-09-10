@@ -24,8 +24,8 @@ async def find_block_action(block_type: str, radius: float = 16.0) -> str:
         找到的方块信息文本
     """
     try:
-        if radius > 128:
-            radius = 128
+        if radius > 16:
+            radius = 16
         
         # 获取玩家当前位置
         if not global_environment.block_position:
@@ -51,10 +51,11 @@ async def find_block_action(block_type: str, radius: float = 16.0) -> str:
             "endY": end_y,
             "endZ": end_z,
             "useRelativeCoords": False,
-            "maxBlocks": 10000,
+            "maxBlocks": 50000,
             "compressionMode": True,
             "includeBlockCounts": False,
             "filterInvisibleBlocks": True
+            # "filterInvisibleBlocks": False
         })
         
         # 解析工具结果

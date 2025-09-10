@@ -6,7 +6,7 @@ import tomli
 import shutil
 from packaging import version
 
-MARICRAFT_VERSION = "0.3.0"
+MARICRAFT_VERSION = "0.4.0"
 
 class LoggingConfig(BaseModel):
     """Logging配置模型"""

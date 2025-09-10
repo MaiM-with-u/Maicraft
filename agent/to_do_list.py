@@ -53,12 +53,67 @@ class ToDoList:
         os.makedirs("data", exist_ok=True)
         # 启动时自动加载
         self.load_from_json()
+    
+    # 清理已经完成的任务列表
+    def check_full(self):
+        task_len = len(self.items)
+        done_len = 0
+        for item in self.items:
+            if item.done:
+                done_len += 1
+        
+        # 如果总任务数大于5
+        if task_len > 5:
+            # 未完成任务数
+            undone_len = task_len - done_len
+            
+            if undone_len < 5:
+                # 移除最早的已完成任务直到总任务数不大于5
+                done_items = []
+                for item in self.items:
+                    if item.done:
+                        done_items.append(item)
+                
+                # 按ID排序，移除最早的已完成任务
+                done_items.sort(key=lambda x: x.id)
+                items_to_remove = task_len - 5
+                
+                for i in range(min(items_to_remove, len(done_items))):
+                    self.items.remove(done_items[i])
+                    
+            elif undone_len >= 5:
+                # 直接移除所有已完成任务
+                items_to_remove = []
+                for item in self.items:
+                    if item.done:
+                        items_to_remove.append(item)
+                
+                for item in items_to_remove:
+                    self.items.remove(item)
+        
+        # 保存更改到JSON文件
+        if task_len > 5:
+            self.save_to_json()
+        
+        return True
         
     def add_task(self, details: str, done_criteria: str) -> ToDoItem:
         to_do_item = ToDoItem(details, done_criteria, "尚未开始")
-        to_do_item.id = str(len(self.items)+1)
+        
+        # 获取现有任务的所有ID
+        existing_ids = []
+        for item in self.items:
+            existing_ids.append(item.id)
+        
+        # 从1开始找到最小的可用ID
+        new_id = 1
+        while str(new_id) in existing_ids:
+            new_id += 1
+        
+        to_do_item.id = str(new_id)
         self.items.append(to_do_item)
         # 保存到JSON文件
+        self.check_full()
         self.save_to_json()
         
         return to_do_item
@@ -68,6 +123,7 @@ class ToDoList:
             if item.id == id:
                 self.items.remove(item)
                 # 保存到JSON文件
+                self.check_full()
                 self.save_to_json()
                 return
             
@@ -79,6 +135,7 @@ class ToDoList:
             if item.id == new_id:
                 self.items.remove(item)
                 # 保存到JSON文件
+                self.check_full()
                 self.save_to_json()
                 return
         

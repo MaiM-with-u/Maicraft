@@ -11,7 +11,7 @@ from agent.prompt_manager.prompt_manager import prompt_manager
 from agent.environment.environment_updater import global_environment_updater
 from agent.block_cache.block_cache import global_block_cache
 from agent.prompt_manager.template import init_templates
-from agent.action.mine_action import mine_nearby_blocks, mine_block_by_position
+from agent.action.mine_action import mine_nearby_blocks, mine_block_by_position, mine_in_direction
 from agent.action.move_action import move_to_position
 from agent.action.place_action import place_block_action
 from agent.utils.utils import (
@@ -150,10 +150,32 @@ class MaiAgent:
         """
         self.on_going_task_id = ""
         mai_mode.mode = "main_mode"
+        
+        
+        i = 0
         while True:
+            # print(f"执行循环{i}")
             await self.next_thinking()
+            i += 1
+            if i % 5 == 0:
+                await self.judge_task()
     
 
+    async def judge_task(self):
+        """
+        评估任务
+        """
+        try:
+            input_data = await global_environment.get_all_data()
+            prompt = prompt_manager.generate_prompt("judge", **input_data)
+            thinking = await self.llm_client.simple_chat(prompt)
+
+            if thinking:
+                global_thinking_log.set_judge_guidance(judge_guidance=thinking)
+                global_thinking_log.clear_thinking_log()
+        except Exception:
+            await asyncio.sleep(1)
+            self.logger.error(f" 任务评估异常: {traceback.format_exc()}")
 
 
     async def next_thinking(self):
@@ -163,14 +185,13 @@ class MaiAgent:
         """
         try:            
             # 获取当前环境信息
-            await global_environment_updater.perform_update()
+            # await global_environment_updater.perform_update()
 
             #更新截图
             await self.update_overview()
 
             input_data = await global_environment.get_all_data()
             
-                
 
             prompt = prompt_manager.generate_prompt("main_thinking", **input_data)
             self.logger.info(f" 思考提示词: {prompt}")
@@ -231,31 +252,36 @@ class MaiAgent:
             result_str = await move_to_position(x, y, z)
             result.result_str += result_str
             return result
-        elif action_type == "break_block":
-            type = action_json.get("type")
-            digOnly = action_json.get("digOnly",True)
-            if type == "nearby":
-                name = action_json.get("name")
-                count = action_json.get("count")
-                success,result_str = await mine_nearby_blocks(name, count, digOnly)
-                result.result_str += result_str
-                # 破坏方块后清理不存在的容器（附近可能被破坏的容器）
-                current_pos = global_environment.block_position
-                global_container_cache.clean_invalid_containers(current_pos)
-                return result
-            elif type == "position":
-                x = action_json.get("x")
-                y = action_json.get("y")
-                z = action_json.get("z")
-                success,result_str = await mine_block_by_position(x, y, z, digOnly)
-                result.result_str += result_str
-                # 破坏方块后清理不存在的容器（指定位置）
-                block_pos = BlockPosition(x=x, y=y, z=z)
-                global_container_cache.clean_invalid_containers(block_pos)
-                return result
-            else:
-                result.result_str = f"不支持的挖掘类型: {type}，请使用nearby或position\n"
-                return result
+        elif action_type == "mine_block":
+            # type = action_json.get("type","nearby")
+            digOnly = action_json.get("digOnly",False)
+            # if type == "nearby":
+            name = action_json.get("name")
+            count = action_json.get("count")
+            success,result_str = await mine_nearby_blocks(name, count, digOnly)
+            result.result_str += result_str
+            # 破坏方块后清理不存在的容器（附近可能被破坏的容器）
+            current_pos = global_environment.block_position
+            global_container_cache.clean_invalid_containers(current_pos)
+            return result
+        elif action_type == "mine_block_by_position":
+            x = action_json.get("x")
+            y = action_json.get("y")
+            z = action_json.get("z")
+            digOnly = action_json.get("digOnly",False)
+            success,result_str = await mine_block_by_position(x, y, z, digOnly)
+            result.result_str += result_str
+            # 破坏方块后清理不存在的容器（指定位置）
+            block_pos = BlockPosition(x=x, y=y, z=z)
+            global_container_cache.clean_invalid_containers(block_pos)
+            return result
+        elif action_type == "mine_in_direction":
+            direction = action_json.get("direction")
+            timeout = action_json.get("timeout")
+            digOnly = action_json.get("digOnly",False)
+            success,result_str = await mine_in_direction(direction, timeout, digOnly)
+            result.result_str += result_str
+            return result
         elif action_type == "place_block":
             block = action_json.get("block")
             x = action_json.get("x")
@@ -333,6 +359,18 @@ class MaiAgent:
             mai_mode.mode = "main_mode"
             result.result_str += use_result
             return result
+        elif action_type == "toss_item":
+            item = action_json.get("item")
+            count = action_json.get("count")
+            args = {"type":"toss","item": item, "count": count}
+            call_result = await global_mcp_client.call_tool_directly("basic_control", args)
+            is_success, result_content = parse_tool_result(call_result)
+            self.logger.info(f"丢弃结果: {result_content}")
+            if isinstance(result_content, str):
+                result.result_str += result_content
+            else:
+                result.result_str += f"丢弃了{item} x {count}"
+            return result
             
         elif action_type == "eat":
             item = action_json.get("item")
@@ -391,21 +429,30 @@ class MaiAgent:
             name = action_json.get("name")
             info = action_json.get("info")
             position = action_json.get("position")
-            x = math.floor(float(position.get("x")))
-            y = math.floor(float(position.get("y")))
-            z = math.floor(float(position.get("z")))
             type = action_json.get("type")
-            if type == "set":
-                location_name = global_location_points.add_location(name, info, BlockPosition(x = x, y = y, z = z))
-                result.result_str = f"设置坐标点: {location_name} {info} {x},{y},{z}\n"
-            elif type == "delete":
-                global_location_points.remove_location(name = name,position=BlockPosition(x = x, y = y, z = z))
+            
+            # 只有需要位置信息的操作才解析坐标
+            if type in ["set", "delete"] and position is not None:
+                x = math.floor(float(position.get("x")))
+                y = math.floor(float(position.get("y")))
+                z = math.floor(float(position.get("z")))
+                
+                if type == "set":
+                    location_name = global_location_points.add_location(name, info, BlockPosition(x = x, y = y, z = z))
+                    result.result_str = f"设置坐标点: {location_name} {info} {x},{y},{z}\n"
+                elif type == "delete":
+                    global_location_points.remove_location(name = name, position=BlockPosition(x = x, y = y, z = z))
+                    location_name = name
+                    result.result_str = f"删除坐标点: {location_name} {info} {x},{y},{z}\n"
+            elif type == "delete" and position is None:
+                # 如果没有提供位置，只按名称删除
+                global_location_points.remove_location(name = name)
                 location_name = name
-                result.result_str = f"删除坐标点: {location_name} {info} {x},{y},{z}\n"
+                result.result_str = f"删除坐标点: {location_name}\n"
             elif type == "update":
                 global_location_points.edit_location(name = name, info = info)
                 location_name = name
-                result.result_str = f"更新坐标点: {location_name} {info} {x},{y},{z}\n"
+                result.result_str = f"更新坐标点: {location_name} {info}\n"
             
             return result
         else:

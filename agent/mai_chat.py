@@ -72,7 +72,7 @@ class MaiChat:
 
         thinking_reply = await self.llm_client.simple_chat(prompt)
         
-        logger.info(f"聊天回复: {thinking_reply}")
+        # logger.info(f"聊天回复: {thinking_reply}")
         
         success, _, reply_obj, thinking = parse_thinking(thinking_reply)
         if not success or not reply_obj:

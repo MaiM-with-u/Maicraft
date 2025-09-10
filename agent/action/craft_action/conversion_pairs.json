@@ -17,11 +17,27 @@
       }
     },
     {
+      "items": ["iron_ingot", "iron_nugget"],
+      "priority": "iron_ingot",
+      "ratio": {
+        "iron_ingot_to_iron_nugget": 9,
+        "iron_nugget_to_iron_ingot": 0.111111111
+      }
+    },
+    {
       "items": ["gold_ingot", "gold_block"],
       "priority": "gold_ingot",
       "ratio": {
         "gold_ingot_to_gold_block": 0.111111111,
         "gold_block_to_gold_ingot": 9
+      }
+    },
+    {
+      "items": ["gold_ingot", "gold_nugget"],
+      "priority": "gold_ingot",
+      "ratio": {
+        "gold_ingot_to_gold_nugget": 9,
+        "gold_nugget_to_gold_ingot": 0.111111111
       }
     },
     {
