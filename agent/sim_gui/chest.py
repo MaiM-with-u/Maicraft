@@ -31,8 +31,8 @@ class ChestSimGui:
         await global_environment_updater.perform_update()
         input_data = await global_environment.get_all_data()
         
-        if self.upper_block.block_type != "air" or self.upper_block.block_type != "cave_air":
-            return f"位置{self.position.x},{self.position.y},{self.position.z}上方存在方块，箱子无法打开，请移除({self.upper_block.block_type},x = {self.upper_block.x},y = {self.upper_block.y},z = {self.upper_block.z})"
+        if self.upper_block.block_type != "air" and self.upper_block.block_type != "cave_air":
+            return f"位置{self.position.x},{self.position.y},{self.position.z}上方存在方块，箱子无法打开，请移除({self.upper_block.block_type},x = {self.upper_block.position.x},y = {self.upper_block.position.y},z = {self.upper_block.position.z})"
 
         if self.block.block_type != "chest":
             return f"位置{self.position.x},{self.position.y},{self.position.z}不是箱子"
