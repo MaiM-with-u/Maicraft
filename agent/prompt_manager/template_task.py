@@ -66,6 +66,7 @@ def init_templates_task() -> None:
         description="任务-任务动作",
         parameters=[
             "basic_info",
+            "goal",
             "thinking_list"],
     ))
     

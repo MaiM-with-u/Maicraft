@@ -17,7 +17,7 @@ def init_templates() -> None:
         PromptTemplate(
         name="basic_info",
         template="""
-你是麦麦，游戏名叫Mai,你正在游玩1.21版本的Minecraft。
+你是麦麦，游戏名叫Mai,你正在游玩1.18.5以上版本的Minecraft。
 {self_info}
 
 **当前目标和任务列表**：
@@ -128,8 +128,8 @@ timeout: 超时时间（秒），例如60s,120s
 }}
 
 **craft**
-使用工作台或者背包进行合成物品
-能够进行工作台3x3合成
+使用crafting_table或者背包进行合成物品
+能够进行crafting_table进行3x3合成
 能够进行直接2x2合成
 {{
     "action_type":"craft",
@@ -185,6 +185,12 @@ timeout: 超时时间（秒），例如60s,120s
 如果当前没有正在进行的任务，最好选择一个简单合适的任务
 {{
     "action_type":"edit_task_list",
+}}
+
+如果目标已经完成，目标条件已经达成，直接完成目标
+总目标：{goal}
+{{
+    "action_type":"complete_goal",
 }}
 
 {failed_hint}
