@@ -17,7 +17,7 @@ logger = get_logger("BlockCache")
 
 class BlockCache:
     """方块缓存管理器"""
-    def __init__(self, cache_file: str = None, auto_save_interval: int = None):
+    def __init__(self, cache_file: str = None, auto_save_interval: int = 30):
         """
         初始化方块缓存
         
@@ -60,11 +60,8 @@ class BlockCache:
             self._player_cache_file = self._cache_file.parent / "player_position_cache.json"
             self._cache_file.parent.mkdir(parents=True, exist_ok=True)
         
-        # 自动保存间隔配置
-        if auto_save_interval is None:
-            self._auto_save_interval = self._get_config_auto_save_interval()
-        else:
-            self._auto_save_interval = auto_save_interval
+
+        self._auto_save_interval = auto_save_interval
         
         self._auto_save_task = None
         
@@ -72,29 +69,13 @@ class BlockCache:
         self._load_cache()
         self._load_player_cache()
         
-        # 启动自动保存任务
-        self._start_auto_save()
+        # 不在初始化时启动自动保存任务，需要手动调用 start() 方法
         
         logger.info(f"方块缓存系统初始化完成，缓存文件：{self._cache_file}")
         logger.info(f"玩家位置缓存文件：{self._player_cache_file}")
         logger.info(f"自动保存间隔：{self._auto_save_interval}秒")
-    
-    def _get_config_auto_save_interval(self) -> int:
-        """从配置文件读取自动保存间隔"""
-        try:
-            # 尝试读取配置文件
-            config_file = Path(__file__).parent.parent.parent.parent / "config.toml"
-            if config_file.exists():
-                import tomllib
-                with open(config_file, 'rb') as f:
-                    config = tomllib.load(f)
-                
-                block_cache_config = config.get("block_cache", {})
-                return block_cache_config.get("auto_save_interval", 30)
-        except Exception as e:
-            logger.debug(f"读取配置文件失败，使用默认值: {e}")
-        
-        return 30  # 默认30秒
+        logger.info("自动保存任务已准备就绪，请调用 start() 方法启动")
+
     
     def _load_cache(self):
         """从文件加载缓存"""
@@ -286,6 +267,8 @@ class BlockCache:
     def _save_cache(self):
         """保存缓存到文件"""
         try:
+            # logger.info(f"保存缓存到文件: {self._cache_file}")
+            # logger.info(f"缓存: {self._position_cache}")
             # 准备保存数据
             save_data = {
                 "blocks": {},
@@ -339,40 +322,33 @@ class BlockCache:
                 serialized_stats[key] = value
         return serialized_stats
     
-    def _start_auto_save(self):
+    
+    async def auto_save_loop(self):
+        while True:
+            try:
+                # logger.info(f"自动保存任务开始，间隔: {self._auto_save_interval}秒11111111111111111")
+                await asyncio.sleep(self._auto_save_interval)
+                # logger.info(f"自动保存任务开始，间隔: {self._auto_save_interval}秒22222222222222222")
+                self._save_cache()
+                # logger.info(f"自动保存任务开始，间隔: {self._auto_save_interval}秒222222222222222222222222")
+                self._save_player_cache()
+                # logger.info(f"自动保存任务开始，间隔: {self._auto_save_interval}秒33333333333333333")
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"自动保存任务出错: {e}")
+
+    async def start_auto_save(self):
         """启动自动保存任务"""
-        async def auto_save_loop():
-            while True:
-                try:
-                    await asyncio.sleep(self._auto_save_interval)
-                    self._save_cache()
-                    self._save_player_cache()
-                except asyncio.CancelledError:
-                    break
-                except Exception as e:
-                    logger.error(f"自动保存任务出错: {e}")
-        
-        # 创建异步任务
-        try:
-            loop = asyncio.get_event_loop()
-            self._auto_save_task = loop.create_task(auto_save_loop())
-        except RuntimeError:
-            # 如果没有事件循环，使用asyncio.create_task
-            self._auto_save_task = asyncio.create_task(auto_save_loop())
-        
+        self._auto_save_task = asyncio.create_task(self.auto_save_loop())
         logger.info("自动保存任务已启动")
+
     
     def stop_auto_save(self):
         """停止自动保存任务"""
         if self._auto_save_task and not self._auto_save_task.done():
             self._auto_save_task.cancel()
             logger.info("自动保存任务已停止")
-    
-    def force_save(self):
-        """强制保存缓存"""
-        logger.info("强制保存缓存...")
-        self._save_cache()
-        self._save_player_cache()
     
     def clear_cache(self):
         """清空缓存"""
