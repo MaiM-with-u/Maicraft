@@ -101,7 +101,16 @@ async def mine_in_direction(direction: str, timeout: float, digOnly: bool) -> tu
     # 计算当前挖掘距离
     current_distance = 0
 
-    mine_timeout = float(timeout) if isinstance(timeout, str) else timeout
+      # 处理字符串格式的timeout（如'60s'）
+    if isinstance(timeout, str):
+        # 移除末尾的非数字字符，只保留数字部分
+        timeout_str = ''.join(c for c in timeout if c.isdigit() or c == '.')
+        if timeout_str:
+            mine_timeout = float(timeout_str)
+        else:
+            mine_timeout = 60.0  # 默认值
+    else:
+        mine_timeout = timeout
     while time.time() - start_time < mine_timeout:
         # 获取当前位置
         await asyncio.sleep(0.12)
