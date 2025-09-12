@@ -32,6 +32,29 @@ class Position:
     def __eq__(self, other):
         return self.x == other.x and self.y == other.y and self.z == other.z
     
+    def __sub__(self, other):
+        """位置减法操作"""
+        if not isinstance(other, Position):
+            raise TypeError("只能与 Position 对象进行减法运算")
+        return Position(self.x - other.x, self.y - other.y, self.z - other.z)
+    
+    def __truediv__(self, other):
+        """位置除法操作（用于除以数字）"""
+        if isinstance(other, (int, float)):
+            return Position(self.x / other, self.y / other, self.z / other)
+        raise TypeError("只能除以数字")
+    
+    def get_value(self, index):
+        """获取指定索引的坐标值"""
+        if index == 0:
+            return self.x
+        elif index == 1:
+            return self.y
+        elif index == 2:
+            return self.z
+        else:
+            raise IndexError("位置索引必须在 0-2 范围内")
+    
     def to_dict(self) -> dict:
         return {
             "x": self.x,
