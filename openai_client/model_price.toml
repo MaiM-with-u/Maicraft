@@ -13,3 +13,7 @@ price_out = 24
 [qwen3-235b-a22b-instruct-2507]
 price_in = 2
 price_out = 8
+
+[qwen3-next-80b-a3b-instruct]
+price_in = 1
+price_out = 4
