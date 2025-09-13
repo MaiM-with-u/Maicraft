@@ -372,19 +372,24 @@ class EnvironmentInfo:
     def get_position_str(self) -> str:
         """获取位置信息"""
         if self.block_position:
+            block_on_feet_str = ""  # 初始化变量
+
             block_feet = global_block_cache.get_block(self.block_position.x, self.block_position.y, self.block_position.z)
             if block_feet:
                 if block_feet.block_type == "water":
                     block_on_feet_str = f"注意：你正在水(x={self.block_position.x},y={self.block_position.y},z={self.block_position.z})中，可能会受到水流的影响"
-                    
+
             block_on_feet = global_block_cache.get_block(self.block_position.x, self.block_position.y-1, self.block_position.z)
             if block_on_feet:
                 block_on_feet_str = f"你正站在方块 {block_on_feet.block_type} (x={block_on_feet.position.x},y={block_on_feet.position.y},z={block_on_feet.position.z}) 的上方"
             else:
                 block_on_feet_str = "注意：脚下没有方块，你可能在方块边缘或正在下坠"
-        position_str = f"""你现在的坐标(脚所在的坐标)是：x={self.block_position.x}, y={self.block_position.y}, z={self.block_position.z}
+
+            position_str = f"""你现在的坐标(脚所在的坐标)是：x={self.block_position.x}, y={self.block_position.y}, z={self.block_position.z}
 {block_on_feet_str}
-        """
+            """
+        else:
+            position_str = "位置信息不可用"
         
         location_list = global_location_points.all_location_str()
         
