@@ -1,5 +1,6 @@
 from datetime import datetime
 from agent.thinking_log import global_thinking_log
+from config import global_config
 
 from utils.logger import get_logger
 from agent.common.basic_class import Event
@@ -28,7 +29,13 @@ class ChatHistory:
         for chat_event in recent_chats:
             dt = datetime.fromtimestamp(chat_event.timestamp)
             timestamp_str = f"[{dt.strftime('%H:%M:%S')}]"
-            lines.append(f"{timestamp_str}{chat_event.player_name}: {chat_event.chat_text}")
+
+            # 替换自己的用户名为"你"，避免bot把自己当成别人
+            display_name = chat_event.player_name
+            if chat_event.player_name == global_config.bot.player_name:
+                display_name = "你"
+
+            lines.append(f"{timestamp_str}{display_name}: {chat_event.chat_text}")
         return "\n".join(lines)
     
     def add_chat_history(self, chat_event: Event):
