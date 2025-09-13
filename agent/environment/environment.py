@@ -357,43 +357,24 @@ class EnvironmentInfo:
                 block_on_feet_str = f"你正站在方块 {block_on_feet.block_type} (x={block_on_feet.position.x},y={block_on_feet.position.y},z={block_on_feet.position.z}) 的上方"
             else:
                 block_on_feet_str = "注意：脚下没有方块，你可能在方块边缘或正在下坠"
-<<<<<<< Updated upstream
 
             position_str = f"""你现在的坐标(脚所在的坐标)是：x={self.block_position.x}, y={self.block_position.y}, z={self.block_position.z}
 {block_on_feet_str}
             """
         else:
             position_str = "位置信息不可用"
-        
+
         location_list = global_location_points.all_location_str()
-        
+
         is_on_ground_str = f"  是否在地面上: {self.on_ground}"
-        
+
         final_str = f"""
 {position_str}
 {is_on_ground_str}
 {location_list}
         """
-        
+
         return final_str
-=======
-            position_str = f"""你现在的坐标(脚所在的坐标)是：x={self.block_position.x}, y={self.block_position.y}, z={self.block_position.z}
-    {block_on_feet_str}
-            """
-            
-            location_list = global_location_points.all_location_str()
-            
-            is_on_ground_str = f"  是否在地面上: {self.on_ground}"
-            
-            final_str = f"""
-    {position_str}
-    {is_on_ground_str}
-    {location_list}
-            """
-            
-            return final_str
-        return ""
->>>>>>> Stashed changes
     
     def get_self_info(self) -> str:
         lines = []
@@ -626,6 +607,8 @@ class EnvironmentInfo:
             "failed_hint": "",
             "judge_guidance": global_thinking_log.judge_guidance,
             "self_status_info": self.get_self_status_info(),
+            "player_name": global_config.bot.player_name,
+            "bot_name": global_config.bot.bot_name,
         }
         
         # 添加容器缓存信息

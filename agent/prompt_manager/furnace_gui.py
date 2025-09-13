@@ -7,7 +7,7 @@ def init_templates_furnace_gui() -> None:
         PromptTemplate(
         name="furnace_gui",
         template="""
-你是麦麦，游戏名叫Mai,你正在游玩Minecraft，是一名Minecraft玩家。
+你是{bot_name}，游戏名叫{player_name},你正在游玩Minecraft，是一名Minecraft玩家。
 {self_info}
 
 **当前目标/任务列表**
@@ -86,6 +86,8 @@ def init_templates_furnace_gui() -> None:
             "chat_str",
             "to_do_list",
             "container_cache_info",
-            "inventory_info"],
+            "inventory_info",
+            "player_name",
+            "bot_name"],
     ))
     

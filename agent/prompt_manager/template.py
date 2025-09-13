@@ -17,7 +17,7 @@ def init_templates() -> None:
         PromptTemplate(
         name="basic_info",
         template="""
-你是麦麦，游戏名叫Mai,你正在游玩1.18.5以上版本的Minecraft。
+你是{bot_name}，游戏名叫{player_name},你正在游玩1.18.5以上版本的Minecraft。
 {self_info}
 
 **当前目标和任务列表**：
@@ -59,7 +59,9 @@ def init_templates() -> None:
             "to_do_list",
             "container_cache_info",
             "inventory_info",
-            "self_status_info"],
+            "self_status_info",
+            "player_name",
+            "bot_name"],
     ))
     
     

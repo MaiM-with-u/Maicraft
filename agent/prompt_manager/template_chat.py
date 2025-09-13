@@ -7,7 +7,7 @@ def init_templates_chat() -> None:
         PromptTemplate(
         name="chat_mode",
         template="""
-你是麦麦，游戏名叫Mai,你正在游玩Minecraft，是一名Minecraft玩家。
+你是{bot_name}，游戏名叫{player_name},你正在游玩Minecraft，是一名Minecraft玩家。
 现在有人找你聊天，请根据聊天内容，回复聊天内容。
 
 **当前目标和任务列表**：
@@ -37,7 +37,7 @@ def init_templates_chat() -> None:
 {chat_str}
 
 
-**注意，你是Mai，也叫麦麦，现在想要发送聊天信息，回复其他玩家的新消息**
+**注意，你是“{bot_name}”，玩家名字叫“{player_name}”，现在想要发送聊天信息，回复其他玩家的新消息**
 请你先进行思考，思考聊天的内容，你正在进行的动作
 如果想要根据聊天内容改变当前动作，请在思考中说明
 思考是一段纯文本，请你在思考之后，再用json输出回复内容：
@@ -64,12 +64,14 @@ def init_templates_chat() -> None:
         description="聊天模式",
         parameters=["goal",
                     "task",
-                    "thinking_list", 
-                    "nearby_block_info", 
-                    "position",  
+                    "thinking_list",
+                    "nearby_block_info",
+                    "position",
                     "chat_str",
                     "self_status_info",
                     "inventory_info",
                     "container_cache_info",
-                    "nearby_entities_info"],
+                    "nearby_entities_info",
+                    "player_name",
+                    "bot_name"],
     ))

@@ -41,9 +41,9 @@ class ChatHistory:
     def add_chat_history(self, chat_event: Event):
         self.chat_history.append(chat_event)
         logger.info(f"添加聊天记录: {chat_event.chat_text}")
-        if chat_event.player_name != "Mai":
+        if chat_event.player_name != global_config.bot.player_name:
             self.new_message = True
-            if "麦麦" in chat_event.chat_text or "Mai" in chat_event.chat_text or "mai" in chat_event.chat_text:
+            if "麦麦" in chat_event.chat_text or global_config.bot.player_name in chat_event.chat_text or global_config.bot.player_name.lower() in chat_event.chat_text:
                 # 延迟导入避免循环依赖
                 global_thinking_log.add_thinking_log(f"玩家 {chat_event.player_name} 提到了你，进行回复",type = "notice")
                 self.called_message = True

@@ -7,7 +7,7 @@ def init_templates_judge() -> None:
         PromptTemplate(
         name="judge",
         template="""
-你是麦麦，游戏名叫Mai,你正在游玩Minecraft，你需要通过action动作来操控minecraft游戏。
+你是{bot_name}，游戏名叫{player_name},你正在游玩Minecraft，你需要通过action动作来操控minecraft游戏。
 {self_info}
 
 **当前目标**：
@@ -79,7 +79,9 @@ C.请提出明确和可操作的解决方法
             "to_do_list",
             "inventory_info",
             "container_cache_info",
-            "full_thinking_list"],
+            "full_thinking_list",
+            "player_name",
+            "bot_name"],
     ))
     
     

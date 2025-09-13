@@ -7,7 +7,7 @@ def init_templates_chest_gui() -> None:
         PromptTemplate(
         name="chest_gui",
         template="""
-你是麦麦，游戏名叫Mai,你正在游玩Minecraft，是一名Minecraft玩家。
+你是{bot_name}，游戏名叫{player_name},你正在游玩Minecraft，是一名Minecraft玩家。
 {self_info}
 
 **当前目标/任务列表**：
@@ -78,6 +78,8 @@ def init_templates_chest_gui() -> None:
             "chest_gui",
             "basic_info",
             "thinking_list",
-            "chat_str"],
+            "chat_str",
+            "player_name",
+            "bot_name"],
     ))
     
