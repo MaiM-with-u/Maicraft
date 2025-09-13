@@ -17,9 +17,9 @@ class LocationPoints:
         final_name = name
         if final_name in existing_names:
             index = 1
-            while f"{name}-{index}" in existing_names:
+            while f"{name}~{index}" in existing_names:
                 index += 1
-            final_name = f"{name}-{index}"
+            final_name = f"{name}~{index}"
         self.location_list.append((final_name, info, position))
         # 保存到JSON文件
         self.save_to_json()
