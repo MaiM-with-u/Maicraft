@@ -292,8 +292,8 @@ class NearbyBlockManager:
             if s == e:
                 parts.append(str(s))
             else:
-                parts.append(f"{s}-{e}")
-        
+                parts.append(f"{s}~{e}")
+
         return ",".join(parts)
     
     async def _get_placement_positions(self, position: BlockPosition, distance: int = 5):
