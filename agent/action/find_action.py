@@ -12,7 +12,7 @@ from agent.common.basic_class import BlockPosition
 logger = get_logger("find_block_action")
 
 
-async def find_block_action(block_type: str, radius: float = 16.0) -> str:
+async def find_block_action(block_type: str, radius: float = 16.0) -> tuple[bool, str]:
     """
     寻找指定半径内 canSee 的方块
     
@@ -21,7 +21,7 @@ async def find_block_action(block_type: str, radius: float = 16.0) -> str:
         radius: 搜索半径（默认16格）
         
     Returns:
-        找到的方块信息文本
+        (是否成功, 找到的方块信息文本)
     """
     try:
         if radius > 16:
@@ -29,7 +29,7 @@ async def find_block_action(block_type: str, radius: float = 16.0) -> str:
         
         # 获取玩家当前位置
         if not global_environment.block_position:
-            return "无法获取玩家当前位置"
+            return False, "无法获取玩家当前位置"
         
         player_pos = global_environment.block_position
         
@@ -61,7 +61,7 @@ async def find_block_action(block_type: str, radius: float = 16.0) -> str:
         # 解析工具结果
         is_success, result_content = parse_tool_result(call_result)
         if not is_success:
-            return f"查询方块失败: {result_content}"
+            return False, f"查询方块失败: {result_content}"
         
         # 处理查询结果
         found_blocks = []
@@ -105,7 +105,7 @@ async def find_block_action(block_type: str, radius: float = 16.0) -> str:
         
         # 生成结果文本
         if not found_blocks:
-            return f"在半径 {radius} 格内未找到可见的 {block_type} 方块"
+            return True, f"在半径 {radius} 格内未找到可见的 {block_type} 方块"
         
         result_lines = [f"在半径 {radius} 格内找到 {len(found_blocks)} 个可见的 {block_type} 方块:"]
         
@@ -117,8 +117,8 @@ async def find_block_action(block_type: str, radius: float = 16.0) -> str:
         if len(found_blocks) > 10:
             result_lines.append(f"  ... 还有 {len(found_blocks) - 10} 个方块未显示")
         
-        return "\n".join(result_lines)
+        return True, "\n".join(result_lines)
         
     except Exception as e:
         logger.error(f"寻找方块时出错: {e}")
-        return f"寻找方块时出错: {e}"
+        return False, f"寻找方块时出错: {e}"

@@ -72,6 +72,11 @@ def parse_tool_result(result: CallToolResult) -> tuple[bool, str]:
     try:
         # 首先检查MCP层面的错误
         if result.is_error:
+            structured_content = result.structured_content
+            if structured_content and structured_content.get("interrupt"):
+                return False, f"动作被中断: {structured_content.get('interrupt_reason')}"
+            
+            
             return False, f"MCP错误: {result.content}"
     
         result_json = result.structured_content

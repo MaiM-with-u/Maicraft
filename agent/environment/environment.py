@@ -23,6 +23,7 @@ from agent.chat_history import global_chat_history
 from agent.environment.inventory_utils import review_all_tools
 import traceback
 from agent.common.basic_class import PlayerEntity, ItemEntity, AnimalEntity
+from agent.environment.movement import global_movement
 
 logger = get_logger("EnvironmentInfo")
 
@@ -172,6 +173,7 @@ class EnvironmentInfo:
                 y=pos_data.get("y", 0.0),
                 z=pos_data.get("z", 0.0)
             )
+            global_movement.set_position(self.position)
         else:
             # 如果没有位置数据，设置为默认位置或保持为None
             self.position = None
@@ -181,14 +183,14 @@ class EnvironmentInfo:
         
         # 更新速度信息
         velocity_data = data.get("velocity")
-        if velocity_data and isinstance(velocity_data, dict):
+        if velocity_data:
             self.velocity = Position(
-                x=velocity_data.get("x", 0.0),
-                y=velocity_data.get("y", 0.0),
-                z=velocity_data.get("z", 0.0)
+                x=velocity_data["x"],
+                y=velocity_data["y"],
+                z=velocity_data["z"]
             )
-        else:
-            self.velocity = None
+            # !似乎坏了，没数据
+            # global_movement.set_velocity(self.velocity)
         
         # 更新状态信息
         health_data = data.get("health", {})
@@ -210,6 +212,8 @@ class EnvironmentInfo:
         self.armor = data.get("armor", 0) # 更新护甲值
         self.is_sleeping = data.get("isSleeping", False) # 更新睡眠状态
         self.on_ground = data.get("onGround", True) # 更新是否在地面上
+        
+        global_movement.set_on_ground(self.on_ground)
         
         # logger.info(f"data: {data}")
         # 更新视角信息
@@ -265,41 +269,10 @@ class EnvironmentInfo:
         self.empty_slot_count = inventory_data.get('emptySlotCount', 0)
         self.slot_count = inventory_data.get('slotCount', 0)
         
-        # # 更新周围环境 - 玩家 (来自 query_surroundings("players"))
-        # if "nearbyPlayers" in data:
-        #     nearby_players_data = data["nearbyPlayers"]
-        #     if isinstance(nearby_players_data, list):
-        #         # 如果nearbyPlayers是列表，直接使用
-        #         self.nearby_players = []
-        #         for player_data in nearby_players_data:
-        #             try:
-        #                 if isinstance(player_data, dict):
-        #                     player = Player(
-        #                         uuid=player_data.get("uuid", ""),
-        #                         username=player_data.get("username", ""),
-        #                         display_name=player_data.get("displayName", ""),
-        #                         ping=player_data.get("ping", 0),
-        #                         gamemode=player_data.get("gamemode", 0)
-        #                     )
-        #                     self.nearby_players.append(player)
-        #                 else:
-        #                     # 如果只是玩家名称字符串
-        #                     player = Player(
-        #                         uuid="",
-        #                         username=str(player_data),
-        #                         display_name=str(player_data),
-        #                         ping=0,
-        #                         gamemode=0
-        #                     )
-        #                     self.nearby_players.append(player)
-        #             except Exception as e:
-        #                 # 记录玩家处理错误，但继续处理其他玩家
-        #                 import traceback
-        #                 print(f"处理玩家数据时出错: {e}")
-        #                 print(f"玩家数据: {player_data}")
-        #                 print(f"错误详情: {traceback.format_exc()}")
-        #                 continue
         # 更新时间戳
+        # global_movement.show_movement_info()
+        
+        
         self.last_update = datetime.now()
         
     def update_nearby_entities(self, entities_list: List[Dict[str, Any]]):
@@ -384,6 +357,7 @@ class EnvironmentInfo:
                 block_on_feet_str = f"你正站在方块 {block_on_feet.block_type} (x={block_on_feet.position.x},y={block_on_feet.position.y},z={block_on_feet.position.z}) 的上方"
             else:
                 block_on_feet_str = "注意：脚下没有方块，你可能在方块边缘或正在下坠"
+<<<<<<< Updated upstream
 
             position_str = f"""你现在的坐标(脚所在的坐标)是：x={self.block_position.x}, y={self.block_position.y}, z={self.block_position.z}
 {block_on_feet_str}
@@ -402,6 +376,24 @@ class EnvironmentInfo:
         """
         
         return final_str
+=======
+            position_str = f"""你现在的坐标(脚所在的坐标)是：x={self.block_position.x}, y={self.block_position.y}, z={self.block_position.z}
+    {block_on_feet_str}
+            """
+            
+            location_list = global_location_points.all_location_str()
+            
+            is_on_ground_str = f"  是否在地面上: {self.on_ground}"
+            
+            final_str = f"""
+    {position_str}
+    {is_on_ground_str}
+    {location_list}
+            """
+            
+            return final_str
+        return ""
+>>>>>>> Stashed changes
     
     def get_self_info(self) -> str:
         lines = []

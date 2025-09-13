@@ -3,8 +3,10 @@ import asyncio
 from config import global_config
 from mcp_server.client import global_mcp_client
 from utils.logger import setup_logging
+from agent.block_cache.block_cache import global_block_cache
 
 from agent.mai_chat import mai_chat
+from agent.environment.movement import global_movement
 
 
 
@@ -17,7 +19,7 @@ async def main() -> None:
         # 忽略日志初始化错误
         pass
 
-
+    
     # 延迟导入以避免模块顶层导入顺序告警
     from agent.mai_agent import MaiAgent
     
@@ -32,7 +34,11 @@ async def main() -> None:
     
     await mai_chat.start()
     
-
+    await global_block_cache.start_auto_save()
+    
+    await global_movement.run_speed_monitor()
+    
+    
     print("[启动] Maicraft-Mai 已启动，按 Ctrl+C 退出")
     try:
         while True:

@@ -14,14 +14,13 @@ async def move_to_position(x:int,y:int,z:int):
     
     is_success, result_content = parse_tool_result(call_result)
     
-    
-    
     if isinstance(result_content, str):
         # 如果失败
         final_position = global_environment.block_position
         distance = calculate_distance(final_position, BlockPosition(x=x, y=y, z=z))
         distance = round(distance, 1)
         result_str = f"移动结果：未移动到目标点，最终位置{final_position}，距离目标点{distance}"
+        return False, result_str
     else:
         
         final_position_dict = result_content.get("position", {})
@@ -36,8 +35,7 @@ async def move_to_position(x:int,y:int,z:int):
             
         distance = result_content.get("distance")
         result_str = f"移动结果：成功到达位置{final_position}，距离目标点{distance}"
-
-    return result_str
+        return True, result_str
     
 async def go_to_location(location_name:str):
     location = global_location_points.get_location(location_name)

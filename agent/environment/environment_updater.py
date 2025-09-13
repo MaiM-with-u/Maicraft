@@ -128,7 +128,7 @@ class EnvironmentUpdater:
             
         except Exception as e:
             self.logger.error(f"[EnvironmentUpdater] 环境更新失败: {e}")
-            asyncio.sleep(1)
+            await asyncio.sleep(1)
             self.logger.error(traceback.format_exc())
 
     async def update_nearbyentities(self):
