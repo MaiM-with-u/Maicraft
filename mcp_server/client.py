@@ -88,22 +88,54 @@ class MCPClient:
             if tool_name == "place_block":
                 self.logger.info(f"[MCP] 调用工具: {tool_name}，参数: {arguments}")
             
-            try:
-                result = await asyncio.wait_for(
-                    self._client.call_tool(tool_name, arguments),
-                    timeout=120.0,  # 30秒超时
-                )
-            except asyncio.TimeoutError:
-                return CallToolResult(
-                    content=[
-                        TextContent(type="text", text="工具调用超时"),
-                    ],
-                    structured_content=None,
-                    is_error=True,
-                    data=None,
-                )
-
-            return result
+            # 对需要中断的动作进行检查
+            interruptible_tools = {"move", "mine_block", "place_block", "kill_mob"}
+            
+            if tool_name in interruptible_tools:
+                # 导入全局movement来检查中断
+                from agent.environment.movement import global_movement
+                
+                # 创建工具调用任务
+                tool_task = asyncio.create_task(self._client.call_tool(tool_name, arguments))
+                
+                # 定期检查中断标志
+                while not tool_task.done():
+                    if global_movement.interrupt_flag:
+                        interrupt_reason = global_movement.interrupt_reason
+                        global_movement.clear_interrupt()
+                        tool_task.cancel()
+                        self.logger.info(f"[MCP] 动作被中断: {tool_name}，原因: {interrupt_reason}")
+                        return CallToolResult(
+                            content=[
+                                TextContent(type="text", text=f"动作被中断: {interrupt_reason}"),
+                            ],
+                            structured_content={"interrupt": True,"interrupt_reason": interrupt_reason},
+                            is_error=True,
+                            data=None,
+                        )
+                    # 短暂休眠，避免高CPU占用
+                    await asyncio.sleep(0.1)
+                
+                # 工具调用正常完成
+                result = tool_task.result()
+                return result
+            else:
+                # 其他工具直接调用，不检查中断
+                try:
+                    result = await asyncio.wait_for(
+                        self._client.call_tool(tool_name, arguments),
+                        timeout=120.0,
+                    )
+                except asyncio.TimeoutError:
+                    return CallToolResult(
+                        content=[
+                            TextContent(type="text", text="工具调用超时"),
+                        ],
+                        structured_content=None,
+                        is_error=True,
+                        data=None,
+                    )
+                return result
         except Exception as e:
             err_msg = f"[MCP] 调用工具失败: {e}"
             self.logger.error(err_msg)

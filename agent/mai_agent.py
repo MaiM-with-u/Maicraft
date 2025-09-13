@@ -35,6 +35,7 @@ from agent.environment.locations import global_location_points
 from agent.common.basic_class import BlockPosition
 from view_render.renderer_3d import get_global_renderer_3d
 from mcp_server.client import Tool
+from agent.environment.movement import global_movement
 
 COLOR_MAP = {
     "move": "\033[32m",        # 绿色
@@ -54,13 +55,8 @@ COLOR_MAP = {
 
 class ThinkingJsonResult:
     def __init__(self):
+        self.success = True
         self.result_str = ""
-        self.done = False
-        self.new_task = ""
-        self.new_task_id = ""
-        self.progress = ""
-        self.rewrite = ""
-        self.task_id = ""
         
 
 class MaiAgent:
@@ -88,6 +84,7 @@ class MaiAgent:
         self.goal_list: list[tuple[str, str, str]] = []  # (goal, status, details)
 
         self.goal = global_config.game.goal
+        self.complete_goal = False
         
         self.on_going_task_id = ""
         
@@ -98,6 +95,9 @@ class MaiAgent:
         
         # 3D 渲染器实例（需要时启动）
         self.renderer_3d = None
+        
+        # 动作中断状态（现在使用global_movement的中断事件）
+        self.current_action_task: Optional[asyncio.Task] = None
     
             
     async def initialize(self):
@@ -122,7 +122,6 @@ class MaiAgent:
             
             self.tools = await global_mcp_client.get_tools_metadata()
             self.action_tools = filter_action_tools(self.tools)
-            self.logger.info(f" 获取到 {len(self.action_tools)} 个可用工具")
             self.openai_tools = convert_mcp_tools_to_openai_format(self.action_tools)
 
             if global_config.visual.enable:
@@ -153,7 +152,7 @@ class MaiAgent:
         
         
         i = 0
-        while True:
+        while not self.complete_goal:
             # print(f"执行循环{i}")
             await self.next_thinking()
             i += 1
@@ -183,7 +182,7 @@ class MaiAgent:
         执行目标
         返回: (执行结果, 执行状态)
         """
-        try:            
+        try:
             # 获取当前环境信息
             # await global_environment_updater.perform_update()
 
@@ -196,9 +195,11 @@ class MaiAgent:
             prompt = prompt_manager.generate_prompt("main_thinking", **input_data)
             self.logger.info(f" 思考提示词: {prompt}")
             
-            
+            self.logger.info(" 开始调用LLM...")
             thinking = await self.llm_client.simple_chat(prompt)
-            # self.logger.info(f" 原始输出: {thinking}")
+            self.logger.info(f" LLM调用完成，原始输出: {thinking}")
+            
+            self.logger.info(" 开始解析思考结果...")
             
             # 尝试解析多个JSON动作
             success, thinking, json_objects, thinking_log = parse_thinking_multiple(thinking)
@@ -215,7 +216,7 @@ class MaiAgent:
             
             # 执行多个动作
             if json_objects:
-                self.logger.info(f" 检测到 {len(json_objects)} 个动作需要执行")
+                # self.logger.info(f" 检测到 {len(json_objects)} 个动作需要执行")
                 
                 for i, json_obj in enumerate(json_objects):
                     action_type = json_obj.get("action_type", "unknown")
@@ -230,7 +231,7 @@ class MaiAgent:
                     self.logger.info(f"{action_color} 执行结果 {i+1}/{len(json_objects)}: {result.result_str}\033[0m")
                     
                     # 检查动作是否失败，如果失败则停止后续动作
-                    if result.result_str and ("失败" in result.result_str or "错误" in result.result_str or "无法" in result.result_str):
+                    if not result.success or "失败" in result.result_str or "错误" in result.result_str or "无法" in result.result_str:
                         self.logger.warning(f" 动作 {i+1} 执行失败，停止后续动作执行")
                         break
                 
@@ -243,13 +244,22 @@ class MaiAgent:
         
     async def excute_main_mode(self,action_json) -> ThinkingJsonResult:
         result = ThinkingJsonResult()
+        
+        # 检查中断状态
+        # if global_movement.interrupt_flag:
+        #     interrupt_reason = global_movement.interrupt_reason
+        #     global_movement.clear_interrupt()
+        #     result.result_str = f"动作被中断：{interrupt_reason}"
+        #     return result
+            
         action_type = action_json.get("action_type")
         if action_type == "move":
             position = action_json.get("position", {})
             x = math.floor(float(position.get("x", 0)))
             y = math.floor(float(position.get("y", 0)))
             z = math.floor(float(position.get("z", 0)))
-            result_str = await move_to_position(x, y, z)
+            success, result_str = await move_to_position(x, y, z)
+            result.success = success
             result.result_str += result_str
             return result
         elif action_type == "mine_block":
@@ -259,6 +269,7 @@ class MaiAgent:
             name = action_json.get("name")
             count = action_json.get("count")
             success,result_str = await mine_nearby_blocks(name, count, digOnly)
+            result.success = success
             result.result_str += result_str
             # 破坏方块后清理不存在的容器（附近可能被破坏的容器）
             current_pos = global_environment.block_position
@@ -270,6 +281,7 @@ class MaiAgent:
             z = action_json.get("z")
             digOnly = action_json.get("digOnly",False)
             success,result_str = await mine_block_by_position(x, y, z, digOnly)
+            result.success = success
             result.result_str += result_str
             # 破坏方块后清理不存在的容器（指定位置）
             block_pos = BlockPosition(x=x, y=y, z=z)
@@ -280,6 +292,7 @@ class MaiAgent:
             timeout = action_json.get("timeout")
             digOnly = action_json.get("digOnly",False)
             success,result_str = await mine_in_direction(direction, timeout, digOnly)
+            result.success = success
             result.result_str += result_str
             return result
         elif action_type == "place_block":
@@ -287,13 +300,15 @@ class MaiAgent:
             x = action_json.get("x")
             y = action_json.get("y")
             z = action_json.get("z")
-            result_str = await place_block_action(block, x, y, z)            
+            success, result_str = await place_block_action(block, x, y, z)            
+            result.success = success
             result.result_str += result_str
         elif action_type == "find_block":
             block = action_json.get("block")
             radius = action_json.get("radius", 16.0)  # 默认搜索半径16格
             
-            result_str = await find_block_action(block, radius)
+            success, result_str = await find_block_action(block, radius)
+            result.success = success
             result.result_str += result_str
             return result
         elif action_type == "use_furnace":
@@ -366,6 +381,7 @@ class MaiAgent:
             call_result = await global_mcp_client.call_tool_directly("basic_control", args)
             is_success, result_content = parse_tool_result(call_result)
             self.logger.info(f"丢弃结果: {result_content}")
+            result.success = is_success
             if isinstance(result_content, str):
                 result.result_str += result_content
             else:
@@ -379,6 +395,7 @@ class MaiAgent:
             call_result = await global_mcp_client.call_tool_directly("use_item", args)
             is_success, result_content = parse_tool_result(call_result)
             self.logger.info(f"食用结果: {result_content}")
+            result.success = is_success
             if isinstance(result_content, dict):
                 result.result_str += f"食用了{result_content.get('itemName')}"
             else:
@@ -393,6 +410,7 @@ class MaiAgent:
             
             self.logger.info(f"杀死结果: {result_content}")
             
+            result.success = is_success
             if is_success:
                 result.result_str += f"杀死了{entity}"
             else:
@@ -410,6 +428,7 @@ class MaiAgent:
             call_result = await global_mcp_client.call_tool_directly("use_item", args)
             is_success, result_content = parse_tool_result(call_result)
             self.logger.info(f"使用结果: {result_content}")
+            result.success = is_success
             if isinstance(result_content, str):
                 result.result_str += result_content
             else:
@@ -454,6 +473,10 @@ class MaiAgent:
                 location_name = name
                 result.result_str = f"更新坐标点: {location_name} {info}\n"
             
+            return result
+        elif action_type == "complete_goal":
+            self.complete_goal = True
+            result.result_str = "目标已经完成，目标条件已经达成\n"
             return result
         else:
             self.logger.warning(f" {mai_mode.mode} 不支持的action_type: {action_type}")

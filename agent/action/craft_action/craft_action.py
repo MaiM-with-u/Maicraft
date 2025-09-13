@@ -529,6 +529,25 @@ class RecipeFinder:
             
             self.logger.info(f"[DEBUG] {item} 找到 {len(valid_recs)} 个有效配方")
             
+            # 优先物品检查：如果该物品属于转化对且是优先项，则直接视为叶子物品（不递归）
+            if self._is_priority_item(item):
+                # 每次检查都从头开始计算库存，防止前面的步骤影响
+                priority_bag = Counter()
+                for it in inventory or []:
+                    if isinstance(it, dict):
+                        name = self._normalize_item_name(it.get("name", ""))
+                        if name:
+                            priority_bag[name] += int(it.get("count", 0))
+                
+                available = priority_bag.get(item, 0)
+                self.logger.info(f"[DEBUG] {item} 是转化对优先物品，跳过递归，视为叶子物品")
+                if available >= qty:
+                    self.logger.info(f"[DEBUG] 优先物品 {item} 库存充足（{available} >= {qty}）")
+                    return True
+                else:
+                    self.logger.warning(f"[DEBUG] 优先物品 {item} 库存不足（{available} < {qty}），无法合成")
+                    return False
+            
             # 选成本最小的配方
             best = None
             best_cost = None
