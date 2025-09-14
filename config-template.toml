@@ -34,6 +34,30 @@ api_key = "your-api-key"
 base_url = "https://api.openai.com/v1"
 max_tokens = 1024
 
+[api]
+# API服务器监听地址 (0.0.0.0表示监听所有网络接口)
+host = "0.0.0.0"
+# API服务器监听端口 (默认为20914)
+port = 20914
+# 是否启用CORS跨域支持 (用于前端访问)
+enable_cors = true
+# API服务器日志级别 (warning级别可以减少干扰主程序的日志输出)
+log_level = "warning"
+
 [logging]
 # level 可选: TRACE, DEBUG, INFO, SUCCESS, WARNING, ERROR, CRITICAL
 level = "INFO"
+# 是否启用JSON Lines格式文件输出（控制台始终为彩色格式）
+enable_json = false
+# 是否输出日志到文件
+log_to_file = true
+# 日志目录
+log_dir = "logs"
+# 日志轮转策略 (推荐按大小: "10 MB", "50 MB", "100 MB" 或按时间: "1 day", "6 hours", "1 hour")
+rotation = "10 MB"
+# 日志保留策略 (推荐: "3 days", "1 week", "10 files")
+retention = "3 days"
+# 是否启用层次化日志记录 (不同级别输出到不同文件)
+enable_hierarchical_logging = true
+# 内存中保留的最近日志条数 (用于快速查询)
+max_recent_logs = 1000
