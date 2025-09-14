@@ -2,7 +2,7 @@ import asyncio
 
 from config import global_config
 from mcp_server.client import global_mcp_client
-from utils.logger import setup_logging
+from utils.logger import setup_advanced_logging
 from agent.block_cache.block_cache import global_block_cache
 
 from agent.mai_chat import mai_chat
@@ -12,9 +12,18 @@ from agent.environment.movement import global_movement
 
 
 async def main() -> None:
-    # 初始化日志级别
+    # 初始化日志系统
     try:
-        setup_logging(global_config.logging.level)
+        setup_advanced_logging(
+            level=global_config.logging.level,
+            enable_json=global_config.logging.enable_json,
+            log_to_file=global_config.logging.log_to_file,
+            log_dir=global_config.logging.log_dir,
+            rotation=global_config.logging.rotation,
+            retention=global_config.logging.retention,
+            enable_hierarchical_logging=global_config.logging.enable_hierarchical_logging,
+            max_recent_logs=global_config.logging.max_recent_logs,
+        )
     except Exception:
         # 忽略日志初始化错误
         pass

@@ -11,6 +11,13 @@ MARICRAFT_VERSION = "0.4.0"
 class LoggingConfig(BaseModel):
     """Logging配置模型"""
     level: str = Field(default="INFO", description="日志级别")
+    enable_json: bool = Field(default=False, description="是否启用JSON Lines格式文件输出（控制台始终为彩色格式）")
+    log_to_file: bool = Field(default=True, description="是否输出日志到文件")
+    log_dir: str = Field(default="logs", description="日志目录")
+    rotation: str = Field(default="1 day", description="日志轮转策略（如'1 day', '100 MB'）")
+    retention: str = Field(default="7 days", description="日志保留策略（如'7 days', '10 files'）")
+    enable_hierarchical_logging: bool = Field(default=True, description="是否启用层次化日志记录")
+    max_recent_logs: int = Field(default=1000, ge=100, le=10000, description="内存中保留的最近日志条数")
     
 class BotConfig(BaseModel):
     player_name: str = Field(default="Mai", description="玩家名称")
