@@ -17,3 +17,7 @@ price_out = 8
 [qwen3-next-80b-a3b-instruct]
 price_in = 1
 price_out = 4
+
+[claude-sonnet-4-20250514]
+price_in = 15
+price_out = 75

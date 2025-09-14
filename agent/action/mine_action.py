@@ -154,7 +154,7 @@ async def mine_in_direction(direction: str, timeout: float, digOnly: bool) -> tu
         ore_result = await _check_and_mine_nearby_ores(current_pos)
         result_str += ore_result
         ores_collect_time = time.time() - ore_collect_start
-        mine_timeout += ores_collect_time
+        mine_timeout += ores_collect_time * 0.6
         
         # 挖掘两格高的隧道
         all_success = True

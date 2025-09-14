@@ -97,9 +97,26 @@ class MCPClient:
                 
                 # 创建工具调用任务
                 tool_task = asyncio.create_task(self._client.call_tool(tool_name, arguments))
-                
-                # 定期检查中断标志
+
+                # 定期检查中断标志和超时
+                start_time = asyncio.get_event_loop().time()
+                timeout = 60.0
+
                 while not tool_task.done():
+                    # 检查超时
+                    if asyncio.get_event_loop().time() - start_time > timeout:
+                        tool_task.cancel()
+                        self.logger.info(f"[MCP] 动作超时: {tool_name}")
+                        return CallToolResult(
+                            content=[
+                                TextContent(type="text", text="工具调用超时"),
+                            ],
+                            structured_content={"timeout": True},
+                            is_error=True,
+                            data=None,
+                        )
+
+                    # 检查中断标志
                     if global_movement.interrupt_flag:
                         interrupt_reason = global_movement.interrupt_reason
                         global_movement.clear_interrupt()
@@ -124,7 +141,7 @@ class MCPClient:
                 try:
                     result = await asyncio.wait_for(
                         self._client.call_tool(tool_name, arguments),
-                        timeout=120.0,
+                        timeout=60.0,
                     )
                 except asyncio.TimeoutError:
                     return CallToolResult(
