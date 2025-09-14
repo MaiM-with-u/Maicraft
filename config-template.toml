@@ -34,6 +34,16 @@ api_key = "your-api-key"
 base_url = "https://api.openai.com/v1"
 max_tokens = 1024
 
+[api]
+# API服务器监听地址 (0.0.0.0表示监听所有网络接口)
+host = "0.0.0.0"
+# API服务器监听端口 (默认为20914)
+port = 20914
+# 是否启用CORS跨域支持 (用于前端访问)
+enable_cors = true
+# API服务器日志级别 (warning级别可以减少干扰主程序的日志输出)
+log_level = "warning"
+
 [logging]
 # level 可选: TRACE, DEBUG, INFO, SUCCESS, WARNING, ERROR, CRITICAL
 level = "INFO"

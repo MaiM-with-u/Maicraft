@@ -18,6 +18,13 @@ class LoggingConfig(BaseModel):
     retention: str = Field(default="7 days", description="日志保留策略（如'7 days', '10 files'）")
     enable_hierarchical_logging: bool = Field(default=True, description="是否启用层次化日志记录")
     max_recent_logs: int = Field(default=1000, ge=100, le=10000, description="内存中保留的最近日志条数")
+
+class ApiConfig(BaseModel):
+    """API服务器配置模型"""
+    host: str = Field(default="0.0.0.0", description="API服务器监听地址")
+    port: int = Field(default=20914, ge=1024, le=65535, description="API服务器监听端口")
+    enable_cors: bool = Field(default=True, description="是否启用CORS跨域支持")
+    log_level: str = Field(default="warning", description="API服务器日志级别")
     
 class BotConfig(BaseModel):
     player_name: str = Field(default="Mai", description="玩家名称")
@@ -70,6 +77,7 @@ class MaicraftConfig(BaseModel):
     """Maicraft插件配置模型"""
 
     logging: LoggingConfig = Field(default_factory=LoggingConfig, description="Logging配置")
+    api: ApiConfig = Field(default_factory=ApiConfig, description="API服务器配置")
     llm: LLMConfig = Field(default_factory=LLMConfig, description="LLM配置")
     llm_fast: LLMConfigFast = Field(default_factory=LLMConfigFast, description="LLM快速配置")
     visual: Visual = Field(default_factory=Visual, description="视觉模型配置")
