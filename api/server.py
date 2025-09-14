@@ -12,7 +12,15 @@ import uvicorn
 
 from config import global_config
 from .routers.logs import lifespan
-from .routers import logs_router, websocket_router
+from .routers import (
+    logs_router,
+    websocket_router,
+    game_ws_router,
+    game_rest_router,
+    locations_router,
+    containers_router,
+    blocks_router
+)
 
 
 class MaicraftAPIServer:
@@ -44,6 +52,11 @@ class MaicraftAPIServer:
         # 包含路由器
         self.app.include_router(logs_router)
         self.app.include_router(websocket_router)
+        self.app.include_router(game_ws_router)
+        self.app.include_router(game_rest_router)
+        self.app.include_router(locations_router)
+        self.app.include_router(containers_router)
+        self.app.include_router(blocks_router)
 
         # 健康检查端点
         @self.app.get("/health")
