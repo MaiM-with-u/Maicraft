@@ -1,52 +1,36 @@
-# MaicraftAgent Vue3 GUI 接口文档
+# MaicraftAgent API 接口文档
 
-## 概述
+## 全局响应格式
 
-本文档为基于 MaicraftAgent 项目的 Vue3 GUI 提供了完整的接口规范。GUI 需要与运行中的 MaicraftAgent 后端服务进行通信，获取实时数据并执行控制操作。
+### 成功响应
 
-## 技术栈要求
-
-- **后端**: Python FastAPI + WebSocket
-- **前端**: Vue3 + TypeScript
-- **通信**: REST API + WebSocket (实时日志更新)
-
-## 架构设计
-
-### 服务启动方式
-
-MaicraftAgent 需要扩展现有的 `main.py`，添加 Web 服务组件：
-
-```python
-# 在 main.py 中添加
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
-import websockets
-import json
-import asyncio
-from datetime import datetime
-
-app = FastAPI(title="MaicraftAgent GUI API", version="1.0.0")
-
-# CORS 配置
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # 生产环境请限制域名
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# 全局状态管理
-class GlobalState:
-    def __init__(self):
-        self.connected_clients = set()
-        self.last_log_timestamp = 0
-
-global_state = GlobalState()
+```json
+{
+  "isSuccess": true,
+  "message": "操作成功",
+  "data": {
+    // 具体数据内容
+  },
+  "timestamp": 1704067200000,
+  "request_id": "req_001"
+}
 ```
 
-## 1. 日志查看功能 (Log Viewer)
+### 错误响应
+
+```json
+{
+  "isSuccess": false,
+  "message": "错误描述",
+  "data": {
+    "details": "详细错误信息"
+  },
+  "timestamp": 1704067200000,
+  "request_id": "req_001"
+}
+```
+
+## 1. 日志管理
 
 **注意:** 当前系统使用 loguru 库进行日志记录，仅提供实时控制台输出，不支持历史日志存储和查询。
 
@@ -54,9 +38,9 @@ global_state = GlobalState()
 
 #### 获取当前日志配置
 
-```
+````
 GET /api/logs/config
-```
+````
 
 **响应示例:**
 
@@ -72,9 +56,9 @@ GET /api/logs/config
 
 #### 获取日志级别
 
-```
+````
 GET /api/logs/level
-```
+````
 
 **响应示例:**
 
@@ -91,9 +75,9 @@ GET /api/logs/level
 
 #### 更新日志级别
 
-```
+````
 POST /api/logs/level
-```
+````
 
 **请求体:**
 
@@ -119,9 +103,9 @@ POST /api/logs/level
 
 #### 连接地址
 
-```
+````
 ws://localhost:8000/ws/logs
-```
+````
 
 #### 消息格式
 
@@ -147,23 +131,31 @@ ws://localhost:8000/ws/logs
 }
 ```
 
-## 2. 配置管理功能 (Configuration)
+## 2. 配置管理
 
-### 2.1 获取配置
+基于 `config.py` 的 MaicraftConfig 类和 `config.toml` 文件，实现完整的配置管理功能。
 
-```
+### 2.1 获取完整配置
+
+````
 GET /api/config
-```
+````
 
 **响应示例:**
 
 ```json
 {
   "isSuccess": true,
-  "message": "success",
+  "message": "获取配置成功",
   "data": {
     "inner": {
-      "version": "0.2.0"
+      "version": "0.4.0"
+    },
+    "api": {
+      "host": "0.0.0.0",
+      "port": 20914,
+      "enable_cors": true,
+      "log_level": "warning"
     },
     "bot": {
       "player_name": "EvilMai",
@@ -176,697 +168,621 @@ GET /api/config
       "model": "qwen3-next-80b-a3b-instruct",
       "temperature": 0.2,
       "max_tokens": 1024,
-      "api_key": "sk-***",
+      "api_key": "***masked***",
       "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    },
+    "llm_fast": {
+      "model": "gpt-4o-mini",
+      "temperature": 0.2,
+      "max_tokens": 1024
+    },
+    "visual": {
+      "enable": false
     },
     "vlm": {
       "model": "Pro/THUDM/GLM-4.1V-9B-Thinking",
       "temperature": 0.3,
       "max_tokens": 1024,
-      "enable": false
+      "api_key": "***masked***"
     },
     "logging": {
-      "level": "INFO"
+      "level": "INFO",
+      "enable_json": false,
+      "log_to_file": true,
+      "log_dir": "logs",
+      "rotation": "1 day",
+      "retention": "7 days"
     }
-  }
-}
-```
-
-### 2.2 更新配置
-
-```
-POST /api/config/update
-```
-
-**请求体示例:**
-
-```json
-{
-  "llm": {
-    "temperature": 0.3,
-    "max_tokens": 2048
   },
-  "logging": {
-    "level": "DEBUG"
-  }
+  "timestamp": 1704067200000
 }
 ```
 
-**响应:**
+### 2.2 获取配置模式定义
 
-```json
-{
-  "isSuccess": true,
-  "message": "success",
-  "data": {
-    "success": true,
-    "message": "配置已更新",
-    "restart_required": false
-  }
-}
-```
+````
+GET /api/config/schema
+````
 
-### 2.3 重置配置
+### 2.3 更新配置
 
-```
+````
+PUT /api/config
+````
+
+### 2.4 重置配置
+
+````
 POST /api/config/reset
-```
+````
 
-**响应:**
+### 2.5 验证配置
 
-```json
-{
-  "isSuccess": true,
-  "message": "success",
-  "data": {
-    "success": true,
-    "message": "配置已重置为默认值"
-  }
-}
-```
-
-### 2.4 验证配置
-
-```
+````
 POST /api/config/validate
-```
+````
 
-**请求体:** 完整的配置对象
+### 2.6 导入配置
 
-**响应:**
+````
+POST /api/config/import
+````
 
-```json
-{
-  "isSuccess": true,
-  "message": "success",
-  "data": {
-    "valid": true,
-    "errors": [],
-    "warnings": ["API密钥格式不正确"]
-  }
-}
-```
+### 2.7 导出配置
 
-## 3. 任务管理功能 (Task Management)
+````
+GET /api/config/export?sections=llm,logging&format=toml
+````
+
+## 3. 任务管理
+
+基于 `agent/to_do_list.py` 的 ToDoList 类实现，提供完整的任务生命周期管理。
 
 ### 3.1 获取任务列表
 
-```
+````
 GET /api/tasks
-```
+````
 
 **响应示例:**
 
 ```json
 {
   "isSuccess": true,
-  "message": "success",
+  "message": "获取任务列表成功",
   "data": {
     "tasks": [
       {
         "id": "1",
-        "details": "使用工作台合成石镐，需要3个cobblestone和2个stick",
-        "done_criteria": "物品栏中拥有3个cobblestone和2个stick，并在工作台完成石镐合成",
-        "progress": "尚未开始",
+        "details": "建立营地，建造基础庇护所和工作台",
+        "done_criteria": "完成基础庇护所建造，工作台可用",
+        "progress": "已建造工作台，正在收集木材",
         "done": false
+      },
+      {
+        "id": "2",
+        "details": "收集基础资源：木材和石头",
+        "done_criteria": "物品栏中有足够的木材和石头",
+        "progress": "已完成",
+        "done": true
       }
     ],
     "total": 5,
     "completed": 2,
     "in_progress": 2,
-    "pending": 1
-  }
+    "pending": 1,
+    "is_all_done": false
+  },
+  "timestamp": 1704067200000
 }
 ```
 
 ### 3.2 获取单个任务
 
-```
+````
 GET /api/tasks/{task_id}
-```
-
-**响应示例:**
-
-```json
-{
-  "isSuccess": true,
-  "message": "success",
-  "data": {
-    "id": "1",
-    "details": "使用工作台合成石镐，需要3个cobblestone和2个stick",
-    "done_criteria": "物品栏中拥有3个cobblestone和2个stick，并在工作台完成石镐合成",
-    "progress": "尚未开始",
-    "done": false
-  }
-}
-```
+````
 
 ### 3.3 创建任务
 
-```
+````
 POST /api/tasks
-```
+````
 
-**请求体:**
+### 3.4 更新任务进度
 
-```json
-{
-  "details": "建立营地",
-  "done_criteria": "建造了基础庇护所和工作台"
-}
-```
+````
+PUT /api/tasks/{task_id}/progress
+````
 
-**响应:**
+### 3.5 标记任务完成
 
-```json
-{
-  "isSuccess": true,
-  "message": "success",
-  "data": {
-    "id": "2",
-    "details": "建立营地",
-    "done_criteria": "建造了基础庇护所和工作台",
-    "progress": "尚未开始",
-    "done": false
-  }
-}
-```
+````
+PUT /api/tasks/{task_id}/complete
+````
 
-### 3.4 更新任务
+### 3.6 删除任务
 
-```
-POST /api/tasks/{task_id}/update
-```
+````
+DELETE /api/tasks/{task_id}
+````
 
-**请求体:**
+### 3.7 清空所有任务
 
-```json
-{
-  "progress": "已建造工作台，正在收集木材",
-  "done": false
-}
-```
+````
+DELETE /api/tasks
+````
 
-**响应:**
+### 3.8 批量操作
 
-```json
-{
-  "isSuccess": true,
-  "message": "success",
-  "data": {
-    "success": true,
-    "message": "任务已更新"
-  }
-}
-```
-
-### 3.5 删除任务
-
-```
-POST /api/tasks/{task_id}/delete
-```
-
-**响应:**
-
-```json
-{
-  "isSuccess": true,
-  "message": "success",
-  "data": {
-    "success": true,
-    "message": "任务已删除"
-  }
-}
-```
-
-### 3.6 标记任务完成
-
-```
-POST /api/tasks/{task_id}/complete
-```
-
-**响应:**
-
-```json
-{
-  "isSuccess": true,
-  "message": "success",
-  "data": {
-    "success": true,
-    "message": "任务已标记为完成"
-  }
-}
-```
-
-### 3.7 批量操作
-
-```
+````
 POST /api/tasks/batch
-```
+````
 
-**请求体:**
+## 4. AI 动作执行
 
-```json
-{
-  "operation": "delete_completed",
-  "task_ids": ["1", "2", "3"]
-}
-```
+基于 `agent/mai_agent.py` 的 MaiAgent 类实现，支持各种Minecraft游戏动作执行。
 
-**响应:**
+### 4.1 获取可用动作列表
 
-```json
-{
-  "isSuccess": true,
-  "message": "success",
-  "data": {
-    "success": true,
-    "message": "批量操作完成",
-    "affected_count": 2
-  }
-}
-```
-
-**注意:** 当前系统只支持 `delete_completed` 操作，即删除已完成的任务。系统会自动维护任务数量不超过5个。
-
-## 4. 事件查询功能 (Event Query)
-
-### 4.1 获取事件列表
-
-```
-GET /api/events?type=all&limit=50&start_time=1704067200000
-```
-
-**参数说明:**
-
-- `type`: 事件类型 (all, thinking, action, event, notice)
-- `limit`: 返回条数 (默认: 50)
-- `start_time`: 开始时间 (13位数字时间戳)
+````
+GET /api/actions
+````
 
 **响应示例:**
 
 ```json
 {
   "isSuccess": true,
-  "message": "success",
+  "message": "获取可用动作列表成功",
   "data": {
-    "events": [
+    "actions": [
       {
-        "content": "生命值和饥饿值均为0，必须先恢复生存状态...",
-        "type": "thinking",
-        "timestamp": 1757810821.6623514
-      },
-      {
-        "content": "执行动作 1/1：{'error': {'code': 'AllocationQuota.FreeTierOnly'...",
-        "type": "action",
-        "timestamp": 1757810758.021458
-      },
-      {
-        "content": "玩家EvilMai收集了 1 个 Diorite",
-        "type": "event",
-        "timestamp": 1757810830.2863913
-      }
-    ],
-    "total": 20,
-    "has_more": false
-  }
-}
-```
-
-### 4.2 获取事件统计
-
-```
-GET /api/events/stats?period=1h
-```
-
-**响应示例:**
-
-```json
-{
-  "isSuccess": true,
-  "message": "success",
-  "data": {
-    "period": "1h",
-    "stats": {
-      "thinking": 8,
-      "action": 3,
-      "event": 9,
-      "total": 20
-    },
-    "recent_events": [
-      { "type": "thinking", "count": 8 },
-      { "type": "event", "count": 9 },
-      { "type": "action", "count": 3 }
-    ]
-  }
-}
-```
-
-### 4.3 搜索事件
-
-```
-GET /api/events/search?keyword=钻石&type=action&limit=20
-```
-
-**响应示例:**
-
-```json
-{
-  "isSuccess": true,
-  "message": "success",
-  "data": {
-    "events": [
-      {
-        "content": "玩家EvilMai收集了 1 个 Diorite",
-        "type": "event",
-        "timestamp": 1757810830.2863913
-      }
-    ],
-    "total": 3,
-    "has_more": false
-  }
-}
-```
-
-## 5. MCP 工具管理功能 (MCP Tools)
-
-### 5.1 获取工具列表
-
-```
-GET /api/mcp/tools
-```
-
-**响应示例:**
-
-```json
-{
-  "isSuccess": true,
-  "message": "success",
-  "data": {
-    "tools": [
-      {
-        "name": "move",
+        "action_type": "move",
+        "name": "移动",
         "description": "移动到指定位置",
         "parameters": {
-          "type": "object",
-          "properties": {
-            "x": { "type": "number", "description": "X坐标" },
-            "y": { "type": "number", "description": "Y坐标" },
-            "z": { "type": "number", "description": "Z坐标" }
-          },
-          "required": ["x", "y", "z"]
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {"type": "number", "description": "目标X坐标"},
+              "y": {"type": "number", "description": "目标Y坐标"},
+              "z": {"type": "number", "description": "目标Z坐标"}
+            },
+            "required": ["x", "y", "z"]
+          }
         },
         "category": "movement",
         "enabled": true
       },
       {
-        "name": "mine_block",
-        "description": "挖掘指定方块",
+        "action_type": "mine_block",
+        "name": "挖掘方块",
+        "description": "挖掘指定类型的方块",
         "parameters": {
-          "type": "object",
-          "properties": {
-            "x": { "type": "number" },
-            "y": { "type": "number" },
-            "z": { "type": "number" },
-            "face": { "type": "string", "enum": ["north", "south", "east", "west", "up", "down"] }
-          },
-          "required": ["x", "y", "z"]
+          "name": {"type": "string", "description": "方块名称，如 'stone', 'iron_ore'"},
+          "count": {"type": "integer", "description": "挖掘数量", "default": 1},
+          "digOnly": {"type": "boolean", "description": "是否只挖掘不收集", "default": false}
         },
         "category": "mining",
         "enabled": true
       }
     ],
-    "categories": ["movement", "mining", "crafting", "combat"],
-    "total": 25
-  }
-}
-```
-
-### 5.2 获取工具详情
-
-```
-GET /api/mcp/tools/{tool_name}
-```
-
-**响应示例:**
-
-```json
-{
-  "isSuccess": true,
-  "message": "success",
-  "data": {
-    "name": "move",
-    "description": "移动到指定位置",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "x": { "type": "number", "description": "X坐标" },
-        "y": { "type": "number", "description": "Y坐标" },
-        "z": { "type": "number", "description": "Z坐标" }
-      },
-      "required": ["x", "y", "z"]
+    "categories": {
+      "movement": ["move"],
+      "mining": ["mine_block", "mine_block_by_position", "mine_in_direction"],
+      "crafting": ["craft"],
+      "interaction": ["use_furnace", "use_chest"],
+      "combat": ["kill_mob"],
+      "inventory": ["toss_item", "eat", "use_item"]
     },
-    "category": "movement",
-    "enabled": true
+    "total": 18
   }
 }
 ```
 
-### 5.3 调用工具
+### 4.2 执行单个动作
 
-```
-POST /api/mcp/tools/{tool_name}/call
-```
+````
+POST /api/actions/execute
+````
 
-**请求体:**
+**支持的动作类型:**
 
+- `move`: 移动到指定位置
+- `mine_block`: 挖掘附近方块
+- `craft`: 合成物品
+- `use_furnace`: 使用熔炉
+- `use_chest`: 使用箱子
+- `eat`: 吃食物
+- `kill_mob`: 杀死怪物
+
+### 4.3 批量执行动作
+
+````
+POST /api/actions/batch
+````
+
+### 4.4 获取动作执行历史
+
+````
+GET /api/actions/history?limit=20&action_type=move&status=success
+````
+
+### 4.5 停止当前动作
+
+````
+POST /api/actions/stop
+````
+
+## 5. 游戏状态
+
+基于环境信息、位置管理、容器缓存和方块缓存系统，实现完整的Minecraft游戏状态监控和管理。
+
+### 5.1 WebSocket 实时游戏状态
+
+系统提供三个专用WebSocket端点，根据数据类型和更新频率分离：
+
+#### 玩家数据端点 (Player)
+````
+ws://localhost:20914/ws/game/player
+````
+
+**订阅消息:**
 ```json
 {
-  "parameters": {
-    "x": 100,
-    "y": 64,
-    "z": 200
-  },
-  "async": false,
-  "timeout": 30
+  "type": "subscribe",
+  "update_interval": 500  // 高频更新
 }
 ```
 
-**响应示例:**
-
+**推送数据:**
 ```json
 {
-  "isSuccess": true,
-  "message": "success",
+  "type": "player_update",
+  "timestamp": 1704067200000,
   "data": {
-    "call_id": "call_001",
-    "status": "success",
-    "result": {
-      "content": [
+    "name": "EvilMai",
+    "health": 20,
+    "max_health": 20,
+    "food": 18,
+    "max_food": 20,
+    "experience": 1250,
+    "level": 15,
+    "position": {
+      "x": 123.5,
+      "y": 64.0,
+      "z": -456.8,
+      "yaw": 45.2,
+      "pitch": -12.3,
+      "on_ground": true
+    },
+    "gamemode": "survival",
+    "equipment": {
+      "main_hand": {"name": "diamond_pickaxe", "count": 1, "damage": 5},
+      "helmet": {"name": "iron_helmet", "count": 1, "damage": 25},
+      "chestplate": null,
+      "leggings": null,
+      "boots": null
+    },
+    "inventory": {
+      "occupied_slots": 15,
+      "total_slots": 36,
+      "empty_slots": 21,
+      "items": [
         {
-          "type": "text",
-          "text": "成功移动到位置 (100, 64, 200)"
+          "slot": 0,
+          "name": "diamond_pickaxe",
+          "display_name": "钻石镐",
+          "count": 1,
+          "max_stack": 1,
+          "damage": 5,
+          "max_damage": 1561
         }
-      ],
-      "is_error": false,
-      "execution_time": 2.5
+      ]
     }
   }
 }
 ```
 
-### 5.4 获取调用历史
+#### 世界数据端点 (World)
+````
+ws://localhost:20914/ws/game/world
+````
 
-```
-GET /api/mcp/tools/calls?limit=20&tool_name=move&status=success
-```
-
-**响应示例:**
-
+**订阅消息:**
 ```json
 {
-  "isSuccess": true,
-  "message": "success",
+  "type": "subscribe",
+  "update_interval": 2000  // 中频更新
+}
+```
+
+**推送数据:**
+```json
+{
+  "type": "world_update",
+  "timestamp": 1704067200000,
   "data": {
-    "calls": [
+    "time": {
+      "time_of_day": 18000,
+      "formatted_time": "夜晚 (18:00)",
+      "day_count": 125
+    },
+    "weather": {
+      "weather": "rain",
+      "formatted_weather": "下雨",
+      "duration": 1200
+    },
+    "location": {
+      "dimension": "overworld",
+      "biome": "plains",
+      "light_level": 8
+    },
+    "nearby_blocks": [
       {
-        "call_id": "call_001",
-        "tool_name": "move",
-        "parameters": { "x": 100, "y": 64, "z": 200 },
-        "status": "success",
-        "timestamp": 1704067200000,
-        "execution_time": 2.5,
-        "result": {
-          "content": "成功移动到位置",
-          "is_error": false
-        }
+        "name": "grass_block",
+        "position": {"x": 124, "y": 63, "z": -457},
+        "distance": 2.1
       }
     ],
-    "total": 45
-  }
-}
-```
-
-### 5.5 批量工具调用
-
-```
-POST /api/mcp/tools/batch
-```
-
-**请求体:**
-
-```json
-{
-  "calls": [
-    {
-      "tool_name": "move",
-      "parameters": { "x": 100, "y": 64, "z": 200 }
-    },
-    {
-      "tool_name": "mine_block",
-      "parameters": { "x": 101, "y": 64, "z": 200 }
-    }
-  ],
-  "sequential": true
-}
-```
-
-**响应:**
-
-```json
-{
-  "isSuccess": true,
-  "message": "success",
-  "data": {
-    "batch_id": "batch_001",
-    "results": [
+    "nearby_entities": [
       {
-        "call_id": "call_001",
-        "tool_name": "move",
-        "status": "success",
-        "result": {
-          "content": "成功移动到位置",
-          "is_error": false,
-          "execution_time": 2.5
-        }
-      },
-      {
-        "call_id": "call_002",
-        "tool_name": "mine_block",
-        "status": "success",
-        "result": {
-          "content": "成功挖掘方块",
-          "is_error": false,
-          "execution_time": 1.8
-        }
+        "name": "cow",
+        "display_name": "牛",
+        "type": "animal",
+        "distance": 12.5,
+        "position": {"x": 130.5, "y": 64.0, "z": -450.2},
+        "health": 10,
+        "max_health": 10
       }
-    ],
-    "total_calls": 2,
-    "successful_calls": 2,
-    "failed_calls": 0
+    ]
   }
 }
 ```
 
-## 6. 系统状态监控 (System Status)
+#### 标记点数据端点 (Marker)
+````
+ws://localhost:20914/ws/game/marker
+````
 
-**注意:** 当前系统提供基础的状态监控功能，主要包括版本信息、连接状态等基本信息。完整的系统资源监控（如CPU、内存）需要在后续版本中实现。
-
-### 6.1 获取系统状态
-
-```
-GET /api/system/status
-```
-
-**响应示例:**
-
+**订阅消息:**
 ```json
 {
-  "isSuccess": true,
-  "message": "success",
-  "data": {
-    "status": "running",
-    "version": "0.2.0",
-    "mcp_connection": {
-      "status": "connected",
-      "server": "ChangingSelf.xyz:50226",
-      "username": "EvilMai"
-    },
-    "active_tasks": 1,
-    "start_time": 1704067200000
-  }
+  "type": "subscribe",
+  "update_interval": 0  // 仅在变动时推送
 }
 ```
 
-### 6.2 获取系统信息
-
-```
-GET /api/system/info
-```
-
-**响应示例:**
-
+**推送数据:**
 ```json
 {
-  "isSuccess": true,
-  "message": "success",
+  "type": "marker_update",
+  "timestamp": 1704067200000,
+  "action": "add",  // add, update, remove
   "data": {
-    "version": "0.2.0",
-    "python_version": "3.9.0",
-    "platform": "Windows",
-    "config_path": "E:\\01_Projects\\Code\\AI\\Minecraft\\MaicraftAgent\\config.toml",
-    "data_directory": "E:\\01_Projects\\Code\\AI\\Minecraft\\MaicraftAgent\\data",
-    "logs_directory": "E:\\01_Projects\\Code\\AI\\Minecraft\\MaicraftAgent\\logs"
+    "name": "home_base",
+    "info": "主基地，包含工作台和箱子",
+    "position": {"x": 100.5, "y": 64.0, "z": 200.3},
+    "type": "base",
+    "created_time": 1704067200000,
+    "visit_count": 25
   }
 }
 ```
 
-### 6.3 获取连接状态
+### 5.2 获取游戏快照
 
-```
-GET /api/system/connections
-```
+````
+GET /api/environment/snapshot
+````
 
-**响应示例:**
+### 5.3 获取玩家信息
 
-```json
-{
-  "isSuccess": true,
-  "message": "success",
-  "data": {
-    "mcp_server": {
-      "connected": true,
-      "host": "ChangingSelf.xyz",
-      "port": 50226,
-      "username": "EvilMai",
-      "connection_time": 1704067200000
-    },
-    "websocket_clients": 0,
-    "last_heartbeat": 1704069000000
-  }
-}
-```
+````
+GET /api/environment/player
+````
 
-## 7. WebSocket 通用规范
+### 5.4 获取物品栏信息
 
-### 7.1 连接管理
+````
+GET /api/environment/inventory
+````
 
-**连接建立:**
+### 5.5 获取世界信息
+
+````
+GET /api/environment/world
+````
+
+### 5.6 获取附近实体
+
+````
+GET /api/environment/nearby/entities?range=16
+````
+
+### 5.7 位置管理
+
+#### 获取所有位置点
+
+````
+GET /api/locations
+````
+
+#### 添加位置点
+
+````
+POST /api/locations
+````
+
+#### 更新位置点
+
+````
+PUT /api/locations/{name}
+````
+
+#### 删除位置点
+
+````
+DELETE /api/locations/{name}
+````
+
+#### 获取位置统计
+
+````
+GET /api/locations/stats
+````
+
+### 5.8 容器管理
+
+#### 获取容器列表
+
+````
+GET /api/containers?type=all&range=32
+````
+
+#### 验证容器存在
+
+````
+GET /api/containers/verify/{x}/{y}/{z}
+````
+
+#### 清理无效容器
+
+````
+DELETE /api/containers/invalid
+````
+
+### 5.9 方块缓存管理
+
+#### 获取方块缓存统计
+
+````
+GET /api/blocks/stats
+````
+
+#### 获取指定区域方块
+
+````
+GET /api/blocks/region?x=100&z=200&radius=16
+````
+
+#### 搜索特定方块
+
+````
+GET /api/blocks/search?name=diamond_ore&limit=10
+````
+
+## 6. WebSocket 通用规范
+
+### 6.1 连接管理
+
+**连接建立示例:**
 
 ```javascript
-const ws = new WebSocket('ws://localhost:8000/ws/general')
+// 玩家数据连接
+const playerWs = new WebSocket('ws://localhost:20914/ws/game/player')
 
-ws.onopen = () => {
-  console.log('WebSocket connected')
+playerWs.onopen = () => {
+  console.log('Player WebSocket connected')
+  // 发送订阅消息
+  playerWs.send(JSON.stringify({
+    "type": "subscribe",
+    "update_interval": 500
+  }))
 }
 
-ws.onmessage = (event) => {
+playerWs.onmessage = (event) => {
   const data = JSON.parse(event.data)
-  handleMessage(data)
+  handlePlayerUpdate(data)
 }
 
-ws.onclose = () => {
-  console.log('WebSocket disconnected')
+playerWs.onclose = () => {
+  console.log('Player WebSocket disconnected')
+}
+
+// 世界数据连接
+const worldWs = new WebSocket('ws://localhost:20914/ws/game/world')
+
+worldWs.onopen = () => {
+  console.log('World WebSocket connected')
+  worldWs.send(JSON.stringify({
+    "type": "subscribe",
+    "update_interval": 2000
+  }))
+}
+
+worldWs.onmessage = (event) => {
+  const data = JSON.parse(event.data)
+  handleWorldUpdate(data)
+}
+
+// 标记点数据连接
+const markerWs = new WebSocket('ws://localhost:20914/ws/game/marker')
+
+markerWs.onopen = () => {
+  console.log('Marker WebSocket connected')
+  markerWs.send(JSON.stringify({
+    "type": "subscribe",
+    "update_interval": 0
+  }))
+}
+
+markerWs.onmessage = (event) => {
+  const data = JSON.parse(event.data)
+  handleMarkerUpdate(data)
+}
+```
+
+### 6.2 订阅机制
+
+**实现职责分工:**
+
+**服务端实现 (MaicraftAgent):**
+- WebSocket端点处理 (`/ws/game/player`, `/ws/game/world`, `/ws/game/marker`)
+- 订阅消息解析和处理
+- 数据推送频率控制
+- 定时或事件驱动的数据推送逻辑
+
+**客户端实现 (前端项目):**
+- 建立WebSocket连接
+- 发送订阅/取消订阅消息
+- 接收和处理推送的数据
+
+**订阅机制说明:**
+WebSocket协议本身只提供双向通信能力，订阅机制是我们基于WebSocket构建的**应用层协议**，用于管理数据流的开关和频率控制。
+
+
+```mermaid
+sequenceDiagram
+    participant 前端 as Client
+    participant 服务端 as Server
+
+    前端->>服务端: 建立WebSocket连接
+    前端->>服务端: 发送订阅消息 {"type":"subscribe","update_interval":500}
+    服务端->>服务端: 解析订阅请求，设置推送频率
+    服务端-->>前端: 确认订阅成功
+    loop 每500ms
+        服务端->>前端: 推送数据 {"type":"player_update",...}
+    end
+    前端->>服务端: 发送取消订阅 {"type":"unsubscribe"}
+    服务端->>服务端: 停止推送
+```
+
+**客户端发送订阅消息:**
+
+```json
+{
+  "type": "subscribe",
+  "update_interval": 500  // 更新间隔(ms), 0表示仅在变动时推送
+}
+```
+
+**客户端发送取消订阅消息:**
+
+```json
+{
+  "type": "unsubscribe"
 }
 ```
 
@@ -886,38 +802,9 @@ ws.onclose = () => {
 }
 ```
 
-### 7.2 订阅机制
+## 7. 错误处理规范
 
-**订阅特定类型的数据:**
-
-```json
-{
-  "type": "subscribe",
-  "channels": ["logs", "tasks", "events", "system"],
-  "filters": {
-    "logs": {
-      "levels": ["INFO", "WARNING", "ERROR"],
-      "modules": ["MCPClient", "MaiAgent"]
-    },
-    "events": {
-      "types": ["thinking", "action"]
-    }
-  }
-}
-```
-
-**取消订阅:**
-
-```json
-{
-  "type": "unsubscribe",
-  "channels": ["logs"]
-}
-```
-
-## 8. 错误处理规范
-
-### 8.1 HTTP 错误响应
+### 7.1 HTTP 错误响应
 
 ```json
 {
@@ -934,18 +821,25 @@ ws.onclose = () => {
 }
 ```
 
-### 8.2 WebSocket 错误消息
+### 7.2 WebSocket 错误消息
 
 ```json
 {
   "type": "error",
   "errorCode": "CONNECTION_FAILED",
-  "message": "无法连接到 MCP 服务器",
+  "message": "无法连接到游戏状态服务器",
+  "endpoint": "ws://localhost:20914/ws/game/player",
   "timestamp": 1704067200000
 }
 ```
 
-### 8.3 错误代码定义
+**常见错误码:**
+- `CONNECTION_FAILED`: WebSocket连接失败
+- `SUBSCRIPTION_FAILED`: 订阅失败
+- `INVALID_INTERVAL`: 无效的更新间隔
+- `ENDPOINT_NOT_FOUND`: 端点不存在
+
+### 7.3 错误代码定义
 
 | 错误代码              | 说明             |
 | --------------------- | ---------------- |
@@ -956,193 +850,3 @@ ws.onclose = () => {
 | `INTERNAL_ERROR`      | 服务器内部错误   |
 | `CONNECTION_FAILED`   | 连接失败         |
 | `TIMEOUT_ERROR`       | 请求超时         |
-
-## 9. 安全考虑
-
-### 9.1 API 密钥管理
-
-- 使用环境变量存储敏感信息
-- API 响应中隐藏敏感字段
-- 支持密钥轮换
-
-### 9.2 请求限制
-
-- 实现速率限制防止滥用
-- 对批量操作设置合理的限制
-- 监控异常请求模式
-
-### 9.3 CORS 配置
-
-```python
-# 生产环境建议的 CORS 配置
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://your-gui-domain.com"],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Authorization", "Content-Type"],
-)
-```
-
-## 10. 部署和配置
-
-### 10.1 环境变量
-
-```bash
-# 服务器配置
-GUI_API_HOST=0.0.0.0
-GUI_API_PORT=8000
-
-# 安全配置
-GUI_API_SECRET_KEY=your-secret-key-here
-GUI_ALLOWED_ORIGINS=https://your-gui-domain.com,http://localhost:3000
-
-# 数据库配置 (如果需要)
-GUI_DATABASE_URL=sqlite:///./gui.db
-
-# 日志配置
-GUI_LOG_LEVEL=INFO
-GUI_LOG_MAX_SIZE=10MB
-GUI_LOG_RETENTION=7
-```
-
-### 10.2 Docker 部署
-
-```dockerfile
-FROM python:3.9-slim
-
-WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-
-COPY . .
-
-EXPOSE 8000
-
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
-
-### 10.3 启动命令
-
-```bash
-# 开发环境
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-
-# 生产环境
-uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
-```
-
-## 11. 测试和调试
-
-### 11.1 API 测试工具
-
-推荐使用以下工具进行 API 测试：
-
-- **Postman**: REST API 测试
-- **WebSocket King**: WebSocket 测试
-- **curl**: 命令行测试
-
-### 11.2 示例测试脚本
-
-```bash
-# 测试日志 API
-curl http://localhost:8000/api/logs/history?limit=10
-
-# 测试任务 API
-curl -X POST http://localhost:8000/api/tasks \
-  -H "Content-Type: application/json" \
-  -d '{"details": "测试任务", "done_criteria": "任务完成"}'
-
-# 测试 MCP 工具
-curl http://localhost:8000/api/mcp/tools
-```
-
-## 12. 更新日志
-
-### v1.0.0 (2024-01-01)
-
-- 初始版本发布
-- 支持日志查看、配置管理、任务管理、事件查询、MCP 工具调用
-- WebSocket 实时数据推送
-- 完整的错误处理和安全机制
-
----
-
-## 接口对齐检查结果
-
-### ✅ 已对齐的功能模块
-
-#### 1. **任务管理功能** ⭐⭐⭐⭐⭐
-
-- **完全匹配**: 数据结构、方法、限制条件都与实际代码一致
-- **核心功能**: 增删改查、状态管理、智能清理机制
-- **数据存储**: JSON格式，完全匹配实际实现
-
-#### 2. **配置管理功能** ⭐⭐⭐⭐⭐
-
-- **完全匹配**: Pydantic模型结构与文档描述一致
-- **支持功能**: 读取、更新、验证、重置配置
-- **文件格式**: TOML格式配置，支持版本更新
-
-#### 3. **事件查询功能** ⭐⭐⭐⭐⭐
-
-- **完全匹配**: 数据格式 `[content, type, timestamp]` 与实际存储一致
-- **支持类型**: thinking, action, event, notice
-- **存储机制**: JSON文件持久化，自动限制数量
-
-#### 4. **MCP工具管理功能** ⭐⭐⭐⭐⭐
-
-- **完全匹配**: FastMCP客户端集成，支持工具调用
-- **连接配置**: JSON格式服务器配置
-- **调用机制**: 异步调用，支持参数传递
-
-### ⚠️ 需要后端实现的接口
-
-#### 1. **日志查看功能** (部分实现)
-
-- **当前状态**: 仅实时输出，无历史存储
-- **建议实现**: 添加日志文件存储和查询功能
-- **影响**: 前端只能查看实时日志，无法历史回溯
-
-#### 2. **系统状态监控** (基础实现)
-
-- **当前状态**: 基础信息可用，无资源监控
-- **建议实现**: 添加CPU、内存、性能指标监控
-- **影响**: 前端只能获取基础状态信息
-
-### 🔧 技术架构说明
-
-#### 数据存储层
-
-```python
-# 任务系统 - JSON文件存储
-mai_to_do_list = ToDoList()  # data/todo_list.json
-
-# 思考日志 - JSON文件存储
-global_thinking_log = ThinkingLog()  # data/thinking_log.json
-
-# 配置系统 - TOML文件存储
-global_config = load_config_from_dict(config_dict)  # config.toml
-```
-
-#### 核心组件关系
-
-```
-MaicraftAgent
-├── ToDoList (任务管理)
-├── ThinkingLog (事件记录)
-├── MCPClient (工具调用)
-├── Configuration (配置管理)
-└── Logger (实时日志)
-```
-
-#### 数据流向
-
-```
-用户操作 → Web API → 业务逻辑 → 数据持久化
-    ↓
-Vue3前端 ← REST/WS ← 后端服务 ← JSON/TOML文件
-```
-
-本文档将根据项目发展持续更新。如有疑问，请参考具体的 API 实现代码或联系开发团队。
