@@ -24,6 +24,7 @@ from agent.environment.inventory_utils import review_all_tools
 import traceback
 from agent.common.basic_class import PlayerEntity, ItemEntity, AnimalEntity
 from agent.environment.movement import global_movement
+from agent.events import global_event_store
 
 logger = get_logger("EnvironmentInfo")
 
@@ -114,10 +115,6 @@ class EnvironmentInfo:
             
         self.vlm = LLMClient(model_config)
         
-    def add_event(self, event: Event):
-        self.recent_events.append(event)
-        if len(self.recent_events) > 80:
-            self.recent_events = self.recent_events[80:]
         
     async def get_overview_str(self) -> str:
         if not self.vlm:
@@ -508,12 +505,9 @@ class EnvironmentInfo:
         """获取所有聊天事件的字符串表示"""
         lines = []
         
-        if not self.recent_events:
-            lines.append("暂无聊天记录")
-            return "\n".join(lines)
+        # 从event_store获取聊天事件
         
-        # 筛选出聊天事件
-        chat_events = [event for event in self.recent_events if event.type == "chat"]
+        chat_events = global_event_store.get_events_by_type("chat", 50)
         
         if not chat_events:
             lines.append("暂无聊天记录")

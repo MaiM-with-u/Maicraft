@@ -2,6 +2,7 @@ import json
 import os
 import time
 from typing import List
+from agent.events import global_event_store
 
 class ThinkingLog:
     """思考记录"""
@@ -43,9 +44,15 @@ class ThinkingLog:
             elif log_type == "action":
                 action_items.append(item)
             elif log_type == "event":
-                event_items.append(item)
+                # 跳过原有的事件日志，现在从event_store获取
+                pass
             else:  # thinking类型
                 thinking_items.append(item)
+        
+        # 从event_store获取最新的游戏事件
+        recent_events = global_event_store.get_recent_events(15)
+        for event in recent_events:
+            event_items.append((str(event), "event", event.timestamp))
         
         # 按时间戳排序并获取最新记录
         thinking_items.sort(key=lambda x: x[2])
@@ -88,9 +95,15 @@ class ThinkingLog:
             elif log_type == "action":
                 action_items.append(item)
             elif log_type == "event":
-                event_items.append(item)
+                # 跳过原有的事件日志，现在从event_store获取
+                pass
             else:  # thinking类型
                 thinking_items.append(item)
+        
+        # 从event_store获取更多的游戏事件
+        recent_events = global_event_store.get_recent_events(20)
+        for event in recent_events:
+            event_items.append((str(event), "event", event.timestamp))
         
         # 按时间戳排序并获取最新记录
         thinking_items.sort(key=lambda x: x[2])

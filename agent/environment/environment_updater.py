@@ -13,7 +13,8 @@ from utils.logger import get_logger
 from agent.environment.environment import global_environment
 import json
 from agent.block_cache.block_cache import global_block_cache
-from agent.common.basic_class import Event, Player, BlockPosition
+from agent.common.basic_class import Player, BlockPosition
+from agent.events import Event, global_event_store
 from agent.thinking_log import global_thinking_log
 from mcp_server.client import global_mcp_client
 from agent.chat_history import global_chat_history
@@ -162,12 +163,9 @@ class EnvironmentUpdater:
                     ignore_event_name = ["healthUpdate"]
                     if event.type in ignore_event_name:
                         continue
-                            
-                    if event.type == "chat":
-                        global_chat_history.add_chat_history(chat_event=event)
-                    else:
-                        global_environment.add_event(event)
-                        global_thinking_log.add_thinking_log(thinking_log=event.__str__(),type = "event")
+                    
+                    # 使用统一的事件存储
+                    global_event_store.add_event(event)
                         
                     
                 except Exception as e:

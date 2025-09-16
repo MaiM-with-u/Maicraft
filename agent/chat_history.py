@@ -6,7 +6,7 @@ from utils.logger import get_logger
 from agent.common.basic_class import Event
 from typing import List, Optional
 import asyncio
-
+from agent.events import global_event_store
 
 logger = get_logger("ChatHistory")
 
@@ -18,10 +18,12 @@ class ChatHistory:
         
     def get_chat_history_str(self) -> str:
         lines = []
+        chat_events = global_event_store.get_events_by_type("chat", 50)
+        
         # 只获取最近30分钟以内且最多30条聊天记录
         current_time = datetime.now().timestamp()
         recent_chats = []
-        for chat_event in self.chat_history:
+        for chat_event in chat_events:
             if current_time - chat_event.timestamp <= 1800:  # 30分钟 = 1800秒
                 recent_chats.append(chat_event)
         # 限制最多30条
