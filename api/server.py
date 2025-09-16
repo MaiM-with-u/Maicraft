@@ -19,7 +19,8 @@ from .routers import (
     game_rest_router,
     locations_router,
     containers_router,
-    blocks_router
+    blocks_router,
+    mcp_router
 )
 
 
@@ -57,6 +58,7 @@ class MaicraftAPIServer:
         self.app.include_router(locations_router)
         self.app.include_router(containers_router)
         self.app.include_router(blocks_router)
+        self.app.include_router(mcp_router)
 
         # 健康检查端点
         @self.app.get("/health")
@@ -95,6 +97,23 @@ async def start_api_server(host: Optional[str] = None, port: Optional[int] = Non
     server_port = port or api_config.port
     log_level = api_config.log_level
 
+    # 连接MCP客户端
+    try:
+        from ...mcp_server.client import global_mcp_client
+    except ImportError:
+        # 如果相对导入失败，尝试绝对导入
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+        from mcp_server.client import global_mcp_client
+
+    print("[API] 正在连接MCP客户端...")
+    connected = await global_mcp_client.connect()
+    if connected:
+        print("[API] MCP客户端连接成功")
+    else:
+        print("[API] MCP客户端连接失败")
+
     app = create_app()
 
     # 配置uvicorn服务器
@@ -111,6 +130,7 @@ async def start_api_server(host: Optional[str] = None, port: Optional[int] = Non
     try:
         await server.serve()
     except KeyboardInterrupt:
+        # 优雅退出
         pass
 
 

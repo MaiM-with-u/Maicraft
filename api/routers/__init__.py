@@ -9,6 +9,7 @@ from .game_rest import game_rest_router
 from .locations import locations_router
 from .containers import containers_router
 from .blocks import blocks_router
+from .mcp import mcp_router
 
 __all__ = [
     "logs_router",
@@ -17,5 +18,6 @@ __all__ = [
     "game_rest_router",
     "locations_router",
     "containers_router",
-    "blocks_router"
+    "blocks_router",
+    "mcp_router"
 ]
