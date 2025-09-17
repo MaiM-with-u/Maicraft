@@ -5,8 +5,6 @@ from dataclasses import dataclass
 from typing import Optional, Dict, Any
 import time
 from ..common.basic_class import Player, Position, Block
-# 移除顶部的导入，避免循环导入
-# 在工厂方法中进行延迟导入
 @dataclass
 class BaseEvent:
     """事件基类，只包含所有事件都必有的字段"""
@@ -44,94 +42,30 @@ class Event(BaseEvent):
     """Event工厂类，根据事件类型创建对应的子类实例，保持向后兼容"""
     
     def __new__(cls, **kwargs):
+        """使用注册表创建对应的事件实例"""
+        from .event_registry import event_registry
+
         event_type = kwargs.get('type', '')
+        event = event_registry.create_event(event_type, **kwargs)
 
-
-        # 每个事件类型对应一个子类，使用延迟导入避免循环依赖
-        if event_type == "chat":
-            from .impl.chat_event import ChatEvent
-            return ChatEvent(**kwargs)
-        elif event_type == "playerJoined":
-            from .impl.player_joined_event import PlayerJoinedEvent
-            return PlayerJoinedEvent(**kwargs)
-        elif event_type == "playerLeft":
-            from .impl.player_left_event import PlayerLeftEvent
-            return PlayerLeftEvent(**kwargs)
-        elif event_type == "death":
-            from .impl.death_event import DeathEvent
-            return DeathEvent(**kwargs)
-        elif event_type == "spawn":
-            from .impl.spawn_event import SpawnEvent
-            return SpawnEvent(**kwargs)
-        elif event_type == "rain":
-            from .impl.rain_event import RainEvent
-            return RainEvent(**kwargs)
-        elif event_type == "kicked":
-            from .impl.kicked_event import KickedEvent
-            return KickedEvent(**kwargs)
-        elif event_type == "spawnReset":
-            from .impl.spawn_reset_event import SpawnResetEvent
-            return SpawnResetEvent(**kwargs)
-        elif event_type == "health":
-            from .impl.health_event import HealthEvent
-            return HealthEvent(**kwargs)
-        elif event_type == "entityHurt":
-            from .impl.entity_hurt_event import EntityHurtEvent
-            return EntityHurtEvent(**kwargs)
-        elif event_type == "entityDead":
-            from .impl.entity_dead_event import EntityDeadEvent
-            return EntityDeadEvent(**kwargs)
-        elif event_type == "playerCollect":
-            from .impl.player_collect_event import PlayerCollectEvent
-            return PlayerCollectEvent(**kwargs)
+        if event is not None:
+            return event
         else:
             # 未知事件类型，使用基类
             return BaseEvent(**kwargs)
 
     @classmethod
     def from_raw_data(cls, event_data_item: Dict[str, Any]) -> BaseEvent:
-        """从原始数据创建事件，解析逻辑由各子类实现"""
-        event_type = event_data_item.get("type", "")
+        """使用注册表从原始数据创建事件"""
+        from .event_registry import event_registry
 
-        # 根据事件类型创建相应的事件类
-        if event_type == "chat":
-            from .impl.chat_event import ChatEvent
-            return ChatEvent.from_raw_data(event_data_item)
-        elif event_type == "playerJoined":
-            from .impl.player_joined_event import PlayerJoinedEvent
-            return PlayerJoinedEvent.from_raw_data(event_data_item)
-        elif event_type == "playerLeft":
-            from .impl.player_left_event import PlayerLeftEvent
-            return PlayerLeftEvent.from_raw_data(event_data_item)
-        elif event_type == "death":
-            from .impl.death_event import DeathEvent
-            return DeathEvent.from_raw_data(event_data_item)
-        elif event_type == "spawn":
-            from .impl.spawn_event import SpawnEvent
-            return SpawnEvent.from_raw_data(event_data_item)
-        elif event_type == "rain":
-            from .impl.rain_event import RainEvent
-            return RainEvent.from_raw_data(event_data_item)
-        elif event_type == "kicked":
-            from .impl.kicked_event import KickedEvent
-            return KickedEvent.from_raw_data(event_data_item)
-        elif event_type == "spawnReset":
-            from .impl.spawn_reset_event import SpawnResetEvent
-            return SpawnResetEvent.from_raw_data(event_data_item)
-        elif event_type == "health":
-            from .impl.health_event import HealthEvent
-            return HealthEvent.from_raw_data(event_data_item)
-        elif event_type == "entityHurt":
-            from .impl.entity_hurt_event import EntityHurtEvent
-            return EntityHurtEvent.from_raw_data(event_data_item)
-        elif event_type == "entityDead":
-            from .impl.entity_dead_event import EntityDeadEvent
-            return EntityDeadEvent.from_raw_data(event_data_item)
-        elif event_type == "playerCollect":
-            from .impl.player_collect_event import PlayerCollectEvent
-            return PlayerCollectEvent.from_raw_data(event_data_item)
+        event = event_registry.create_event_from_raw_data(event_data_item)
+
+        if event is not None:
+            return event
         else:
             # 未知事件类型，使用基类
+            event_type = event_data_item.get("type", "")
             return cls(
                 type=event_type,
                 gameTick=event_data_item.get("gameTick", 0),

@@ -74,13 +74,19 @@ class ThinkingLog:
         # 构建日志字符串
         thinking_str = ""
         for item in all_items:
-            time_str = time.strftime("%H:%M:%S", time.localtime(item[2]))
+            # 处理时间戳格式转换（毫秒转秒）
+            timestamp = item[2]
+            if isinstance(timestamp, (int, float)) and timestamp > 1e10:
+                # 如果是毫秒级时间戳，转换为秒级
+                timestamp = timestamp / 1000.0
+
+            time_str = time.strftime("%H:%M:%S", time.localtime(timestamp))
             log_content, log_type, _ = item
             thinking_str += f"{time_str}:{log_content}\n"
-            
+
         return thinking_str
-    
-        
+
+
     def get_thinking_log_full(self) -> str:
         # 分离不同类型的日志
         notice_items = []
@@ -125,7 +131,13 @@ class ThinkingLog:
         # 构建日志字符串
         thinking_str = ""
         for item in all_items:
-            time_str = time.strftime("%H:%M:%S", time.localtime(item[2]))
+            # 处理时间戳格式转换（毫秒转秒）
+            timestamp = item[2]
+            if isinstance(timestamp, (int, float)) and timestamp > 1e10:
+                # 如果是毫秒级时间戳，转换为秒级
+                timestamp = timestamp / 1000.0
+
+            time_str = time.strftime("%H:%M:%S", time.localtime(timestamp))
             log_content, log_type, _ = item
             thinking_str += f"{time_str}:{log_content}\n"
             
