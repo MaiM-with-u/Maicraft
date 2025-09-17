@@ -3,7 +3,7 @@ from agent.thinking_log import global_thinking_log
 from config import global_config
 
 from utils.logger import get_logger
-from agent.common.basic_class import Event
+from agent.events import Event
 from typing import List, Optional
 import asyncio
 from agent.events import global_event_store

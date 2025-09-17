@@ -160,7 +160,7 @@ class EnvironmentUpdater:
                     
                     # logger.info(event_data_item)
                     
-                    ignore_event_name = ["healthUpdate"]
+                    ignore_event_name = ["health"]
                     if event.type in ignore_event_name:
                         continue
                     

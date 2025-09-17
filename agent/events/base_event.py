@@ -64,10 +64,6 @@ class Event(BaseEvent):
     def __new__(cls, **kwargs):
         event_type = kwargs.get('type', '')
 
-        # 修正历史遗留的蛇形命名
-        event_type = cls._normalize_event_type(event_type)
-        kwargs['type'] = event_type
-
         # Ensure player_name is set for all events, default to "System"
         if "player_name" not in kwargs or not kwargs["player_name"]:
             kwargs["player_name"] = "System"
@@ -112,29 +108,6 @@ class Event(BaseEvent):
         else:
             # 未知事件类型，使用基类
             return BaseEvent(**kwargs)
-    
-    @staticmethod
-    def _normalize_event_type(event_type: str) -> str:
-        """修正历史遗留的命名不一致问题"""
-        mapping = {
-            # 旧的驼峰命名修正
-            "playerJoin": "playerJoined",
-            "playerLeave": "playerLeft",
-            "healthUpdate": "health",
-            # 移除不存在的事件类型
-            "player_quit": "unknown",
-            "player_move": "unknown",
-            "block_break": "unknown",
-            "block_place": "unknown",
-            "itemPickup": "unknown",
-            "itemDrop": "unknown",
-            "entity_damage": "unknown",
-            "entity_death": "unknown",
-            "player_death": "unknown",
-            "playerRespawn": "unknown",
-        }
-        normalized = mapping.get(event_type, event_type)
-        return normalized if normalized != "unknown" else "unknown"
 
     @classmethod
     def from_raw_data(cls, event_data_item: Dict[str, Any]) -> BaseEvent:
