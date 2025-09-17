@@ -6,8 +6,8 @@ from ..base_event import BaseEvent
 
 
 @dataclass
-class PlayerJoinEvent(BaseEvent):
+class PlayerJoinedEvent(BaseEvent):
     """玩家加入事件"""
-    
+
     def get_description(self) -> str:
         return f"{self.player_name}进入了游戏"

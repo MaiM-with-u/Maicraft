@@ -1,0 +1,29 @@
+"""
+实体受伤事件实现
+"""
+from dataclasses import dataclass
+from typing import Optional
+from ..base_event import BaseEvent
+
+
+@dataclass
+class EntityHurtEvent(BaseEvent):
+    """实体受伤事件"""
+    entity_name: Optional[str] = None
+    damage: Optional[int] = None
+
+    def get_description(self) -> str:
+        if self.entity_name and self.damage is not None:
+            return f"{self.entity_name} 受到了 {self.damage} 点伤害"
+        elif self.entity_name:
+            return f"{self.entity_name} 受到了伤害"
+        else:
+            return "实体受到了伤害"
+
+    def to_dict(self) -> dict:
+        result = super().to_dict()
+        result.update({
+            "entity_name": self.entity_name,
+            "damage": self.damage,
+        })
+        return result

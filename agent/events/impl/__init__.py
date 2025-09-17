@@ -1,29 +1,31 @@
 """
-事件实现模块 - 每个事件类型一个文件
+事件实现模块 - 实际存在的事件类型
 """
 
 from .chat_event import ChatEvent
-from .player_join_event import PlayerJoinEvent
-from .player_leave_event import PlayerLeaveEvent
-from .player_move_event import PlayerMoveEvent
-from .player_respawn_event import PlayerRespawnEvent
-from .block_break_event import BlockBreakEvent
-from .block_place_event import BlockPlaceEvent
-from .item_pickup_event import ItemPickupEvent
-from .item_drop_event import ItemDropEvent
+from .player_joined_event import PlayerJoinedEvent
+from .player_left_event import PlayerLeftEvent
+from .death_event import DeathEvent
+from .spawn_event import SpawnEvent
+from .rain_event import RainEvent
+from .kicked_event import KickedEvent
+from .spawn_reset_event import SpawnResetEvent
+from .health_event import HealthEvent
+from .entity_hurt_event import EntityHurtEvent
+from .entity_dead_event import EntityDeadEvent
 from .player_collect_event import PlayerCollectEvent
-from .health_update_event import HealthUpdateEvent
 
 __all__ = [
     "ChatEvent",
-    "PlayerJoinEvent", 
-    "PlayerLeaveEvent",
-    "PlayerMoveEvent",
-    "PlayerRespawnEvent",
-    "BlockBreakEvent",
-    "BlockPlaceEvent", 
-    "ItemPickupEvent",
-    "ItemDropEvent",
+    "PlayerJoinedEvent",
+    "PlayerLeftEvent",
+    "DeathEvent",
+    "SpawnEvent",
+    "RainEvent",
+    "KickedEvent",
+    "SpawnResetEvent",
+    "HealthEvent",
+    "EntityHurtEvent",
+    "EntityDeadEvent",
     "PlayerCollectEvent",
-    "HealthUpdateEvent",
 ]

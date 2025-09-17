@@ -7,14 +7,14 @@ from ..base_event import BaseEvent
 
 
 @dataclass
-class PlayerLeaveEvent(BaseEvent):
+class PlayerLeftEvent(BaseEvent):
     """玩家离开事件"""
     kick_reason: Optional[str] = None
-    
+
     def get_description(self) -> str:
         reason = f" 原因: {self.kick_reason}" if self.kick_reason else ""
         return f"{self.player_name}退出了游戏{reason}"
-    
+
     def to_dict(self) -> dict:
         result = super().to_dict()
         if self.kick_reason:

@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from typing import Optional, Dict, Any
 import time
 from ..common.basic_class import Player, Position, Block
-
-
+# 移除顶部的导入，避免循环导入
+# 在工厂方法中进行延迟导入
 @dataclass
 class BaseEvent:
     """事件基类，包含所有事件的公共字段"""
@@ -72,58 +72,69 @@ class Event(BaseEvent):
         if "player_name" not in kwargs or not kwargs["player_name"]:
             kwargs["player_name"] = "System"
 
-        # 每个事件类型对应一个子类
+        # 每个事件类型对应一个子类，使用延迟导入避免循环依赖
         if event_type == "chat":
             from .impl.chat_event import ChatEvent
             return ChatEvent(**kwargs)
-        elif event_type == "playerJoin":
-            from .impl.player_join_event import PlayerJoinEvent
-            return PlayerJoinEvent(**kwargs)
-        elif event_type == "playerLeave":
-            from .impl.player_leave_event import PlayerLeaveEvent
-            return PlayerLeaveEvent(**kwargs)
-        elif event_type == "playerMove":
-            from .impl.player_move_event import PlayerMoveEvent
-            return PlayerMoveEvent(**kwargs)
-        elif event_type == "playerRespawn":
-            from .impl.player_respawn_event import PlayerRespawnEvent
-            return PlayerRespawnEvent(**kwargs)
-        elif event_type == "blockBreak":
-            from .impl.block_break_event import BlockBreakEvent
-            return BlockBreakEvent(**kwargs)
-        elif event_type == "blockPlace":
-            from .impl.block_place_event import BlockPlaceEvent
-            return BlockPlaceEvent(**kwargs)
-        elif event_type == "itemPickup":
-            from .impl.item_pickup_event import ItemPickupEvent
-            return ItemPickupEvent(**kwargs)
-        elif event_type == "itemDrop":
-            from .impl.item_drop_event import ItemDropEvent
-            return ItemDropEvent(**kwargs)
+        elif event_type == "playerJoined":
+            from .impl.player_joined_event import PlayerJoinedEvent
+            return PlayerJoinedEvent(**kwargs)
+        elif event_type == "playerLeft":
+            from .impl.player_left_event import PlayerLeftEvent
+            return PlayerLeftEvent(**kwargs)
+        elif event_type == "death":
+            from .impl.death_event import DeathEvent
+            return DeathEvent(**kwargs)
+        elif event_type == "spawn":
+            from .impl.spawn_event import SpawnEvent
+            return SpawnEvent(**kwargs)
+        elif event_type == "rain":
+            from .impl.rain_event import RainEvent
+            return RainEvent(**kwargs)
+        elif event_type == "kicked":
+            from .impl.kicked_event import KickedEvent
+            return KickedEvent(**kwargs)
+        elif event_type == "spawnReset":
+            from .impl.spawn_reset_event import SpawnResetEvent
+            return SpawnResetEvent(**kwargs)
+        elif event_type == "health":
+            from .impl.health_event import HealthEvent
+            return HealthEvent(**kwargs)
+        elif event_type == "entityHurt":
+            from .impl.entity_hurt_event import EntityHurtEvent
+            return EntityHurtEvent(**kwargs)
+        elif event_type == "entityDead":
+            from .impl.entity_dead_event import EntityDeadEvent
+            return EntityDeadEvent(**kwargs)
         elif event_type == "playerCollect":
             from .impl.player_collect_event import PlayerCollectEvent
             return PlayerCollectEvent(**kwargs)
-        elif event_type == "healthUpdate":
-            from .impl.health_update_event import HealthUpdateEvent
-            return HealthUpdateEvent(**kwargs)
         else:
             # 未知事件类型，使用基类
             return BaseEvent(**kwargs)
     
     @staticmethod
     def _normalize_event_type(event_type: str) -> str:
-        """修正历史遗留的蛇形命名为正确的驼峰命名"""
+        """修正历史遗留的命名不一致问题"""
         mapping = {
-            "player_quit": "playerQuit",
-            "player_move": "playerMove", 
-            "block_break": "blockBreak",
-            "block_place": "blockPlace",
-            # 无效事件类型过滤
+            # 旧的驼峰命名修正
+            "playerJoin": "playerJoined",
+            "playerLeave": "playerLeft",
+            "healthUpdate": "health",
+            # 移除不存在的事件类型
+            "player_quit": "unknown",
+            "player_move": "unknown",
+            "block_break": "unknown",
+            "block_place": "unknown",
+            "itemPickup": "unknown",
+            "itemDrop": "unknown",
             "entity_damage": "unknown",
             "entity_death": "unknown",
             "player_death": "unknown",
+            "playerRespawn": "unknown",
         }
-        return mapping.get(event_type, event_type)
+        normalized = mapping.get(event_type, event_type)
+        return normalized if normalized != "unknown" else "unknown"
 
     @classmethod
     def from_raw_data(cls, event_data_item: Dict[str, Any]) -> BaseEvent:
@@ -213,31 +224,43 @@ class Event(BaseEvent):
         if event_type == "chat":
             # 聊天事件已在上面处理
             pass
-        elif event_type in ["playerJoin", "playerLeave", "playerMove", "playerRespawn"]:
-            # 玩家事件字段
-            for field in ["kick_reason", "old_position", "new_position"]:
-                if field in event_data_item:
-                    if field.endswith("position") and isinstance(event_data_item[field], dict):
-                        event_kwargs[field] = Position(**event_data_item[field])
-                    else:
-                        event_kwargs[field] = event_data_item[field]
-        elif event_type in ["blockBreak", "blockPlace"]:
-            # 方块事件字段
-            for field in ["block_type", "x", "y", "z"]:
+        elif event_type in ["playerJoined", "playerLeft"]:
+            # 玩家加入/离开事件字段
+            for field in ["kick_reason"]:
                 if field in event_data_item:
                     event_kwargs[field] = event_data_item[field]
-            if "block" in event_data_item and isinstance(event_data_item["block"], dict):
-                event_kwargs["block"] = Block(**event_data_item["block"])
-        elif event_type in ["itemPickup", "itemDrop", "playerCollect"]:
-            # 物品事件字段 - 已在上面处理playerCollect
-            for field in ["item_type", "item_count", "item_info"]:
+        elif event_type == "death":
+            # 死亡事件字段 - 使用基础字段
+            pass
+        elif event_type in ["spawn", "spawnReset"]:
+            # 重生相关事件字段 - 使用基础字段
+            pass
+        elif event_type == "rain":
+            # 下雨事件字段 - 使用基础字段
+            pass
+        elif event_type == "kicked":
+            # 踢出事件字段
+            for field in ["kick_reason"]:
                 if field in event_data_item:
                     event_kwargs[field] = event_data_item[field]
-        elif event_type == "healthUpdate":
-            # 健康更新事件字段
+        elif event_type == "health":
+            # 健康事件字段
             for field in ["health", "food", "saturation", "experience", "level"]:
                 if field in event_data_item:
                     event_kwargs[field] = event_data_item[field]
+        elif event_type == "entityHurt":
+            # 实体受伤事件字段
+            for field in ["entity_name", "damage"]:
+                if field in event_data_item:
+                    event_kwargs[field] = event_data_item[field]
+        elif event_type == "entityDead":
+            # 实体死亡事件字段
+            for field in ["entity_name"]:
+                if field in event_data_item:
+                    event_kwargs[field] = event_data_item[field]
+        elif event_type == "playerCollect":
+            # 玩家收集事件字段 - 已在上面处理
+            pass
         else:
             # 其他事件类型，只保留基础字段
             for field in ["weather"]:
