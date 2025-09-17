@@ -3,6 +3,7 @@
 """
 from typing import Optional
 from ..base_event import BaseEvent
+from ..event_types import EventType
 
 
 class HealthEvent(BaseEvent):
@@ -54,7 +55,7 @@ class HealthEvent(BaseEvent):
         """从原始数据创建健康事件"""
         player_info = event_data_item.get("playerInfo", {})
         return cls(
-            type="health",
+            type=EventType.HEALTH.value,
             gameTick=event_data_item.get("gameTick", 0),
             timestamp=event_data_item.get("timestamp", 0),
             player_name=player_info.get("username", ""),

@@ -4,6 +4,7 @@
 from dataclasses import dataclass
 from typing import Optional
 from ..base_event import BaseEvent
+from ..event_types import EventType
 
 
 class ChatEvent(BaseEvent):
@@ -32,7 +33,7 @@ class ChatEvent(BaseEvent):
         """从原始数据创建聊天事件"""
         chat_info = event_data_item.get("chatInfo", {})
         return cls(
-            type="chat",
+            type=EventType.CHAT.value,
             gameTick=event_data_item.get("gameTick", 0),
             timestamp=event_data_item.get("timestamp", 0),
             speaker=chat_info.get("username", ""),

@@ -2,6 +2,7 @@
 重生事件实现
 """
 from ..base_event import BaseEvent
+from ..event_types import EventType
 
 
 class SpawnEvent(BaseEvent):
@@ -28,7 +29,7 @@ class SpawnEvent(BaseEvent):
         """从原始数据创建重生事件"""
         player_info = event_data_item.get("playerInfo", {})
         return cls(
-            type="spawn",
+            type=EventType.SPAWN.value,
             gameTick=event_data_item.get("gameTick", 0),
             timestamp=event_data_item.get("timestamp", 0),
             player_name=player_info.get("username", "")

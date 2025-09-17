@@ -3,6 +3,7 @@
 """
 from dataclasses import dataclass
 from ..base_event import BaseEvent
+from ..event_types import EventType
 
 
 class DeathEvent(BaseEvent):
@@ -29,7 +30,7 @@ class DeathEvent(BaseEvent):
         """从原始数据创建死亡事件"""
         player_info = event_data_item.get("playerInfo", {})
         return cls(
-            type="death",
+            type=EventType.DEATH.value,
             gameTick=event_data_item.get("gameTick", 0),
             timestamp=event_data_item.get("timestamp", 0),
             player_name=player_info.get("username", "")

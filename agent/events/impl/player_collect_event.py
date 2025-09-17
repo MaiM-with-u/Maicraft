@@ -3,6 +3,7 @@
 """
 from typing import Optional, Dict, Any
 from ..base_event import BaseEvent
+from ..event_types import EventType
 
 
 class PlayerCollectEvent(BaseEvent):
@@ -62,7 +63,7 @@ class PlayerCollectEvent(BaseEvent):
             }
 
         return cls(
-            type="playerCollect",
+            type=EventType.PLAYER_COLLECT.value,
             gameTick=event_data_item.get("gameTick", 0),
             timestamp=event_data_item.get("timestamp", 0),
             player_name=collector_data.get("username", ""),

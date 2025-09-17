@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from utils.logger import get_logger
 from agent.common.basic_class import Player, Position, Entity, BlockPosition
-from agent.events import Event
+from agent.events import Event, EventType
 from agent.block_cache.block_cache import global_block_cache
 from openai_client.llm_request import LLMClient
 from agent.environment.locations import global_location_points
@@ -508,7 +508,7 @@ class EnvironmentInfo:
         
         # 从event_store获取聊天事件
         
-        chat_events = global_event_store.get_events_by_type("chat", 50)
+        chat_events = global_event_store.get_events_by_type(EventType.CHAT.value, 50)
         
         if not chat_events:
             lines.append("暂无聊天记录")

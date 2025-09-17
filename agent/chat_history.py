@@ -3,7 +3,7 @@ from agent.thinking_log import global_thinking_log
 from config import global_config
 
 from utils.logger import get_logger
-from agent.events import Event
+from agent.events import Event, EventType
 from typing import List, Optional
 import asyncio
 from agent.events import global_event_store
@@ -18,7 +18,7 @@ class ChatHistory:
         
     def get_chat_history_str(self) -> str:
         lines = []
-        chat_events = global_event_store.get_events_by_type("chat", 50)
+        chat_events = global_event_store.get_events_by_type(EventType.CHAT.value, 50)
 
         # 只获取最近30分钟以内且最多30条聊天记录
         current_time = datetime.now().timestamp()

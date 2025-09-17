@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Optional, Dict, Any, Set
 import math
 from datetime import datetime
+from agent.events.event_types import EventType
 
 
 @dataclass
@@ -229,7 +230,7 @@ class Event:
         }
         
         # 预处理聊天事件的特殊字段
-        if event_data_item.get("type") == "chat" and event_data_item.get("chatInfo"):
+        if event_data_item.get("type") == EventType.CHAT.value and event_data_item.get("chatInfo"):
             chat_info = event_data_item["chatInfo"]
             event_kwargs["chat_text"] = chat_info.get("text", "")
             event_kwargs["player_name"] = chat_info.get("username", "")
@@ -262,7 +263,7 @@ class Event:
             )
         
         # 处理playerCollect事件的特殊格式
-        elif event_data_item.get("type") == "playerCollect" and event_data_item.get("collector"):
+        elif event_data_item.get("type") == EventType.PLAYER_COLLECT.value and event_data_item.get("collector"):
             collector_data = event_data_item["collector"]
             event_kwargs["player_name"] = collector_data.get("username", "")
             
@@ -294,27 +295,27 @@ class Event:
         player_name = self.player_name or "未知玩家"
         
         # 根据事件类型返回不同的描述
-        if self.type == "chat" and self.chat_text:
+        if self.type == EventType.CHAT.value and self.chat_text:
             return f"玩家{player_name}说: {self.chat_text}"
-        elif self.type == "playerCollect" and self.chat_text:
+        elif self.type == EventType.PLAYER_COLLECT.value and self.chat_text:
             return f"玩家{player_name}{self.chat_text}"
-        elif self.type == "playerJoin":
+        elif self.type == EventType.PLAYER_JOIN.value:
             return f"玩家{player_name}进入了游戏"
-        elif self.type == "player_quit":
+        elif self.type == EventType.PLAYER_QUIT.value:
             return f"玩家{player_name}退出了游戏"
-        elif self.type == "playerRespawn":
+        elif self.type == EventType.PLAYER_RESPAWN.value:
             return f"玩家{player_name}重生了"
-        elif self.type == "player_move" and self.old_position and self.new_position:
+        elif self.type == EventType.PLAYER_MOVE.value and self.old_position and self.new_position:
             return f"玩家{player_name}从{self.old_position}移动到{self.new_position}"
-        elif self.type == "block_break" and self.block:
+        elif self.type == EventType.BLOCK_BREAK.value and self.block:
             return f"玩家{player_name}破坏了{self.block.name}方块"
-        elif self.type == "block_place" and self.block:
+        elif self.type == EventType.BLOCK_PLACE.value and self.block:
             return f"玩家{player_name}放置了{self.block.name}方块"
-        elif self.type == "entity_damage" and self.entity_name and self.damage:
+        elif self.type == EventType.ENTITY_DAMAGE.value and self.entity_name and self.damage:
             return f"玩家{player_name}对{self.entity_name}造成了{self.damage}点伤害"
-        elif self.type == "player_death":
+        elif self.type == EventType.PLAYER_DEATH.value:
             return f"玩家{player_name}死亡了"
-        elif self.type == "weather_change" and self.weather:
+        elif self.type == EventType.WEATHER_CHANGE.value and self.weather:
             return f"天气变成了{self.weather}"
         else:
             # 默认格式

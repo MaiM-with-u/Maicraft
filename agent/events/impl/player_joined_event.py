@@ -3,6 +3,7 @@
 """
 from typing import Optional
 from ..base_event import BaseEvent
+from ..event_types import EventType
 
 
 class PlayerJoinedEvent(BaseEvent):
@@ -32,7 +33,7 @@ class PlayerJoinedEvent(BaseEvent):
         """从原始数据创建玩家加入事件"""
         player_info = event_data_item.get("playerInfo", {})
         return cls(
-            type="playerJoined",
+            type=EventType.PLAYER_JOINED.value,
             gameTick=event_data_item.get("gameTick", 0),
             timestamp=event_data_item.get("timestamp", 0),
             player_name=player_info.get("username", ""),

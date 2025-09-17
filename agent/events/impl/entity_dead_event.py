@@ -3,6 +3,7 @@
 """
 from typing import Optional
 from ..base_event import BaseEvent
+from ..event_types import EventType
 
 
 class EntityDeadEvent(BaseEvent):
@@ -30,7 +31,7 @@ class EntityDeadEvent(BaseEvent):
     def from_raw_data(cls, event_data_item: dict) -> 'EntityDeadEvent':
         """从原始数据创建实体死亡事件"""
         return cls(
-            type="entityDead",
+            type=EventType.ENTITY_DEAD.value,
             gameTick=event_data_item.get("gameTick", 0),
             timestamp=event_data_item.get("timestamp", 0),
             entity_name=event_data_item.get("entity_name")
