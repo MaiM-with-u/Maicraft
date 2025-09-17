@@ -6,18 +6,21 @@ from typing import Optional
 from ..base_event import BaseEvent
 
 
-@dataclass
 class ChatEvent(BaseEvent):
     """聊天事件"""
-    chat_text: str = ""
-    speaker: str = ""  # 说话人
+
+    def __init__(self, type: str, gameTick: int, timestamp: float, speaker: str = "", chat_text: str = ""):
+        """初始化聊天事件"""
+        super().__init__(type, gameTick, timestamp)
+        self.speaker = speaker  # 说话人
+        self.chat_text = chat_text
 
     def get_description(self) -> str:
         return f"{self.speaker}说: {self.chat_text}"
 
     def to_context_string(self) -> str:
         return f"[chat] {self.speaker}: {self.chat_text}"
-    
+
     def to_dict(self) -> dict:
         result = super().to_dict()
         result["chat_text"] = self.chat_text

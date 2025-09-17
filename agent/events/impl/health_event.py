@@ -1,20 +1,25 @@
 """
 健康事件实现
 """
-from dataclasses import dataclass
 from typing import Optional
 from ..base_event import BaseEvent
 
 
-@dataclass
 class HealthEvent(BaseEvent):
     """健康事件"""
-    player_name: str = ""  # 状态更新的玩家
-    health: Optional[int] = None
-    food: Optional[int] = None
-    saturation: Optional[int] = None
-    experience: Optional[int] = None
-    level: Optional[int] = None
+
+    def __init__(self, type: str, gameTick: int, timestamp: float,
+                 player_name: str = "", health: Optional[int] = None,
+                 food: Optional[int] = None, saturation: Optional[int] = None,
+                 experience: Optional[int] = None, level: Optional[int] = None):
+        """初始化健康事件"""
+        super().__init__(type, gameTick, timestamp)
+        self.player_name = player_name  # 状态更新的玩家
+        self.health = health
+        self.food = food
+        self.saturation = saturation
+        self.experience = experience
+        self.level = level
 
     def get_description(self) -> str:
         health_info = f"生命值: {self.health}" if self.health is not None else ""

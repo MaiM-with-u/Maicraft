@@ -5,10 +5,13 @@ from dataclasses import dataclass
 from ..base_event import BaseEvent
 
 
-@dataclass
 class DeathEvent(BaseEvent):
     """死亡事件"""
-    player_name: str = ""  # 死亡的玩家
+
+    def __init__(self, type: str, gameTick: int, timestamp: float, player_name: str = ""):
+        """初始化死亡事件"""
+        super().__init__(type, gameTick, timestamp)
+        self.player_name = player_name  # 死亡的玩家
 
     def get_description(self) -> str:
         return f"{self.player_name} 死亡了"

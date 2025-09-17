@@ -1,16 +1,18 @@
 """
 玩家加入事件实现
 """
-from dataclasses import dataclass
 from typing import Optional
 from ..base_event import BaseEvent
 
 
-@dataclass
 class PlayerJoinedEvent(BaseEvent):
     """玩家加入事件"""
-    player_name: str = ""  # 加入的玩家
-    kick_reason: Optional[str] = None
+
+    def __init__(self, type: str, gameTick: int, timestamp: float, player_name: str = "", kick_reason: Optional[str] = None):
+        """初始化玩家加入事件"""
+        super().__init__(type, gameTick, timestamp)
+        self.player_name = player_name  # 加入的玩家
+        self.kick_reason = kick_reason
 
     def get_description(self) -> str:
         return f"{self.player_name}进入了游戏"

@@ -530,7 +530,8 @@ class EnvironmentInfo:
             if event.timestamp:
                 from datetime import datetime
                 try:
-                    dt = datetime.fromtimestamp(event.timestamp)
+                    # 使用事件对象的时间戳方法
+                    dt = event.get_datetime()
                     timestamp_str = f"[{dt.strftime('%H:%M:%S')}]"
                 except (ValueError, OSError):
                     timestamp_str = f"[{event.timestamp:.1f}s]"
