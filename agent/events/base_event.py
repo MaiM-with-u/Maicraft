@@ -2,6 +2,9 @@
 事件基类定义
 """
 from typing import Dict, Any
+from datetime import datetime
+from utils.timestamp_utils import normalize_timestamp, format_timestamp_for_display, convert_timestamp_for_datetime
+from .event_registry import event_registry
 class BaseEvent:
     """事件基类，只包含所有事件都必有的字段"""
 
@@ -12,7 +15,6 @@ class BaseEvent:
         self._timestamp_ms = timestamp
 
         # 自动标准化时间戳（一次性转换，提高效率）
-        from utils.timestamp_utils import normalize_timestamp
         self._normalized_timestamp = normalize_timestamp(timestamp)
 
     @property
@@ -24,7 +26,6 @@ class BaseEvent:
     def timestamp(self, value: float) -> None:
         """设置时间戳（自动标准化）"""
         self._timestamp_ms = value
-        from utils.timestamp_utils import normalize_timestamp
         self._normalized_timestamp = normalize_timestamp(value)
 
     @property
@@ -34,13 +35,10 @@ class BaseEvent:
 
     def get_display_time(self, format_str: str = "%H:%M:%S") -> str:
         """获取格式化的时间显示字符串"""
-        from utils.timestamp_utils import format_timestamp_for_display
         return format_timestamp_for_display(self.timestamp, format_str)
 
     def get_datetime(self):
         """获取datetime对象（自动处理时间戳转换）"""
-        from datetime import datetime
-        from utils.timestamp_utils import convert_timestamp_for_datetime
         return datetime.fromtimestamp(convert_timestamp_for_datetime(self.timestamp))
 
     def get_category(self) -> str:
@@ -74,8 +72,6 @@ class EventFactory:
     @staticmethod
     def create(**kwargs) -> BaseEvent:
         """使用注册表创建对应的事件实例"""
-        from .event_registry import event_registry
-
         event_type = kwargs.get('type', '')
         event = event_registry.create_event(event_type, **kwargs)
 
@@ -88,8 +84,6 @@ class EventFactory:
     @staticmethod
     def from_raw_data(event_data_item: Dict[str, Any]) -> BaseEvent:
         """使用注册表从原始数据创建事件"""
-        from .event_registry import event_registry
-
         event = event_registry.create_event_from_raw_data(event_data_item)
 
         if event is not None:

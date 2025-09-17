@@ -5,7 +5,6 @@ from typing import Dict, Type, Any, Callable, Set
 import importlib
 import pkgutil
 import inspect
-from pathlib import Path
 
 
 class EventRegistry:
@@ -77,8 +76,6 @@ def _convert_class_name_to_event_type(event_class_name: str) -> str:
         return name.lower()
 
     # 使用正则表达式进行驼峰转换，保持camelCase格式
-    import re
-
     # 找到所有大写字母的位置
     words = []
     current_word = []
