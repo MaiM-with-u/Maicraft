@@ -20,6 +20,14 @@ class EntityHurtEvent(BaseEvent):
         else:
             return "实体受到了伤害"
 
+    def to_context_string(self) -> str:
+        if self.entity_name and self.damage is not None:
+            return f"[entityHurt] {self.entity_name} 受到了 {self.damage} 点伤害"
+        elif self.entity_name:
+            return f"[entityHurt] {self.entity_name} 受到了伤害"
+        else:
+            return "[entityHurt] 实体受到了伤害"
+
     def to_dict(self) -> dict:
         result = super().to_dict()
         result.update({
@@ -27,3 +35,14 @@ class EntityHurtEvent(BaseEvent):
             "damage": self.damage,
         })
         return result
+
+    @classmethod
+    def from_raw_data(cls, event_data_item: dict) -> 'EntityHurtEvent':
+        """从原始数据创建实体受伤事件"""
+        return cls(
+            type="entityHurt",
+            gameTick=event_data_item.get("gameTick", 0),
+            timestamp=event_data_item.get("timestamp", 0),
+            entity_name=event_data_item.get("entity_name"),
+            damage=event_data_item.get("damage")
+        )

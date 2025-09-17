@@ -9,6 +9,7 @@ from ..base_event import BaseEvent
 @dataclass
 class HealthEvent(BaseEvent):
     """健康事件"""
+    player_name: str = ""  # 状态更新的玩家
     health: Optional[int] = None
     food: Optional[int] = None
     saturation: Optional[int] = None
@@ -22,14 +23,18 @@ class HealthEvent(BaseEvent):
         info_parts = [info for info in [health_info, food_info, saturation_info] if info]
         status_text = f"状态更新 - {', '.join(info_parts)}" if info_parts else "状态更新"
 
-        # 对于系统事件，如果player_name是System或为空，则不显示玩家名
-        if self.player_name and self.player_name != "System":
-            return f"{self.player_name}的{status_text}"
-        else:
-            return status_text
+        return f"{self.player_name}的{status_text}"
+
+    def to_context_string(self) -> str:
+        health_info = f"生命值: {self.health}" if self.health is not None else ""
+        food_info = f"饱食度: {self.food}" if self.food is not None else ""
+        info_parts = [info for info in [health_info, food_info] if info]
+        status_text = f"状态更新 - {', '.join(info_parts)}" if info_parts else "状态更新"
+        return f"[health] {self.player_name}: {status_text}"
 
     def to_dict(self) -> dict:
         result = super().to_dict()
+        result["player_name"] = self.player_name
         result.update({
             "health": self.health,
             "food": self.food,
@@ -38,3 +43,19 @@ class HealthEvent(BaseEvent):
             "level": self.level,
         })
         return result
+
+    @classmethod
+    def from_raw_data(cls, event_data_item: dict) -> 'HealthEvent':
+        """从原始数据创建健康事件"""
+        player_info = event_data_item.get("playerInfo", {})
+        return cls(
+            type="health",
+            gameTick=event_data_item.get("gameTick", 0),
+            timestamp=event_data_item.get("timestamp", 0),
+            player_name=player_info.get("username", ""),
+            health=event_data_item.get("health"),
+            food=event_data_item.get("food"),
+            saturation=event_data_item.get("saturation"),
+            experience=event_data_item.get("experience"),
+            level=event_data_item.get("level")
+        )
