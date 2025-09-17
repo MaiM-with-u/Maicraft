@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from utils.logger import get_logger
 from agent.common.basic_class import Player, Position, Entity, BlockPosition
-from agent.events import Event, EventType
+from agent.events import EventType, BaseEvent
 from agent.block_cache.block_cache import global_block_cache
 from openai_client.llm_request import LLMClient
 from agent.environment.locations import global_location_points
@@ -99,7 +99,7 @@ class EnvironmentInfo:
         
         
         # 最近事件
-        self.recent_events: List[Event] = []
+        self.recent_events: List[BaseEvent] = []
         
         
         # 时间戳

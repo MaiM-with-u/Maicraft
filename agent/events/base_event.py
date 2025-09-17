@@ -1,10 +1,7 @@
 """
 事件基类定义
 """
-from dataclasses import dataclass
-from typing import Optional, Dict, Any
-import time
-from ..common.basic_class import Player, Position, Block
+from typing import Dict, Any
 class BaseEvent:
     """事件基类，只包含所有事件都必有的字段"""
 
@@ -71,10 +68,11 @@ class BaseEvent:
         return self.get_description()
 
 
-class Event(BaseEvent):
-    """Event工厂类，根据事件类型创建对应的子类实例，保持向后兼容"""
-    
-    def __new__(cls, **kwargs):
+class EventFactory:
+    """Event工厂类，根据事件类型创建对应的子类实例"""
+
+    @staticmethod
+    def create(**kwargs) -> BaseEvent:
         """使用注册表创建对应的事件实例"""
         from .event_registry import event_registry
 
@@ -87,8 +85,8 @@ class Event(BaseEvent):
             # 未知事件类型，使用基类
             return BaseEvent(**kwargs)
 
-    @classmethod
-    def from_raw_data(cls, event_data_item: Dict[str, Any]) -> BaseEvent:
+    @staticmethod
+    def from_raw_data(event_data_item: Dict[str, Any]) -> BaseEvent:
         """使用注册表从原始数据创建事件"""
         from .event_registry import event_registry
 
@@ -99,7 +97,7 @@ class Event(BaseEvent):
         else:
             # 未知事件类型，使用基类
             event_type = event_data_item.get("type", "")
-            return cls(
+            return BaseEvent(
                 type=event_type,
                 gameTick=event_data_item.get("gameTick", 0),
                 timestamp=event_data_item.get("timestamp", 0)

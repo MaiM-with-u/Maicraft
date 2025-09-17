@@ -3,16 +3,15 @@ from agent.thinking_log import global_thinking_log
 from config import global_config
 
 from utils.logger import get_logger
-from agent.events import Event, EventType
-from typing import List, Optional
-import asyncio
+from agent.events import EventType, ChatEvent
+from typing import List
 from agent.events import global_event_store
 
 logger = get_logger("ChatHistory")
 
 class ChatHistory:
     def __init__(self):
-        self.chat_history: List[Event] = []  # 初始化为空列表
+        self.chat_history: List[ChatEvent] = []  # 初始化为空列表
         self.new_message: bool = False
         self.called_message: bool = False
         
@@ -43,7 +42,7 @@ class ChatHistory:
             lines.append(f"{timestamp_str}{display_name}: {chat_event.chat_text}")
         return "\n".join(lines)
     
-    def add_chat_history(self, chat_event: Event):
+    def add_chat_history(self, chat_event: ChatEvent):
         self.chat_history.append(chat_event)
         logger.info(f"添加聊天记录: {chat_event.chat_text}")
         if chat_event.speaker != global_config.bot.player_name:

@@ -14,7 +14,7 @@ from agent.environment.environment import global_environment
 import json
 from agent.block_cache.block_cache import global_block_cache
 from agent.common.basic_class import Player, BlockPosition
-from agent.events import Event, EventType, global_event_store
+from agent.events import EventFactory, EventType, global_event_store
 from agent.thinking_log import global_thinking_log
 from mcp_server.client import global_mcp_client
 from agent.chat_history import global_chat_history
@@ -155,8 +155,8 @@ class EnvironmentUpdater:
             
             for event_data_item in new_events:
                 try:
-                    # 使用Event类的from_raw_data方法创建对象
-                    event = Event.from_raw_data(event_data_item)
+                    # 使用EventFactory从原始数据创建事件对象
+                    event = EventFactory.from_raw_data(event_data_item)
                     
                     # logger.info(event_data_item)
                     
