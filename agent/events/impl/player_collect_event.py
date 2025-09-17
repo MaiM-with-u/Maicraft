@@ -1,18 +1,22 @@
 """
 玩家收集事件实现
 """
-from dataclasses import dataclass
 from typing import Optional, Dict, Any
 from ..base_event import BaseEvent
 
 
-@dataclass
 class PlayerCollectEvent(BaseEvent):
     """玩家收集事件"""
-    player_name: str = ""  # 收集物品的玩家
-    item_type: Optional[str] = None
-    item_count: Optional[int] = None
-    item_info: Optional[Dict[str, Any]] = None
+
+    def __init__(self, type: str, gameTick: int, timestamp: float,
+                 player_name: str = "", item_type: Optional[str] = None,
+                 item_count: Optional[int] = None, item_info: Optional[Dict[str, Any]] = None):
+        """初始化玩家收集事件"""
+        super().__init__(type, gameTick, timestamp)
+        self.player_name = player_name  # 收集物品的玩家
+        self.item_type = item_type
+        self.item_count = item_count
+        self.item_info = item_info
 
     def get_description(self) -> str:
         if self.item_info and "display_text" in self.item_info:

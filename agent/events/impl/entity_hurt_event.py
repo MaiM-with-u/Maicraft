@@ -1,16 +1,19 @@
 """
 实体受伤事件实现
 """
-from dataclasses import dataclass
 from typing import Optional
 from ..base_event import BaseEvent
 
 
-@dataclass
 class EntityHurtEvent(BaseEvent):
     """实体受伤事件"""
-    entity_name: Optional[str] = None
-    damage: Optional[int] = None
+
+    def __init__(self, type: str, gameTick: int, timestamp: float,
+                 entity_name: Optional[str] = None, damage: Optional[int] = None):
+        """初始化实体受伤事件"""
+        super().__init__(type, gameTick, timestamp)
+        self.entity_name = entity_name
+        self.damage = damage
 
     def get_description(self) -> str:
         if self.entity_name and self.damage is not None:

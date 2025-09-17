@@ -1,15 +1,17 @@
 """
 实体死亡事件实现
 """
-from dataclasses import dataclass
 from typing import Optional
 from ..base_event import BaseEvent
 
 
-@dataclass
 class EntityDeadEvent(BaseEvent):
     """实体死亡事件"""
-    entity_name: Optional[str] = None
+
+    def __init__(self, type: str, gameTick: int, timestamp: float, entity_name: Optional[str] = None):
+        """初始化实体死亡事件"""
+        super().__init__(type, gameTick, timestamp)
+        self.entity_name = entity_name
 
     def get_description(self) -> str:
         target = self.entity_name or "某实体"

@@ -1,14 +1,16 @@
 """
 重生点重置事件实现
 """
-from dataclasses import dataclass
 from ..base_event import BaseEvent
 
 
-@dataclass
 class SpawnResetEvent(BaseEvent):
     """重生点重置事件"""
-    player_name: str = ""  # 重生点被重置的玩家
+
+    def __init__(self, type: str, gameTick: int, timestamp: float, player_name: str = ""):
+        """初始化重生点重置事件"""
+        super().__init__(type, gameTick, timestamp)
+        self.player_name = player_name  # 重生点被重置的玩家
 
     def get_description(self) -> str:
         return f"{self.player_name}的重生点已重置"

@@ -1,13 +1,15 @@
 """
 下雨事件实现
 """
-from dataclasses import dataclass
 from ..base_event import BaseEvent
 
 
-@dataclass
 class RainEvent(BaseEvent):
     """下雨事件"""
+
+    def __init__(self, type: str, gameTick: int, timestamp: float):
+        """初始化下雨事件"""
+        super().__init__(type, gameTick, timestamp)
 
     def get_description(self) -> str:
         return "开始下雨了"

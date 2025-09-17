@@ -63,7 +63,7 @@ class BaseEvent:
         return {
             "type": self.type,
             "gameTick": self.gameTick,
-            "timestamp": self.raw_timestamp,  # 使用原始毫秒级时间戳
+            "timestamp": self.timestamp_ms,  # 使用原始毫秒级时间戳
         }
     
     def __str__(self) -> str:

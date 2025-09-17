@@ -1,14 +1,16 @@
 """
 重生事件实现
 """
-from dataclasses import dataclass
 from ..base_event import BaseEvent
 
 
-@dataclass
 class SpawnEvent(BaseEvent):
     """重生事件"""
-    player_name: str = ""  # 重生的玩家
+
+    def __init__(self, type: str, gameTick: int, timestamp: float, player_name: str = ""):
+        """初始化重生事件"""
+        super().__init__(type, gameTick, timestamp)
+        self.player_name = player_name  # 重生的玩家
 
     def get_description(self) -> str:
         return f"{self.player_name}重生了"

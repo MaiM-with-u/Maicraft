@@ -1,16 +1,19 @@
 """
 踢出事件实现
 """
-from dataclasses import dataclass
 from typing import Optional
 from ..base_event import BaseEvent
 
 
-@dataclass
 class KickedEvent(BaseEvent):
     """踢出事件"""
-    player_name: str = ""  # 被踢出的玩家
-    kick_reason: Optional[str] = None
+
+    def __init__(self, type: str, gameTick: int, timestamp: float,
+                 player_name: str = "", kick_reason: Optional[str] = None):
+        """初始化踢出事件"""
+        super().__init__(type, gameTick, timestamp)
+        self.player_name = player_name  # 被踢出的玩家
+        self.kick_reason = kick_reason
 
     def get_description(self) -> str:
         reason = f" 原因: {self.kick_reason}" if self.kick_reason else ""
