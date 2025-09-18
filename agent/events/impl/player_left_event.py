@@ -23,18 +23,14 @@ class PlayerLeftEvent(BaseEvent[PlayerLeftEventData]):
 
     def get_description(self) -> str:
         username = self.data.player.username
-        reason = f" 原因: {self.data.kick_reason}" if self.data.kick_reason else ""
-        return f"{username}退出了游戏{reason}"
+        return f"{username}退出了游戏"
 
     def to_context_string(self) -> str:
         username = self.data.player.username
-        reason = f" (原因: {self.data.kick_reason})" if self.data.kick_reason else ""
-        return f"[playerLeft] {username} 退出了游戏{reason}"
+        return f"[playerLeft] {username} 退出了游戏"
 
     def to_dict(self) -> dict:
         result = super().to_dict()
         result["player_name"] = self.data.player.username
         result["player"] = self.data.player
-        if self.data.kick_reason:
-            result["kick_reason"] = self.data.kick_reason
         return result

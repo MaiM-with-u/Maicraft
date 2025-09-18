@@ -1,7 +1,6 @@
 """
 玩家加入事件实现
 """
-from typing import Optional
 from typing_extensions import TypedDict
 from ..base_event import BaseEvent
 from ..event_types import EventType
@@ -33,6 +32,4 @@ class PlayerJoinedEvent(BaseEvent[PlayerJoinedEventData]):
         result = super().to_dict()
         result["player_name"] = self.data.player.username
         result["player"] = self.data.player
-        if self.data.get('kick_reason'):
-            result["kick_reason"] = self.data.kick_reason
         return result
