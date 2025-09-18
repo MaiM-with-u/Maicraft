@@ -66,7 +66,7 @@ class DataWrapper:
 
     def _is_position_dict(self, data: dict) -> bool:
         """判断字典是否表示Position对象"""
-        return 'x' in data and 'y' in data and 'z' in data and len(data) == 3
+        return all(k in data for k in ('x', 'y', 'z'))
 
     def _convert_to_player(self, data: dict) -> Any:
         """转换为Player对象"""
