@@ -67,11 +67,6 @@ class GameEventStore:
         recent_events = self.get_recent_events(limit)
         return [event.to_context_string() for event in recent_events]
     
-    def get_events_by_player(self, player_name: str, limit: int = 50) -> List[BaseEvent]:
-        """根据玩家名称获取事件"""
-        player_events = [e for e in self.events if e.player_name == player_name]
-        return player_events[-limit:] if player_events else []
-    
     def get_event_count(self) -> int:
         """获取当前存储的事件总数"""
         return len(self.events)
