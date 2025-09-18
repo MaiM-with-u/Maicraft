@@ -127,9 +127,9 @@ class BlockPosition:
                 self.y = math.floor(pos.y)
                 self.z = math.floor(pos.z)
         elif x is not None and y is not None and z is not None:
-            self.x = x
-            self.y = y
-            self.z = z
+            self.x = math.floor(x)
+            self.y = math.floor(y)
+            self.z = math.floor(z)
         else:
             raise ValueError("必须提供位置参数或 x, y, z 坐标")
 
