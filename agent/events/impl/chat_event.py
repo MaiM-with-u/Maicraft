@@ -18,6 +18,8 @@ class ChatEventData(TypedDict):
 class ChatEvent(BaseEvent[ChatEventData]):
     """聊天事件"""
 
+    EVENT_TYPE = EventType.CHAT.value
+
     def __init__(self, type: str, gameTick: int, timestamp: float, data: ChatEventData = None):
         """初始化聊天事件"""
         super().__init__(type, gameTick, timestamp, data)
@@ -30,14 +32,3 @@ class ChatEvent(BaseEvent[ChatEventData]):
 
     def to_dict(self) -> dict:
         return super().to_dict()
-
-    @classmethod
-    def from_raw_data(cls, event_data_item: dict) -> 'ChatEvent':
-        """从原始数据创建聊天事件"""
-        data: ChatEventData = event_data_item.get("data", {})
-        return cls(
-            type=EventType.CHAT.value,
-            gameTick=event_data_item.get("gameTick", 0),
-            timestamp=event_data_item.get("timestamp", 0),
-            data=data
-        )

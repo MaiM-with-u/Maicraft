@@ -19,6 +19,8 @@ class HealthEventData(TypedDict):
 class HealthEvent(BaseEvent[HealthEventData]):
     """健康事件"""
 
+    EVENT_TYPE = EventType.HEALTH.value
+
     def __init__(self, type: str, gameTick: int, timestamp: float, data: HealthEventData = None):
         """初始化健康事件"""
         super().__init__(type, gameTick, timestamp, data)
@@ -50,14 +52,3 @@ class HealthEvent(BaseEvent[HealthEventData]):
             "level": self.data.level,
         })
         return result
-
-    @classmethod
-    def from_raw_data(cls, event_data_item: dict) -> 'HealthEvent':
-        """从原始数据创建健康事件"""
-        data: HealthEventData = event_data_item.get("data", {})
-        return cls(
-            type=EventType.HEALTH.value,
-            gameTick=event_data_item.get("gameTick", 0),
-            timestamp=event_data_item.get("timestamp", 0),
-            data=data
-        )

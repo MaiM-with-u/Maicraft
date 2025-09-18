@@ -47,6 +47,9 @@ T = TypeVar('T', bound=Dict[str, Any])
 class BaseEvent(Generic[T]):
     """事件基类，只包含所有事件都必有的字段"""
 
+    # 子类需要定义的事件类型，由子类设置
+    EVENT_TYPE: str = "unknown"
+
     def __init__(self, type: str, gameTick: int, timestamp: float, data: T = None):
         """自定义初始化方法，自动处理时间戳转换"""
         self.type = type
@@ -106,7 +109,18 @@ class BaseEvent(Generic[T]):
             "timestamp": self.timestamp_ms,  # 使用原始毫秒级时间戳
             "data": data_dict,
         }
-    
+
+    @classmethod
+    def from_raw_data(cls, event_data_item: dict) -> 'BaseEvent[T]':
+        """从原始数据创建事件实例（通用实现）"""
+        data: T = event_data_item.get("data", {})
+        return cls(
+            type=cls.EVENT_TYPE,
+            gameTick=event_data_item.get("gameTick", 0),
+            timestamp=event_data_item.get("timestamp", 0),
+            data=data
+        )
+
     def __str__(self) -> str:
         """返回事件的字符串表示，保持与原Event类兼容"""
         return self.get_description()

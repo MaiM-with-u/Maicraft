@@ -15,6 +15,8 @@ class PlayerJoinedEventData(TypedDict):
 class PlayerJoinedEvent(BaseEvent[PlayerJoinedEventData]):
     """玩家加入事件"""
 
+    EVENT_TYPE = EventType.PLAYER_JOINED.value
+
     def __init__(self, type: str, gameTick: int, timestamp: float, data: PlayerJoinedEventData = None):
         """初始化玩家加入事件"""
         super().__init__(type, gameTick, timestamp, data)
@@ -31,14 +33,3 @@ class PlayerJoinedEvent(BaseEvent[PlayerJoinedEventData]):
         if self.data.get('kick_reason'):
             result["kick_reason"] = self.data.kick_reason
         return result
-
-    @classmethod
-    def from_raw_data(cls, event_data_item: dict) -> 'PlayerJoinedEvent':
-        """从原始数据创建玩家加入事件"""
-        data: PlayerJoinedEventData = event_data_item.get("data", {})
-        return cls(
-            type=EventType.PLAYER_JOINED.value,
-            gameTick=event_data_item.get("gameTick", 0),
-            timestamp=event_data_item.get("timestamp", 0),
-            data=data
-        )
