@@ -166,6 +166,9 @@ class EnvironmentUpdater:
                     
                     # 使用统一的事件存储
                     global_event_store.add_event(event)
+                    # 处理聊天事件
+                    if event.type == EventType.CHAT.value:
+                        global_chat_history.add_chat_history(event)
                         
                     
                 except Exception as e:
