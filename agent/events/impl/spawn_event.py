@@ -5,11 +5,11 @@ from typing import Optional, Dict, Any
 from typing_extensions import TypedDict
 from ..base_event import BaseEvent
 from ..event_types import EventType
+from ...common.basic_class import Player
 
 
 class SpawnEventData(TypedDict):
-    username: str
-    position: Optional[Dict[str, Any]]
+    player: Player
 
 
 class SpawnEvent(BaseEvent[SpawnEventData]):
@@ -22,12 +22,13 @@ class SpawnEvent(BaseEvent[SpawnEventData]):
         super().__init__(type, gameTick, timestamp, data)
 
     def get_description(self) -> str:
-        return f"{self.data.username}重生了"
+        return f"{self.data.player.username}重生了"
 
     def to_context_string(self) -> str:
-        return f"[spawn] {self.data.username} 重生了"
+        return f"[spawn] {self.data.player.username} 重生了"
 
     def to_dict(self) -> dict:
         result = super().to_dict()
-        result["player_name"] = self.data.username
+        result["player_name"] = self.data.player.username
+        result["player"] = self.data.player
         return result

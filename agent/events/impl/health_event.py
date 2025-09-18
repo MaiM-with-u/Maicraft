@@ -1,23 +1,19 @@
 """
 健康事件实现
 """
-from typing import Optional, Dict, Any
+from typing import Optional
 from typing_extensions import TypedDict
 from ..base_event import BaseEvent
 from ..event_types import EventType
 
 
 class HealthEventData(TypedDict):
-    username: str
     health: Optional[int]
     food: Optional[int]
-    saturation: Optional[int]
-    experience: Optional[int]
-    level: Optional[int]
-
+    foodSaturation: Optional[int]
 
 class HealthEvent(BaseEvent[HealthEventData]):
-    """健康事件"""
+    """健康事件。当bot的生命值、饱食度发生变化时发出。"""
 
     EVENT_TYPE = EventType.HEALTH.value
 
@@ -28,27 +24,24 @@ class HealthEvent(BaseEvent[HealthEventData]):
     def get_description(self) -> str:
         health_info = f"生命值: {self.data.health}" if self.data.health is not None else ""
         food_info = f"饱食度: {self.data.food}" if self.data.food is not None else ""
-        saturation_info = f"饱和度: {self.data.saturation}" if self.data.saturation is not None else ""
+        saturation_info = f"饱和度: {self.data.foodSaturation}" if self.data.foodSaturation is not None else ""
         info_parts = [info for info in [health_info, food_info, saturation_info] if info]
         status_text = f"状态更新 - {', '.join(info_parts)}" if info_parts else "状态更新"
 
-        return f"{self.data.username}的{status_text}"
+        return f"你的{status_text}"
 
     def to_context_string(self) -> str:
         health_info = f"生命值: {self.data.health}" if self.data.health is not None else ""
         food_info = f"饱食度: {self.data.food}" if self.data.food is not None else ""
         info_parts = [info for info in [health_info, food_info] if info]
         status_text = f"状态更新 - {', '.join(info_parts)}" if info_parts else "状态更新"
-        return f"[health] {self.data.username}: {status_text}"
+        return f"[health] {status_text}"
 
     def to_dict(self) -> dict:
         result = super().to_dict()
-        result["player_name"] = self.data.username
         result.update({
             "health": self.data.health,
             "food": self.data.food,
-            "saturation": self.data.saturation,
-            "experience": self.data.experience,
-            "level": self.data.level,
+            "foodSaturation": self.data.foodSaturation,
         })
         return result

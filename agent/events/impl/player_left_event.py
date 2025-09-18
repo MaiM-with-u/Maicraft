@@ -5,11 +5,11 @@ from typing import Optional
 from typing_extensions import TypedDict
 from ..base_event import BaseEvent
 from ..event_types import EventType
+from ...common.basic_class import Player
 
 
 class PlayerLeftEventData(TypedDict):
-    username: str
-    kick_reason: Optional[str]
+    player: Player
 
 
 class PlayerLeftEvent(BaseEvent[PlayerLeftEventData]):
@@ -22,16 +22,19 @@ class PlayerLeftEvent(BaseEvent[PlayerLeftEventData]):
         super().__init__(type, gameTick, timestamp, data)
 
     def get_description(self) -> str:
+        username = self.data.player.username
         reason = f" 原因: {self.data.kick_reason}" if self.data.kick_reason else ""
-        return f"{self.data.username}退出了游戏{reason}"
+        return f"{username}退出了游戏{reason}"
 
     def to_context_string(self) -> str:
+        username = self.data.player.username
         reason = f" (原因: {self.data.kick_reason})" if self.data.kick_reason else ""
-        return f"[playerLeft] {self.data.username} 退出了游戏{reason}"
+        return f"[playerLeft] {username} 退出了游戏{reason}"
 
     def to_dict(self) -> dict:
         result = super().to_dict()
-        result["player_name"] = self.data.username
+        result["player_name"] = self.data.player.username
+        result["player"] = self.data.player
         if self.data.kick_reason:
             result["kick_reason"] = self.data.kick_reason
         return result

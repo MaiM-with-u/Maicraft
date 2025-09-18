@@ -8,12 +8,12 @@ from ..event_types import EventType
 
 
 class KickedEventData(TypedDict):
-    username: str
-    kick_reason: Optional[str]
+    reason: Optional[str] # 踢出原因
+    loggedIn: bool # 如果客户端在成功登录后被踢出，则为 true，如果在登录阶段被踢出，则为 false。
 
 
 class KickedEvent(BaseEvent[KickedEventData]):
-    """踢出事件"""
+    """bot被踢出事件。当bot被踢出服务器时发出。"""
 
     EVENT_TYPE = EventType.KICKED.value
 
@@ -22,16 +22,16 @@ class KickedEvent(BaseEvent[KickedEventData]):
         super().__init__(type, gameTick, timestamp, data)
 
     def get_description(self) -> str:
-        reason = f" 原因: {self.data.kick_reason}" if self.data.kick_reason else ""
-        return f"{self.data.username}被踢出游戏{reason}"
+        reason = f" 原因: {self.data.reason}" if self.data.reason else ""
+        return f"你被踢出游戏{reason}"
 
     def to_context_string(self) -> str:
-        reason = f" (原因: {self.data.kick_reason})" if self.data.kick_reason else ""
-        return f"[kicked] {self.data.username} 被踢出游戏{reason}"
+        reason = f" (原因: {self.data.reason})" if self.data.reason else ""
+        return f"[kicked] 你被踢出游戏{reason}"
 
     def to_dict(self) -> dict:
         result = super().to_dict()
-        result["player_name"] = self.data.username
-        if self.data.kick_reason:
-            result["kick_reason"] = self.data.kick_reason
+        if self.data.reason:
+            result["reason"] = self.data.reason
+        result["loggedIn"] = self.data.loggedIn
         return result

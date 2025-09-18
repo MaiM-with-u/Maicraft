@@ -19,6 +19,8 @@ class EventType(Enum):
     ENTITY_HURT = "entityHurt"
     ENTITY_DEAD = "entityDead"
     PLAYER_COLLECT = "playerCollect"
+    ITEM_DROP = "itemDrop"
+    BREATH = "breath"
 
 
 # 所有支持的事件类型

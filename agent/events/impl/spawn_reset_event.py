@@ -5,11 +5,11 @@ from typing import Optional
 from typing_extensions import TypedDict
 from ..base_event import BaseEvent
 from ..event_types import EventType
+from ...common.basic_class import Position
 
 
 class SpawnResetEventData(TypedDict):
-    username: str
-    world_name: Optional[str]
+    newSpawnPoint: Position
 
 
 class SpawnResetEvent(BaseEvent[SpawnResetEventData]):
@@ -22,12 +22,12 @@ class SpawnResetEvent(BaseEvent[SpawnResetEventData]):
         super().__init__(type, gameTick, timestamp, data)
 
     def get_description(self) -> str:
-        return f"{self.data.username}的重生点已重置"
+        return f"你的重生点已重置为{self.data.newSpawnPoint}"
 
     def to_context_string(self) -> str:
-        return f"[spawnReset] {self.data.username} 的重生点已重置"
+        return f"[spawnReset] 你的重生点已重置为{self.data.newSpawnPoint}"
 
     def to_dict(self) -> dict:
         result = super().to_dict()
-        result["player_name"] = self.data.username
+        result["newSpawnPoint"] = self.data.newSpawnPoint
         return result

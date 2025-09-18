@@ -7,11 +7,11 @@ from ..event_types import EventType
 
 
 class DeathEventData(TypedDict):
-    username: str
+    pass
 
 
 class DeathEvent(BaseEvent[DeathEventData]):
-    """死亡事件"""
+    """bot死亡事件。当bot自身死亡时发出。"""
 
     EVENT_TYPE = EventType.DEATH.value
 
@@ -20,12 +20,10 @@ class DeathEvent(BaseEvent[DeathEventData]):
         super().__init__(type, gameTick, timestamp, data)
 
     def get_description(self) -> str:
-        return f"{self.data.username} 死亡了"
+        return "你死亡了"
 
     def to_context_string(self) -> str:
-        return f"[death] {self.data.username} 死亡了"
+        return "[death] 你死亡了"
 
     def to_dict(self) -> dict:
-        result = super().to_dict()
-        result["player_name"] = self.data.username
-        return result
+        return super().to_dict()

@@ -5,11 +5,11 @@ from typing import Optional
 from typing_extensions import TypedDict
 from ..base_event import BaseEvent
 from ..event_types import EventType
+from ...common.basic_class import Entity
 
 
 class EntityHurtEventData(TypedDict):
-    entity_name: Optional[str]
-    damage: Optional[int]
+    entity: Optional[Entity]
 
 
 class EntityHurtEvent(BaseEvent[EntityHurtEventData]):
@@ -22,25 +22,21 @@ class EntityHurtEvent(BaseEvent[EntityHurtEventData]):
         super().__init__(type, gameTick, timestamp, data)
 
     def get_description(self) -> str:
-        if self.data.entity_name and self.data.damage is not None:
-            return f"{self.data.entity_name} 受到了 {self.data.damage} 点伤害"
-        elif self.data.entity_name:
-            return f"{self.data.entity_name} 受到了伤害"
+        if self.data.entity:
+            target = self.data.entity.username or self.data.entity.name or "实体"
+            return f"{target} 受到了伤害，当前生命值为 {self.data.entity.health}"
         else:
             return "实体受到了伤害"
 
     def to_context_string(self) -> str:
-        if self.data.entity_name and self.data.damage is not None:
-            return f"[entityHurt] {self.data.entity_name} 受到了 {self.data.damage} 点伤害"
-        elif self.data.entity_name:
-            return f"[entityHurt] {self.data.entity_name} 受到了伤害"
+        if self.data.entity:
+            target = self.data.entity.username or self.data.entity.name or "实体"
+            return f"[entityHurt] {target} 受到了伤害"
         else:
             return "[entityHurt] 实体受到了伤害"
 
     def to_dict(self) -> dict:
         result = super().to_dict()
-        result.update({
-            "entity_name": self.data.entity_name,
-            "damage": self.data.damage,
-        })
+        if self.data.entity:
+            result["entity"] = self.data.entity.to_dict()
         return result
