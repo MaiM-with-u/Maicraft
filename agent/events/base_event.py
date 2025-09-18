@@ -1,19 +1,60 @@
 """
 事件基类定义
 """
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Union, TypeVar, Generic
+from typing_extensions import TypedDict
 from datetime import datetime
 from utils.timestamp_utils import normalize_timestamp, format_timestamp_for_display, convert_timestamp_for_datetime
 from .event_registry import event_registry
-class BaseEvent:
+
+
+# 数据包装器，支持属性访问和字典访问
+class DataWrapper:
+    """包装字典数据，支持属性访问语法，同时保持字典的所有功能"""
+
+    def __init__(self, data: Dict[str, Any]):
+        self._data = data
+
+    def __getattr__(self, name: str) -> Any:
+        """支持属性访问：data.message"""
+        if name in self._data:
+            return self._data[name]
+        raise AttributeError(f"data has no attribute '{name}'")
+
+    def __getitem__(self, key: str) -> Any:
+        """支持字典访问：data["message"]"""
+        return self._data[key]
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        """支持字典设置：data["message"] = value"""
+        self._data[key] = value
+
+    def __contains__(self, key: str) -> bool:
+        """支持in操作：key in data"""
+        return key in self._data
+
+    def get(self, key: str, default=None) -> Any:
+        """支持字典get方法：data.get("message", "default")"""
+        return self._data.get(key, default)
+
+    def __repr__(self) -> str:
+        return repr(self._data)
+
+
+# 泛型类型变量，用于事件数据类型
+T = TypeVar('T', bound=Dict[str, Any])
+
+class BaseEvent(Generic[T]):
     """事件基类，只包含所有事件都必有的字段"""
 
-    def __init__(self, type: str, gameTick: int, timestamp: float, data: Dict[str, Any] = None):
+    def __init__(self, type: str, gameTick: int, timestamp: float, data: T = None):
         """自定义初始化方法，自动处理时间戳转换"""
         self.type = type
         self.gameTick = gameTick
         self._timestamp_ms = timestamp
-        self.data = data if data is not None else {}
+        # 使用DataWrapper包装数据，支持属性访问和字典访问
+        raw_data = data if data is not None else {}
+        self.data = DataWrapper(raw_data)  # type: ignore
 
         # 自动标准化时间戳（一次性转换，提高效率）
         self._normalized_timestamp = normalize_timestamp(timestamp)
@@ -42,27 +83,6 @@ class BaseEvent:
         """获取datetime对象（自动处理时间戳转换）"""
         return datetime.fromtimestamp(convert_timestamp_for_datetime(self.timestamp))
 
-    def __getattr__(self, name: str) -> Any:
-        """
-        动态访问data字段中的属性
-        
-        使用方法：
-        - event.username 等价于 event.data["username"]
-        - event.message 等价于 event.data["message"]
-        - 如果data中不存在该字段，会抛出AttributeError
-
-        两种访问方式（不重名情况下）：
-        1. event.field_name （通过__getattr__动态访问，推荐）
-        2. event.data["field_name"] （直接字典访问）
-
-        注意：
-        - 此方法只处理不存在于对象本身的属性访问
-        - 如果事件类定义了同名属性，会优先使用类定义的属性
-        - 类型提示会丢失，IDE可能无法提供完整的智能提示
-        """
-        if name in self.data:
-            return self.data[name]
-        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
     def get_category(self) -> str:
         """获取事件分类，子类应该重写此方法"""
@@ -78,11 +98,13 @@ class BaseEvent:
 
     def to_dict(self) -> dict:
         """转换为字典格式（使用原始时间戳）"""
+        # 返回原始字典格式，用于序列化
+        data_dict = self.data._data if isinstance(self.data, DataWrapper) else self.data
         return {
             "type": self.type,
             "gameTick": self.gameTick,
             "timestamp": self.timestamp_ms,  # 使用原始毫秒级时间戳
-            "data": self.data,
+            "data": data_dict,
         }
     
     def __str__(self) -> str:
@@ -106,7 +128,7 @@ class EventFactory:
             return BaseEvent(**kwargs)
 
     @staticmethod
-    def from_raw_data(event_data_item: Dict[str, Any]) -> BaseEvent:
+    def from_raw_data(event_data_item: Dict[str, Any]) -> BaseEvent[Dict[str, Any]]:
         """使用注册表从原始数据创建事件"""
         event = event_registry.create_event_from_raw_data(event_data_item)
 

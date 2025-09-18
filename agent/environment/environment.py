@@ -25,7 +25,7 @@ from agent.environment.inventory_utils import review_all_tools
 import traceback
 from agent.common.basic_class import PlayerEntity, ItemEntity, AnimalEntity
 from agent.environment.movement import global_movement
-from agent.events import global_event_store
+from agent.events import global_event_store, ChatEvent
 
 logger = get_logger("EnvironmentInfo")
 
@@ -508,7 +508,7 @@ class EnvironmentInfo:
         
         # 从event_store获取聊天事件
         
-        chat_events = global_event_store.get_events_by_type(EventType.CHAT.value, 50)
+        chat_events: List[ChatEvent] = global_event_store.get_events_by_type(EventType.CHAT.value, 50)
         
         if not chat_events:
             lines.append("暂无聊天记录")
@@ -538,8 +538,8 @@ class EnvironmentInfo:
             
             # 获取聊天内容
             chat_content = ""
-            if event.message:
-                chat_content = event.message
+            if event.data.message:
+                chat_content = event.data.message
             else:
                 chat_content = "未知内容"
             
