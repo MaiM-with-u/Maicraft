@@ -6,7 +6,6 @@ import importlib
 import pkgutil
 import inspect
 
-
 class EventRegistry:
     """事件注册表，管理事件类型到事件类的映射"""
 
@@ -137,10 +136,8 @@ def auto_discover_and_register_events(package_name: str = "agent.events.impl") -
                         # 扫描模块中的所有类
                         for name, obj in inspect.getmembers(module, inspect.isclass):
                             # 检查是否是BaseEvent的子类（但不是BaseEvent本身）
-                            if (hasattr(obj, '__bases__') and
-                                len(obj.__bases__) > 0 and
-                                any('BaseEvent' in str(base) for base in obj.__bases__) and
-                                obj.__name__ != 'BaseEvent'):
+                            from .base_event import BaseEvent
+                            if inspect.isclass(obj) and issubclass(obj, BaseEvent) and obj is not BaseEvent:
 
                                 # 转换为事件类型
                                 event_type = _convert_class_name_to_event_type(obj.__name__)
