@@ -19,7 +19,7 @@ class DroppedItem(TypedDict):
 
 class ItemDropEventData(TypedDict):
     dropped: List[DroppedItem]
-    position: Dict[str, float]
+    position: Position
 
 
 class ItemDropEvent(BaseEvent[ItemDropEventData]):
@@ -39,7 +39,7 @@ class ItemDropEvent(BaseEvent[ItemDropEventData]):
         position = self.get_drop_position()
 
         if position:
-            return f"物品被丢弃: {items_str} 在位置 ({position['x']:.2f}, {position['y']:.2f}, {position['z']:.2f})"
+            return f"物品被丢弃: {items_str} 在位置 {position}"
         else:
             return f"物品被丢弃: {items_str}"
 
@@ -51,7 +51,7 @@ class ItemDropEvent(BaseEvent[ItemDropEventData]):
         position = self.get_drop_position()
 
         if position:
-            return f"[itemDrop] 物品被丢弃: {items_str} 位置: ({position['x']:.2f}, {position['y']:.2f}, {position['z']:.2f})"
+            return f"[itemDrop] 物品被丢弃: {items_str} 位置: {position}"
         else:
             return f"[itemDrop] 物品被丢弃: {items_str}"
 
@@ -79,7 +79,7 @@ class ItemDropEvent(BaseEvent[ItemDropEventData]):
         })
         return result
 
-    def get_drop_position(self) -> Optional[Dict[str, float]]:
+    def get_drop_position(self) -> Optional[Position]:
         """获取物品丢弃的位置"""
         return self.data.position
 

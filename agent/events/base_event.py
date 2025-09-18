@@ -16,14 +16,18 @@ class DataWrapper:
         self._data = data
 
     def __getattr__(self, name: str) -> Any:
-        """支持属性访问：data.message"""
+        """支持属性访问：data.message，并自动转换字典数据为对象"""
         if name in self._data:
-            return self._data[name]
+            value = self._data[name]
+            return self._convert_value(value)
         raise AttributeError(f"data has no attribute '{name}'")
 
     def __getitem__(self, key: str) -> Any:
         """支持字典访问：data["message"]"""
-        return self._data[key]
+        if key in self._data:
+            value = self._data[key]
+            return self._convert_value(value)
+        return None
 
     def __setitem__(self, key: str, value: Any) -> None:
         """支持字典设置：data["message"] = value"""
@@ -35,7 +39,68 @@ class DataWrapper:
 
     def get(self, key: str, default=None) -> Any:
         """支持字典get方法：data.get("message", "default")"""
-        return self._data.get(key, default)
+        value = self._data.get(key, default)
+        if key in self._data and value != default:
+            return self._convert_value(value)
+        return value
+
+    def _convert_value(self, value: Any) -> Any:
+        """自动转换字典数据为相应的对象"""
+        if isinstance(value, dict):
+            # 尝试根据字典的键来判断应该转换为哪种对象
+            if self._is_player_dict(value):
+                return self._convert_to_player(value)
+            elif self._is_entity_dict(value):
+                return self._convert_to_entity(value)
+            elif self._is_position_dict(value):
+                return self._convert_to_position(value)
+        return value
+
+    def _is_player_dict(self, data: dict) -> bool:
+        """判断字典是否表示Player对象"""
+        return 'username' in data or 'uuid' in data
+
+    def _is_entity_dict(self, data: dict) -> bool:
+        """判断字典是否表示Entity对象"""
+        return 'type' in data and ('position' in data or 'health' in data)
+
+    def _is_position_dict(self, data: dict) -> bool:
+        """判断字典是否表示Position对象"""
+        return 'x' in data and 'y' in data and 'z' in data and len(data) == 3
+
+    def _convert_to_player(self, data: dict) -> Any:
+        """转换为Player对象"""
+        try:
+            # 使用绝对导入
+            from agent.common.basic_class import Player
+            return Player.from_dict(data)
+        except Exception:
+            # 如果转换失败，返回原字典
+            return data
+
+    def _convert_to_entity(self, data: dict) -> Any:
+        """转换为Entity对象"""
+        try:
+            # 使用绝对导入
+            from agent.common.basic_class import Entity
+            return Entity.from_raw_entity(data)
+        except Exception:
+            # 如果转换失败，返回原字典
+            return data
+
+    def _convert_to_position(self, data: dict) -> Any:
+        """转换为Position对象"""
+        try:
+            # 使用绝对导入
+            from agent.common.basic_class import Position
+            return Position(
+                x=data.get('x', 0),
+                y=data.get('y', 0),
+                z=data.get('z', 0)
+            )
+        except Exception:
+            # 如果转换失败，返回原字典
+            return data
 
     def __repr__(self) -> str:
         return repr(self._data)

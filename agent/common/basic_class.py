@@ -38,6 +38,26 @@ class Player:
     gamemode: int
     entity: Optional['Entity'] = None
 
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Player':
+        """从字典创建Player实例"""
+        # 处理entity字段，如果是字典则转换为Entity对象
+        entity = None
+        if data.get('entity'):
+            if isinstance(data['entity'], dict):
+                entity = Entity.from_raw_entity(data['entity'])
+            else:
+                entity = data['entity']
+
+        return cls(
+            uuid=data.get('uuid', ''),
+            username=data.get('username', ''),
+            display_name=data.get('display_name', data.get('username', '')),
+            ping=data.get('ping', 0),
+            gamemode=data.get('gamemode', 0),
+            entity=entity
+        )
+
 
 @dataclass
 class Position:
@@ -211,18 +231,33 @@ class Entity:
 
     @classmethod
     def from_raw_entity(cls, entity) -> 'Entity':
-        """从原始entity对象创建Entity实例"""
-        return cls(
-            id=getattr(entity, 'id', None),
-            uuid=getattr(entity, 'uuid', None),
-            type=getattr(entity, 'type', None),
-            name=getattr(entity, 'name', None),
-            username=getattr(entity, 'username', None),
-            count=getattr(entity, 'count', None),
-            position=cls._parse_position(getattr(entity, 'position', None)),
-            health=getattr(entity, 'health', None),
-            food=getattr(entity, 'food', None)
-        )
+        """从原始entity对象或字典创建Entity实例"""
+        if isinstance(entity, dict):
+            # 如果是字典，直接使用字典的键值
+            return cls(
+                id=entity.get('id'),
+                uuid=entity.get('uuid'),
+                type=entity.get('type'),
+                name=entity.get('name'),
+                username=entity.get('username'),
+                count=entity.get('count'),
+                position=cls._parse_position(entity.get('position')),
+                health=entity.get('health'),
+                food=entity.get('food')
+            )
+        else:
+            # 如果是对象，使用getattr
+            return cls(
+                id=getattr(entity, 'id', None),
+                uuid=getattr(entity, 'uuid', None),
+                type=getattr(entity, 'type', None),
+                name=getattr(entity, 'name', None),
+                username=getattr(entity, 'username', None),
+                count=getattr(entity, 'count', None),
+                position=cls._parse_position(getattr(entity, 'position', None)),
+                health=getattr(entity, 'health', None),
+                food=getattr(entity, 'food', None)
+            )
 
     @staticmethod
     def _parse_position(pos) -> Optional[Position]:
