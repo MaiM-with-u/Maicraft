@@ -9,10 +9,9 @@ from ..event_types import EventType
 class EntityDeadEvent(BaseEvent):
     """实体死亡事件"""
 
-    def __init__(self, type: str, gameTick: int, timestamp: float, entity_name: Optional[str] = None):
+    def __init__(self, type: str, gameTick: int, timestamp: float, data: dict = None):
         """初始化实体死亡事件"""
-        super().__init__(type, gameTick, timestamp)
-        self.entity_name = entity_name
+        super().__init__(type, gameTick, timestamp, data)
 
     def get_description(self) -> str:
         target = self.entity_name or "某实体"
@@ -30,9 +29,10 @@ class EntityDeadEvent(BaseEvent):
     @classmethod
     def from_raw_data(cls, event_data_item: dict) -> 'EntityDeadEvent':
         """从原始数据创建实体死亡事件"""
+        data = event_data_item.get("data", {})
         return cls(
             type=EventType.ENTITY_DEAD.value,
             gameTick=event_data_item.get("gameTick", 0),
             timestamp=event_data_item.get("timestamp", 0),
-            entity_name=event_data_item.get("entity_name")
+            data=data
         )

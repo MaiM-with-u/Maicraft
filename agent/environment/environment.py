@@ -538,8 +538,8 @@ class EnvironmentInfo:
             
             # 获取聊天内容
             chat_content = ""
-            if event.chat_text:
-                chat_content = event.chat_text
+            if event.message:
+                chat_content = event.message
             else:
                 chat_content = "未知内容"
             

@@ -9,12 +9,9 @@ from ..event_types import EventType
 class EntityHurtEvent(BaseEvent):
     """实体受伤事件"""
 
-    def __init__(self, type: str, gameTick: int, timestamp: float,
-                 entity_name: Optional[str] = None, damage: Optional[int] = None):
+    def __init__(self, type: str, gameTick: int, timestamp: float, data: dict = None):
         """初始化实体受伤事件"""
-        super().__init__(type, gameTick, timestamp)
-        self.entity_name = entity_name
-        self.damage = damage
+        super().__init__(type, gameTick, timestamp, data)
 
     def get_description(self) -> str:
         if self.entity_name and self.damage is not None:
@@ -43,10 +40,10 @@ class EntityHurtEvent(BaseEvent):
     @classmethod
     def from_raw_data(cls, event_data_item: dict) -> 'EntityHurtEvent':
         """从原始数据创建实体受伤事件"""
+        data = event_data_item.get("data", {})
         return cls(
             type=EventType.ENTITY_HURT.value,
             gameTick=event_data_item.get("gameTick", 0),
             timestamp=event_data_item.get("timestamp", 0),
-            entity_name=event_data_item.get("entity_name"),
-            damage=event_data_item.get("damage")
+            data=data
         )

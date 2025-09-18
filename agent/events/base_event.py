@@ -8,11 +8,12 @@ from .event_registry import event_registry
 class BaseEvent:
     """事件基类，只包含所有事件都必有的字段"""
 
-    def __init__(self, type: str, gameTick: int, timestamp: float):
+    def __init__(self, type: str, gameTick: int, timestamp: float, data: Dict[str, Any] = None):
         """自定义初始化方法，自动处理时间戳转换"""
         self.type = type
         self.gameTick = gameTick
         self._timestamp_ms = timestamp
+        self.data = data if data is not None else {}
 
         # 自动标准化时间戳（一次性转换，提高效率）
         self._normalized_timestamp = normalize_timestamp(timestamp)
@@ -41,6 +42,28 @@ class BaseEvent:
         """获取datetime对象（自动处理时间戳转换）"""
         return datetime.fromtimestamp(convert_timestamp_for_datetime(self.timestamp))
 
+    def __getattr__(self, name: str) -> Any:
+        """
+        动态访问data字段中的属性
+        
+        使用方法：
+        - event.username 等价于 event.data["username"]
+        - event.message 等价于 event.data["message"]
+        - 如果data中不存在该字段，会抛出AttributeError
+
+        两种访问方式（不重名情况下）：
+        1. event.field_name （通过__getattr__动态访问，推荐）
+        2. event.data["field_name"] （直接字典访问）
+
+        注意：
+        - 此方法只处理不存在于对象本身的属性访问
+        - 如果事件类定义了同名属性，会优先使用类定义的属性
+        - 类型提示会丢失，IDE可能无法提供完整的智能提示
+        """
+        if name in self.data:
+            return self.data[name]
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+
     def get_category(self) -> str:
         """获取事件分类，子类应该重写此方法"""
         return "unknown"
@@ -59,6 +82,7 @@ class BaseEvent:
             "type": self.type,
             "gameTick": self.gameTick,
             "timestamp": self.timestamp_ms,  # 使用原始毫秒级时间戳
+            "data": self.data,
         }
     
     def __str__(self) -> str:
@@ -88,12 +112,13 @@ class EventFactory:
 
         if event is not None:
             return event
-        else:
-            # 未知事件类型，使用基类
-            event_type = event_data_item.get("type", "")
-            return BaseEvent(
-                type=event_type,
-                gameTick=event_data_item.get("gameTick", 0),
-                timestamp=event_data_item.get("timestamp", 0)
-            )
+
+        # 未知事件类型，使用基类
+        event_type = event_data_item.get("type", "")
+        return BaseEvent(
+            type=event_type,
+            gameTick=event_data_item.get("gameTick", 0),
+            timestamp=event_data_item.get("timestamp", 0),
+            data=event_data_item.get("data", {})
+        )
     

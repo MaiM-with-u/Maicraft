@@ -8,9 +8,9 @@ from ..event_types import EventType
 class RainEvent(BaseEvent):
     """下雨事件"""
 
-    def __init__(self, type: str, gameTick: int, timestamp: float):
+    def __init__(self, type: str, gameTick: int, timestamp: float, data: dict = None):
         """初始化下雨事件"""
-        super().__init__(type, gameTick, timestamp)
+        super().__init__(type, gameTick, timestamp, data)
 
     def get_description(self) -> str:
         return "开始下雨了"
@@ -21,8 +21,10 @@ class RainEvent(BaseEvent):
     @classmethod
     def from_raw_data(cls, event_data_item: dict) -> 'RainEvent':
         """从原始数据创建下雨事件"""
+        data = event_data_item.get("data", {})
         return cls(
             type=EventType.RAIN.value,
             gameTick=event_data_item.get("gameTick", 0),
-            timestamp=event_data_item.get("timestamp", 0)
+            timestamp=event_data_item.get("timestamp", 0),
+            data=data
         )
