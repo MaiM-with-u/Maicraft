@@ -2,6 +2,7 @@ import json
 import os
 import time
 from typing import List
+from agent.events import global_event_store
 
 class ThinkingLog:
     """思考记录"""
@@ -43,9 +44,15 @@ class ThinkingLog:
             elif log_type == "action":
                 action_items.append(item)
             elif log_type == "event":
-                event_items.append(item)
+                # 跳过原有的事件日志，现在从event_store获取
+                pass
             else:  # thinking类型
                 thinking_items.append(item)
+        
+        # 从event_store获取最新的游戏事件
+        recent_events = global_event_store.get_recent_events(15)
+        for event in recent_events:
+            event_items.append((str(event), "event", event.timestamp))
         
         # 按时间戳排序并获取最新记录
         thinking_items.sort(key=lambda x: x[2])
@@ -67,13 +74,19 @@ class ThinkingLog:
         # 构建日志字符串
         thinking_str = ""
         for item in all_items:
-            time_str = time.strftime("%H:%M:%S", time.localtime(item[2]))
+            # 处理时间戳格式转换（毫秒转秒）
+            timestamp = item[2]
+            if isinstance(timestamp, (int, float)) and timestamp > 1e10:
+                # 如果是毫秒级时间戳，转换为秒级
+                timestamp = timestamp / 1000.0
+
+            time_str = time.strftime("%H:%M:%S", time.localtime(timestamp))
             log_content, log_type, _ = item
             thinking_str += f"{time_str}:{log_content}\n"
-            
+
         return thinking_str
-    
-        
+
+
     def get_thinking_log_full(self) -> str:
         # 分离不同类型的日志
         notice_items = []
@@ -88,9 +101,15 @@ class ThinkingLog:
             elif log_type == "action":
                 action_items.append(item)
             elif log_type == "event":
-                event_items.append(item)
+                # 跳过原有的事件日志，现在从event_store获取
+                pass
             else:  # thinking类型
                 thinking_items.append(item)
+        
+        # 从event_store获取更多的游戏事件
+        recent_events = global_event_store.get_recent_events(20)
+        for event in recent_events:
+            event_items.append((str(event), "event", event.timestamp))
         
         # 按时间戳排序并获取最新记录
         thinking_items.sort(key=lambda x: x[2])
@@ -108,14 +127,16 @@ class ThinkingLog:
         # 合并所有记录并按时间排序
         all_items = latest_notice + latest_action + latest_thinking + latest_event
         all_items.sort(key=lambda x: x[2])  # 按时间戳排序
-        
+
         # 构建日志字符串
         thinking_str = ""
         for item in all_items:
-            time_str = time.strftime("%H:%M:%S", time.localtime(item[2]))
+            # 使用统一的工具函数处理时间戳转换
+            from utils.timestamp_utils import format_timestamp_for_display
+            time_str = format_timestamp_for_display(item[2])
             log_content, log_type, _ = item
             thinking_str += f"{time_str}:{log_content}\n"
-            
+
         return thinking_str
     
     def save_to_json(self) -> None:

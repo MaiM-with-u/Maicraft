@@ -1,10 +1,29 @@
 """
 基础类定义
 包含系统中使用的基础数据类和结构
+
+Entity使用示例:
+    # 从原始entity对象创建
+    entity = Entity.from_raw_entity(raw_entity)
+
+    # 手动创建
+    entity = Entity(
+        id=123,
+        uuid="abc-123-def",
+        type="player",
+        name="Steve",
+        username="Steve",
+        count=1,
+        position=Position(x=10.5, y=64.0, z=-5.2),
+        health=20,
+        food=18
+    )
+
+    # 转换为字典格式
+    entity_dict = entity.to_dict()
 """
-from ast import List
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, Set
+from typing import Optional
 import math
 from datetime import datetime
 
@@ -17,6 +36,27 @@ class Player:
     display_name: str
     ping: int
     gamemode: int
+    entity: Optional['Entity'] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Player':
+        """从字典创建Player实例"""
+        # 处理entity字段，如果是字典则转换为Entity对象
+        entity = None
+        if data.get('entity'):
+            if isinstance(data['entity'], dict):
+                entity = Entity.from_raw_entity(data['entity'])
+            else:
+                entity = data['entity']
+
+        return cls(
+            uuid=data.get('uuid', ''),
+            username=data.get('username', ''),
+            display_name=data.get('display_name', data.get('username', '')),
+            ping=data.get('ping', 0),
+            gamemode=data.get('gamemode', 0),
+            entity=entity
+        )
 
 
 @dataclass
@@ -62,6 +102,8 @@ class Position:
             "z": self.z
         } 
 
+    def __str__(self) -> str:
+        return f"({self.x:.0f}, {self.y:.0f}, {self.z:.0f})"
 
 class BlockPosition:
     """方块位置信息（整数坐标，通常用于方块格定位）"""
@@ -85,9 +127,9 @@ class BlockPosition:
                 self.y = math.floor(pos.y)
                 self.z = math.floor(pos.z)
         elif x is not None and y is not None and z is not None:
-            self.x = int(x)
-            self.y = int(y)
-            self.z = int(z)
+            self.x = math.floor(x)
+            self.y = math.floor(y)
+            self.z = math.floor(z)
         else:
             raise ValueError("必须提供位置参数或 x, y, z 坐标")
 
@@ -173,233 +215,179 @@ class Item:
 
 
 @dataclass
-class Event:
-    """事件信息"""
-    type: str
-    timestamp: float
-    server_id: str
-    player_name: str
-    player: Optional[Player] = None
-    old_position: Optional[Position] = None
-    new_position: Optional[Position] = None
-    block: Optional[Block] = None
-    experience: Optional[int] = None
-    level: Optional[int] = None
+class Entity:
+    """实体信息 - 通用实体结构供所有事件复用"""
+    id: Optional[int] = None
+    uuid: Optional[str] = None
+    type: Optional[str] = None
+    name: Optional[str] = None
+    username: Optional[str] = None
+    count: Optional[int] = None
+    position: Optional[Position] = None
     health: Optional[int] = None
     food: Optional[int] = None
-    saturation: Optional[int] = None
-    
-    # 新增属性支持更多事件类型
-    chat_text: Optional[str] = None  # 聊天消息内容
-    kick_reason: Optional[str] = None  # 踢出原因
-    entity_name: Optional[str] = None  # 实体名称
-    damage: Optional[int] = None  # 伤害值
-    entity_position: Optional[Position] = None  # 实体位置
-    weather: Optional[str] = None  # 天气信息
-    
-    # 新增字段支持更多事件类型
-    game_tick: Optional[int] = None  # 游戏tick
-    player_info: Optional[Dict[str, Any]] = None  # 玩家信息
-    position: Optional[Dict[str, float]] = None  # 位置信息
-    
+    distance: Optional[float] = None
+    max_health: Optional[int] = None
+
     @classmethod
-    def from_raw_data(cls, event_data_item: Dict[str, Any]) -> 'Event':
-        """从原始事件数据创建Event对象
-        
-        Args:
-            event_data_item: 原始事件数据字典
-            
-        Returns:
-            Event: 创建的事件对象
-        """
-        import time
-        
-        # 基础字段
-        event_kwargs = {
-            "type": event_data_item.get("type", ""),
-            "timestamp": time.time(),
-            "server_id": "",
-            "player_name": "",
-            "game_tick": event_data_item.get("gameTick"),
-            "weather": event_data_item.get("weather"),
-            "health": event_data_item.get("health"),
-            "food": event_data_item.get("food"),
-            "saturation": event_data_item.get("saturation"),
-            "chat_text": ""
-        }
-        
-        # 预处理聊天事件的特殊字段
-        if event_data_item.get("type") == "chat" and event_data_item.get("chatInfo"):
-            chat_info = event_data_item["chatInfo"]
-            event_kwargs["chat_text"] = chat_info.get("text", "")
-            event_kwargs["player_name"] = chat_info.get("username", "")
-        
-        # 处理玩家信息
-        if event_data_item.get("playerInfo"):
-            player_info = event_data_item["playerInfo"]
-            event_kwargs["player_info"] = player_info
-            event_kwargs["player_name"] = player_info.get("username", "")
-            
-            # 创建Player对象
-            event_kwargs["player"] = Player(
-                uuid=player_info.get("uuid", ""),
-                username=player_info.get("username", ""),
-                display_name=player_info.get("displayName", ""),
-                ping=player_info.get("ping", 0),
-                gamemode=player_info.get("gamemode", 0)
+    def from_raw_entity(cls, entity) -> 'Entity':
+        """从原始entity对象或字典创建Entity实例"""
+        if isinstance(entity, dict):
+            # 如果是字典，直接使用字典的键值
+            return cls(
+                id=entity.get('id'),
+                uuid=entity.get('uuid'),
+                type=entity.get('type'),
+                name=entity.get('name'),
+                username=entity.get('username'),
+                count=entity.get('count'),
+                position=cls._parse_position(entity.get('position')),
+                health=entity.get('health'),
+                food=entity.get('food')
             )
-        elif event_data_item.get("player"):
-            player_data = event_data_item["player"]
-            event_kwargs["player_name"] = player_data.get("username", "")
-            
-            # 创建Player对象
-            event_kwargs["player"] = Player(
-                uuid=player_data.get("uuid", ""),
-                username=player_data.get("username", ""),
-                display_name=player_data.get("displayName", ""),
-                ping=player_data.get("ping", 0),
-                gamemode=player_data.get("gamemode", 0)
-            )
-        
-        # 处理playerCollect事件的特殊格式
-        elif event_data_item.get("type") == "playerCollect" and event_data_item.get("collector"):
-            collector_data = event_data_item["collector"]
-            event_kwargs["player_name"] = collector_data.get("username", "")
-            
-            # 创建Player对象
-            event_kwargs["player"] = Player(
-                uuid=collector_data.get("uuid", ""),
-                username=collector_data.get("username", ""),
-                display_name=collector_data.get("displayName", ""),
-                ping=0,
-                gamemode=0
-            )
-            
-            # 处理收集的物品信息
-            collected_items = event_data_item.get("collected", [])
-            if collected_items and isinstance(collected_items, list) and len(collected_items) > 0:
-                item_info = collected_items[0]
-                item_name = item_info.get("displayName", item_info.get("name", "未知物品"))
-                item_count = item_info.get("count", 1)
-                event_kwargs["chat_text"] = f"收集了 {item_count} 个 {item_name}"
-        
-        # 处理位置信息
-        if event_data_item.get("position"):
-            event_kwargs["position"] = event_data_item["position"]
-        
-        return cls(**event_kwargs)
-    
-    def __str__(self) -> str:
-        """返回事件的字符串表示"""
-        player_name = self.player_name or "未知玩家"
-        
-        # 根据事件类型返回不同的描述
-        if self.type == "chat" and self.chat_text:
-            return f"玩家{player_name}说: {self.chat_text}"
-        elif self.type == "playerCollect" and self.chat_text:
-            return f"玩家{player_name}{self.chat_text}"
-        elif self.type == "playerJoin":
-            return f"玩家{player_name}进入了游戏"
-        elif self.type == "player_quit":
-            return f"玩家{player_name}退出了游戏"
-        elif self.type == "playerRespawn":
-            return f"玩家{player_name}重生了"
-        elif self.type == "player_move" and self.old_position and self.new_position:
-            return f"玩家{player_name}从{self.old_position}移动到{self.new_position}"
-        elif self.type == "block_break" and self.block:
-            return f"玩家{player_name}破坏了{self.block.name}方块"
-        elif self.type == "block_place" and self.block:
-            return f"玩家{player_name}放置了{self.block.name}方块"
-        elif self.type == "entity_damage" and self.entity_name and self.damage:
-            return f"玩家{player_name}对{self.entity_name}造成了{self.damage}点伤害"
-        elif self.type == "player_death":
-            return f"玩家{player_name}死亡了"
-        elif self.type == "weather_change" and self.weather:
-            return f"天气变成了{self.weather}"
         else:
-            # 默认格式
-            result = f"玩家{player_name}的{self.type}事件"
-            return result
-    
+            # 如果是对象，使用getattr
+            return cls(
+                id=getattr(entity, 'id', None),
+                uuid=getattr(entity, 'uuid', None),
+                type=getattr(entity, 'type', None),
+                name=getattr(entity, 'name', None),
+                username=getattr(entity, 'username', None),
+                count=getattr(entity, 'count', None),
+                position=cls._parse_position(getattr(entity, 'position', None)),
+                health=getattr(entity, 'health', None),
+                food=getattr(entity, 'food', None)
+            )
+
+    @staticmethod
+    def _parse_position(pos) -> Optional[Position]:
+        """解析位置信息，支持多种格式"""
+        if pos is None:
+            return None
+        if isinstance(pos, Position):
+            return pos
+        if hasattr(pos, 'x') and hasattr(pos, 'y') and hasattr(pos, 'z'):
+            # 保留两位小数
+            return Position(
+                x=round(pos.x, 2),
+                y=round(pos.y, 2),
+                z=round(pos.z, 2)
+            )
+        if isinstance(pos, dict):
+            return Position(
+                x=round(pos.get('x', 0), 2),
+                y=round(pos.get('y', 0), 2),
+                z=round(pos.get('z', 0), 2)
+            )
+        return None
+
     def to_dict(self) -> dict:
-        """将Event对象转换为字典"""
-        result = {
-            "type": self.type,
-            "timestamp": self.timestamp,
-            "server_id": self.server_id,
-            "player_name": self.player_name,
-            "game_tick": self.game_tick,
-            "weather": self.weather,
-            "health": self.health,
-            "food": self.food,
-            "saturation": self.saturation,
-            "chat_text": self.chat_text,
-            "kick_reason": self.kick_reason,
-            "entity_name": self.entity_name,
-            "damage": self.damage,
-            "experience": self.experience,
-            "level": self.level
-        }
-        
-        # 添加可选字段
-        if self.player:
-            result["player"] = self.player.__dict__ if hasattr(self.player, '__dict__') else str(self.player)
-        if self.old_position:
-            result["old_position"] = self.old_position.to_dict()
-        if self.new_position:
-            result["new_position"] = self.new_position.to_dict()
-        if self.block:
-            result["block"] = self.block.__dict__ if hasattr(self.block, '__dict__') else str(self.block)
-        if self.entity_position:
-            result["entity_position"] = self.entity_position.to_dict()
-        if self.position:
-            result["position"] = self.position
-        if self.player_info:
-            result["player_info"] = self.player_info
-            
+        """转换为字典格式"""
+        result = {}
+        if self.id is not None:
+            result['id'] = self.id
+        if self.uuid is not None:
+            result['uuid'] = self.uuid
+        if self.type is not None:
+            result['type'] = self.type
+        if self.name is not None:
+            result['name'] = self.name
+        if self.username is not None:
+            result['username'] = self.username
+        if self.count is not None:
+            result['count'] = self.count
+        if self.position is not None:
+            result['position'] = {
+                'x': self.position.x,
+                'y': self.position.y,
+                'z': self.position.z
+            }
+        if self.health is not None:
+            result['health'] = self.health
+        if self.food is not None:
+            result['food'] = self.food
+        if self.distance is not None:
+            result['distance'] = self.distance
+        if self.max_health is not None:
+            result['max_health'] = self.max_health
         return result
 
-
-@dataclass
-class Entity:
-    """实体信息"""
-    type: str
-    name: str
-    position: Position
-    id: Optional[int] = None
-    distance: Optional[float] = None
-    health: Optional[int] = None
-    max_health: Optional[int] = None
-    
     def __str__(self) -> str:
-        return f"{self.name} - 坐标: ({self.position.x:.1f}, {self.position.y:.1f}, {self.position.z:.1f})"
+        display_name = self.username or self.name or "未知实体"
+        if self.position:
+            return f"{display_name} - 坐标: ({self.position.x:.1f}, {self.position.y:.1f}, {self.position.z:.1f})"
+        return f"{display_name}"
 
 class AnimalEntity(Entity):
     """动物实体信息"""
-    def __init__(self, type: str, name: str, position: Position, id: Optional[int] = None, distance: Optional[float] = None, health: Optional[int] = None, max_health: Optional[int] = None):
-        super().__init__(type, name, position, id, distance, health, max_health)
-        
+    def __init__(self, type: Optional[str] = None, name: Optional[str] = None, position: Optional[Position] = None, id: Optional[int] = None, uuid: Optional[str] = None, username: Optional[str] = None, count: Optional[int] = None, health: Optional[int] = None, food: Optional[int] = None, distance: Optional[float] = None, max_health: Optional[int] = None):
+        super().__init__(
+            id=id,
+            uuid=uuid,
+            type=type,
+            name=name,
+            username=username,
+            count=count,
+            position=position,
+            health=health,
+            food=food,
+            distance=distance,
+            max_health=max_health
+        )
+
     def __str__(self) -> str:
-        return f"动物：{self.name} - 坐标: ({self.position.x:.1f}, {self.position.y:.1f}, {self.position.z:.1f})"
+        display_name = self.name or "未知动物"
+        if self.position:
+            return f"动物：{display_name} - 坐标: ({self.position.x:.1f}, {self.position.y:.1f}, {self.position.z:.1f})"
+        return f"动物：{display_name}"
 
 class ItemEntity(Entity):
     """物品实体信息"""
-    def __init__(self, type: str, name: str, position: Position, item_name: str, count: Optional[int] = None, id: Optional[int] = None, distance: Optional[float] = None, health: Optional[int] = None, max_health: Optional[int] = None):
-        super().__init__(type, name, position, id, distance, health, max_health)
+    def __init__(self, type: Optional[str] = None, name: Optional[str] = None, position: Optional[Position] = None, item_name: Optional[str] = None, count: Optional[int] = None, id: Optional[int] = None, uuid: Optional[str] = None, username: Optional[str] = None, health: Optional[int] = None, food: Optional[int] = None, distance: Optional[float] = None, max_health: Optional[int] = None):
+        super().__init__(
+            id=id,
+            uuid=uuid,
+            type=type,
+            name=name,
+            username=username,
+            count=count,
+            position=position,
+            health=health,
+            food=food,
+            distance=distance,
+            max_health=max_health
+        )
         self.item_name = item_name
-        self.count = count
-            
+
     def __str__(self) -> str:
-        return f"掉落物：{self.item_name} x {self.count} - 坐标: ({self.position.x:.1f}, {self.position.y:.1f}, {self.position.z:.1f})"
+        display_name = self.item_name or self.name or "未知物品"
+        count_str = f" x {self.count}" if self.count else ""
+        if self.position:
+            return f"掉落物：{display_name}{count_str} - 坐标: ({self.position.x:.1f}, {self.position.y:.1f}, {self.position.z:.1f})"
+        return f"掉落物：{display_name}{count_str}"
             
 class PlayerEntity(Entity):
-    """实体信息"""
-    def __init__(self, type: str, name: str, position: Position, username: str, id: Optional[int] = None, distance: Optional[float] = None, health: Optional[int] = None, max_health: Optional[int] = None):
-        super().__init__(type, name, position, id, distance, health, max_health)
-        self.username = username
-    
+    """玩家实体信息"""
+    def __init__(self, type: Optional[str] = None, name: Optional[str] = None, position: Optional[Position] = None, username: Optional[str] = None, id: Optional[int] = None, uuid: Optional[str] = None, count: Optional[int] = None, health: Optional[int] = None, food: Optional[int] = None, distance: Optional[float] = None, max_health: Optional[int] = None):
+        super().__init__(
+            id=id,
+            uuid=uuid,
+            type=type,
+            name=name,
+            username=username,
+            count=count,
+            position=position,
+            health=health,
+            food=food,
+            distance=distance,
+            max_health=max_health
+        )
+
     def __str__(self) -> str:
-        return f"玩家：{self.username} - 坐标: ({self.position.x:.1f}, {self.position.y:.1f}, {self.position.z:.1f})"
+        display_name = self.username or self.name or "未知玩家"
+        if self.position:
+            return f"玩家：{display_name} - 坐标: ({self.position.x:.1f}, {self.position.y:.1f}, {self.position.z:.1f})"
+        return f"玩家：{display_name}"
     
     
 

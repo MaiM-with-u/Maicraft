@@ -13,7 +13,8 @@ from utils.logger import get_logger
 from agent.environment.environment import global_environment
 import json
 from agent.block_cache.block_cache import global_block_cache
-from agent.common.basic_class import Event, Player, BlockPosition
+from agent.common.basic_class import Player, BlockPosition
+from agent.events import EventFactory, EventType, global_event_store
 from agent.thinking_log import global_thinking_log
 from mcp_server.client import global_mcp_client
 from agent.chat_history import global_chat_history
@@ -154,20 +155,20 @@ class EnvironmentUpdater:
             
             for event_data_item in new_events:
                 try:
-                    # 使用Event类的from_raw_data方法创建对象
-                    event = Event.from_raw_data(event_data_item)
+                    # 使用EventFactory从原始数据创建事件对象
+                    event = EventFactory.from_raw_data(event_data_item)
                     
                     # logger.info(event_data_item)
                     
-                    ignore_event_name = ["healthUpdate"]
+                    ignore_event_name = [EventType.HEALTH.value]
                     if event.type in ignore_event_name:
                         continue
-                            
-                    if event.type == "chat":
-                        global_chat_history.add_chat_history(chat_event=event)
-                    else:
-                        global_environment.add_event(event)
-                        global_thinking_log.add_thinking_log(thinking_log=event.__str__(),type = "event")
+                    
+                    # 使用统一的事件存储
+                    global_event_store.add_event(event)
+                    # 处理聊天事件
+                    if event.type == EventType.CHAT.value:
+                        global_chat_history.add_chat_history(event)
                         
                     
                 except Exception as e:

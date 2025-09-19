@@ -6,7 +6,8 @@ Minecraft环境信息存储类
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from utils.logger import get_logger
-from agent.common.basic_class import Player, Position, Entity, Event, BlockPosition
+from agent.common.basic_class import Player, Position, Entity, BlockPosition
+from agent.events import EventType, BaseEvent
 from agent.block_cache.block_cache import global_block_cache
 from openai_client.llm_request import LLMClient
 from agent.environment.locations import global_location_points
@@ -24,6 +25,7 @@ from agent.environment.inventory_utils import review_all_tools
 import traceback
 from agent.common.basic_class import PlayerEntity, ItemEntity, AnimalEntity
 from agent.environment.movement import global_movement
+from agent.events import global_event_store, ChatEvent
 
 logger = get_logger("EnvironmentInfo")
 
@@ -97,7 +99,7 @@ class EnvironmentInfo:
         
         
         # 最近事件
-        self.recent_events: List[Event] = []
+        self.recent_events: List[BaseEvent] = []
         
         
         # 时间戳
@@ -114,10 +116,6 @@ class EnvironmentInfo:
             
         self.vlm = LLMClient(model_config)
         
-    def add_event(self, event: Event):
-        self.recent_events.append(event)
-        if len(self.recent_events) > 80:
-            self.recent_events = self.recent_events[80:]
         
     async def get_overview_str(self) -> str:
         if not self.vlm:
@@ -508,12 +506,9 @@ class EnvironmentInfo:
         """获取所有聊天事件的字符串表示"""
         lines = []
         
-        if not self.recent_events:
-            lines.append("暂无聊天记录")
-            return "\n".join(lines)
+        # 从event_store获取聊天事件
         
-        # 筛选出聊天事件
-        chat_events = [event for event in self.recent_events if event.type == "chat"]
+        chat_events: List[ChatEvent] = global_event_store.get_events_by_type(EventType.CHAT.value, 50)
         
         if not chat_events:
             lines.append("暂无聊天记录")
@@ -535,15 +530,16 @@ class EnvironmentInfo:
             if event.timestamp:
                 from datetime import datetime
                 try:
-                    dt = datetime.fromtimestamp(event.timestamp)
+                    # 使用事件对象的时间戳方法
+                    dt = event.get_datetime()
                     timestamp_str = f"[{dt.strftime('%H:%M:%S')}]"
                 except (ValueError, OSError):
                     timestamp_str = f"[{event.timestamp:.1f}s]"
             
             # 获取聊天内容
             chat_content = ""
-            if event.chat_text:
-                chat_content = event.chat_text
+            if event.data.message:
+                chat_content = event.data.message
             else:
                 chat_content = "未知内容"
             
