@@ -4,11 +4,62 @@ from .event_store import GameEventStore
 from .event_types import EventType, SUPPORTED_EVENTS
 from .event_registry import register_all_events
 from .impl.chat_event import ChatEvent
+from .event_emitter import EventEmitter, ListenerHandle  # 新增
+# 延迟导入handlers，避免循环依赖
+def _setup_handlers():
+    from .handlers import setup_health_handlers
+    setup_health_handlers()
 
 # 创建全局事件存储实例
 global_event_store = GameEventStore()
 
+# 创建全局事件发射器实例
+global_event_emitter = EventEmitter(max_listeners=200)
+
 # 注册所有事件类型（在所有模块导入完成后执行）
 register_all_events()
 
-__all__ = ['BaseEvent', 'EventFactory', 'GameEventStore', 'global_event_store', 'EventType', 'SUPPORTED_EVENTS', 'ChatEvent']
+# 初始化事件处理器
+_setup_handlers()
+
+
+def event_listener(event_type: str, once: bool = False):
+    """
+    事件监听器装饰器
+
+    使用此装饰器可以方便地注册事件监听器函数。
+
+    Args:
+        event_type: 事件类型 (如 'chat', 'playerJoined', 'entityHurt')
+        once: 是否只监听一次，默认为False
+
+    Returns:
+        装饰器函数
+
+    Example:
+        @event_listener('chat')
+        async def handle_chat(event):
+            username = event.data.username
+            message = event.data.message
+            print(f"{username}: {message}")
+
+        @event_listener('playerJoined', once=True)
+        async def welcome_player(event):
+            username = event.data.username
+            print(f"欢迎 {username} 加入游戏！")
+    """
+    def decorator(func):
+        if once:
+            global_event_emitter.once(event_type, func)
+        else:
+            global_event_emitter.on(event_type, func)
+        return func
+    return decorator
+
+
+__all__ = [
+    'BaseEvent', 'EventFactory', 'GameEventStore', 'global_event_store',
+    'EventType', 'SUPPORTED_EVENTS', 'ChatEvent',
+    'EventEmitter', 'global_event_emitter', 'ListenerHandle',  # 新增
+    'event_listener'  # 装饰器
+]
