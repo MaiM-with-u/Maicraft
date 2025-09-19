@@ -48,20 +48,25 @@ class DataWrapper:
         """自动转换字典数据为相应的对象"""
         if isinstance(value, dict):
             # 尝试根据字典的键来判断应该转换为哪种对象
-            if self._is_player_dict(value):
-                return self._convert_to_player(value)
-            elif self._is_entity_dict(value):
+            # Entity判断优先级更高，因为它包含更多属性（health, position等）
+            if self._is_entity_dict(value):
                 return self._convert_to_entity(value)
+            elif self._is_player_dict(value):
+                return self._convert_to_player(value)
             elif self._is_position_dict(value):
                 return self._convert_to_position(value)
         return value
 
     def _is_player_dict(self, data: dict) -> bool:
         """判断字典是否表示Player对象"""
-        return 'username' in data or 'uuid' in data
+        # Player对象特征：有username/uuid，但没有health属性（因为Player类没有health字段）
+        has_user_info = 'username' in data or 'uuid' in data
+        no_entity_attrs = 'health' not in data and 'type' not in data
+        return has_user_info and no_entity_attrs
 
     def _is_entity_dict(self, data: dict) -> bool:
         """判断字典是否表示Entity对象"""
+        # Entity对象特征：有type，且有position或health
         return 'type' in data and ('position' in data or 'health' in data)
 
     def _is_position_dict(self, data: dict) -> bool:
