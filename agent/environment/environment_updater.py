@@ -14,7 +14,7 @@ from agent.environment.environment import global_environment
 import json
 from agent.block_cache.block_cache import global_block_cache
 from agent.common.basic_class import Player, BlockPosition
-from agent.events import EventFactory, EventType, global_event_store
+from agent.events import EventFactory, EventType, global_event_store, global_event_emitter
 from agent.thinking_log import global_thinking_log
 from mcp_server.client import global_mcp_client
 from agent.chat_history import global_chat_history
@@ -157,20 +157,25 @@ class EnvironmentUpdater:
                 try:
                     # 使用EventFactory从原始数据创建事件对象
                     event = EventFactory.from_raw_data(event_data_item)
-                    
+
                     # logger.info(event_data_item)
-                    
-                    ignore_event_name = [EventType.HEALTH.value]
+
+                    # 注意：health事件现在被启用用于紧急中断处理
+                    ignore_event_name = []  # 不再忽略health事件
                     if event.type in ignore_event_name:
                         continue
-                    
+
                     # 使用统一的事件存储
                     global_event_store.add_event(event)
-                    # 处理聊天事件
+
+                    # ⭐ 新增：分发事件给所有监听器
+                    await global_event_emitter.emit(event)
+
+                    # 保留：向后兼容的硬编码处理
                     if event.type == EventType.CHAT.value:
                         global_chat_history.add_chat_history(event)
-                        
-                    
+
+
                 except Exception as e:
                     self.logger.error(f"[EnvironmentUpdater] 处理事件失败: {e}")
                     self.logger.error(f"事件数据: {event_data_item}")

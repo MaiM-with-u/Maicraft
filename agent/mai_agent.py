@@ -1,6 +1,6 @@
 import asyncio
 import math
-from typing import List, Any, Optional, Dict, Tuple
+from typing import List, Any, Optional, Dict, Tuple, Callable
 from utils.logger import get_logger
 from config import global_config
 from openai_client.llm_request import LLMClient
@@ -36,6 +36,7 @@ from agent.common.basic_class import BlockPosition
 from view_render.renderer_3d import get_global_renderer_3d
 from mcp_server.client import Tool
 from agent.environment.movement import global_movement
+from agent.events import global_event_emitter, ListenerHandle
 
 COLOR_MAP = {
     "move": "\033[32m",        # 绿色
@@ -98,6 +99,9 @@ class MaiAgent:
         
         # 动作中断状态（现在使用global_movement的中断事件）
         self.current_action_task: Optional[asyncio.Task] = None
+
+        # 跟踪管理的监听器句柄
+        self._listener_handles: List[ListenerHandle] = []
     
             
     async def initialize(self):
@@ -245,11 +249,12 @@ class MaiAgent:
         result = ThinkingJsonResult()
         
         # 检查中断状态
-        # if global_movement.interrupt_flag:
-        #     interrupt_reason = global_movement.interrupt_reason
-        #     global_movement.clear_interrupt()
-        #     result.result_str = f"动作被中断：{interrupt_reason}"
-        #     return result
+        if global_movement.interrupt_flag:
+            interrupt_reason = global_movement.interrupt_reason
+            global_movement.clear_interrupt()
+            result.result_str = f"动作被中断：{interrupt_reason}"
+            result.success = False
+            return result
             
         action_type = action_json.get("action_type")
         if action_type == "move":
@@ -530,8 +535,88 @@ class MaiAgent:
         # plan_task = asyncio.create_task(agent.run_plan_loop())
         self.exec_task = asyncio.create_task(self.run_execute_loop())
         
+    def on(self, event_type: str, callback: Callable) -> ListenerHandle:
+        """
+        注册持续事件监听器
+
+        Args:
+            event_type: 事件类型 (如 'chat', 'playerJoined', 'entityHurt')
+            callback: 回调函数，签名: async def callback(event: BaseEvent) -> None
+
+        Returns:
+            ListenerHandle: 监听器句柄，用于后续管理
+
+        Example:
+            @bot.on('chat')
+            async def on_chat(event):
+                message = event.data.message
+                username = event.data.username
+                print(f"{username}: {message}")
+        """
+        handle = global_event_emitter.on(event_type, callback)
+        self._listener_handles.append(handle)
+        return handle
+
+    def once(self, event_type: str, callback: Callable) -> ListenerHandle:
+        """
+        注册一次性事件监听器
+
+        Args:
+            event_type: 事件类型
+            callback: 回调函数，执行一次后自动移除
+
+        Returns:
+            ListenerHandle: 监听器句柄
+
+        Example:
+            @bot.once('playerJoined')
+            async def welcome_new_player(event):
+                username = event.data.username
+                await bot.chat(f"欢迎 {username} 加入游戏！")
+        """
+        handle = global_event_emitter.once(event_type, callback)
+        self._listener_handles.append(handle)
+        return handle
+
+    def off(self, event_type: str, callback: Optional[Callable] = None) -> bool:
+        """
+        移除事件监听器
+
+        Args:
+            event_type: 事件类型
+            callback: 要移除的回调函数，如果为None则移除该类型的所有监听器
+
+        Returns:
+            bool: 是否成功移除
+
+        Example:
+            bot.off('chat', my_chat_handler)  # 移除特定监听器
+            bot.off('chat')  # 移除所有聊天监听器
+        """
+        return global_event_emitter.off(event_type, callback)
+
+    def remove_all_listeners(self, event_type: Optional[str] = None) -> int:
+        """
+        移除所有监听器
+
+        Args:
+            event_type: 事件类型，如果为None则移除所有类型的监听器
+
+        Returns:
+            int: 移除的监听器数量
+        """
+        return global_event_emitter.remove_all_listeners(event_type)
+
+    def get_listener_count(self, event_type: str) -> int:
+        """获取指定事件类型的监听器数量"""
+        return global_event_emitter.listener_count(event_type)
+
+    def get_event_types(self) -> List[str]:
+        """获取所有已注册监听器的事件类型"""
+        return global_event_emitter.event_names()
+
     async def shutdown(self) -> None:
-        """优雅关闭：停止环境更新器、关闭预览器、取消后台任务。"""
+        """优雅关闭：停止环境更新器、关闭预览器、取消后台任务、清理监听器。"""
         try:
             if global_environment_updater:
                 global_environment_updater.stop()
@@ -542,11 +627,17 @@ class MaiAgent:
                 self.renderer_3d.stop()
         except Exception:
             pass
+
+        # 清理监听器
+        for handle in self._listener_handles:
+            if not handle.is_removed:
+                handle.remove()
+        self._listener_handles.clear()
+
         # 取消后台任务
-        for task in (self.exec_task):
+        if self.exec_task and not self.exec_task.done():
             try:
-                if task and not task.done():
-                    task.cancel()
+                self.exec_task.cancel()
             except Exception:
                 pass
 
