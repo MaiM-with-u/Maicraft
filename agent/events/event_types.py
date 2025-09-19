@@ -2,11 +2,13 @@
 事件类型枚举定义
 面向对象设计：事件分类由各事件类的get_category()方法提供
 """
+
 from enum import Enum
 
 
 class EventType(Enum):
     """事件类型枚举"""
+
     CHAT = "chat"
     PLAYER_JOINED = "playerJoined"
     PLAYER_LEFT = "playerLeft"

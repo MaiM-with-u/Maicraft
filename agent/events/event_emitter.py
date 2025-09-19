@@ -1,6 +1,7 @@
 """
 事件发射器 - 实现类似mineflayer的bot.on/bot.once事件监听机制
 """
+
 import asyncio
 import logging
 from typing import Dict, List, Callable, Optional
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Listener:
     """监听器包装类"""
+
     callback: Callable
     event_type: str
     is_once: bool = False
@@ -32,7 +34,7 @@ class Listener:
 class ListenerHandle:
     """监听器句柄，用于管理监听器的生命周期"""
 
-    def __init__(self, emitter: 'EventEmitter', listener: Listener):
+    def __init__(self, emitter: "EventEmitter", listener: Listener):
         self._emitter = emitter
         self._listener = listener
         self._removed = False
@@ -40,7 +42,9 @@ class ListenerHandle:
     def remove(self) -> bool:
         """移除监听器"""
         if not self._removed:
-            success = self._emitter.off(self._listener.event_type, self._listener.callback)
+            success = self._emitter.off(
+                self._listener.event_type, self._listener.callback
+            )
             self._removed = success
             return success
         return False
@@ -67,11 +71,11 @@ class EventEmitter:
 
         # 性能统计
         self._stats = {
-            'total_emitted': 0,
-            'total_listeners_called': 0,
-            'avg_emit_time': 0.0,
-            'max_emit_time': 0.0,
-            'errors': 0
+            "total_emitted": 0,
+            "total_listeners_called": 0,
+            "avg_emit_time": 0.0,
+            "max_emit_time": 0.0,
+            "errors": 0,
         }
 
     def _check_listener_limit(self, event_type: str) -> bool:
@@ -82,22 +86,24 @@ class EventEmitter:
             return False
         return True
 
-    async def emit(self, event: 'BaseEvent') -> None:
+    async def emit(self, event: "BaseEvent") -> None:
         """分发事件给所有相关监听器"""
         import time
+
         start_time = time.time()
 
         event_type = event.type
 
         # 获取所有监听器
-        listeners = self._listeners.get(event_type, []) + \
-                   self._once_listeners.get(event_type, [])
+        listeners = self._listeners.get(event_type, []) + self._once_listeners.get(
+            event_type, []
+        )
 
         if not listeners:
             return
 
         # 更新统计信息
-        self._stats['total_emitted'] += 1
+        self._stats["total_emitted"] += 1
 
         # 限制并发数量，避免创建过多协程
         semaphore = asyncio.Semaphore(50)  # 限制最大并发数
@@ -106,36 +112,45 @@ class EventEmitter:
             async with semaphore:
                 await self._safe_call_listener(listener, event)
 
-        tasks = [asyncio.create_task(call_with_semaphore(listener)) for listener in listeners]
+        tasks = [
+            asyncio.create_task(call_with_semaphore(listener)) for listener in listeners
+        ]
         await asyncio.gather(*tasks, return_exceptions=True)
 
         # 清理一次性监听器
         if event_type in self._once_listeners:
-            self._stats['total_listeners_called'] += len(self._once_listeners[event_type])
+            self._stats["total_listeners_called"] += len(
+                self._once_listeners[event_type]
+            )
             del self._once_listeners[event_type]
-            self._listener_count[event_type] = self._listener_count.get(event_type, 0) - len(listeners)
+            self._listener_count[event_type] = self._listener_count.get(
+                event_type, 0
+            ) - len(listeners)
 
         # 更新性能统计
         elapsed = time.time() - start_time
-        self._stats['total_listeners_called'] += len(listeners)
-        self._stats['avg_emit_time'] = (
-            self._stats['avg_emit_time'] * (self._stats['total_emitted'] - 1) + elapsed
-        ) / self._stats['total_emitted']
-        self._stats['max_emit_time'] = max(self._stats['max_emit_time'], elapsed)
+        self._stats["total_listeners_called"] += len(listeners)
+        self._stats["avg_emit_time"] = (
+            self._stats["avg_emit_time"] * (self._stats["total_emitted"] - 1) + elapsed
+        ) / self._stats["total_emitted"]
+        self._stats["max_emit_time"] = max(self._stats["max_emit_time"], elapsed)
 
-    async def _safe_call_listener(self, listener: Listener, event: 'BaseEvent') -> None:
+    async def _safe_call_listener(self, listener: Listener, event: "BaseEvent") -> None:
         """安全调用监听器，隔离异常"""
         try:
             if asyncio.iscoroutinefunction(listener.callback):
                 await listener.callback(event)
             else:
                 # 同步回调也在线程池中执行，避免阻塞事件循环
-                await asyncio.get_event_loop().run_in_executor(None, listener.callback, event)
+                await asyncio.get_event_loop().run_in_executor(
+                    None, listener.callback, event
+                )
         except Exception as e:
-            self._stats['errors'] += 1
+            self._stats["errors"] += 1
             logger.error(f"事件监听器执行失败 [{listener.event_type}]: {e}")
             logger.error(f"监听器ID: {listener.id}, 回调: {listener.callback}")
             import traceback
+
             logger.error(f"异常详情: {traceback.format_exc()}")
 
     def on(self, event_type: str, callback: Callable) -> ListenerHandle:
@@ -187,18 +202,21 @@ class EventEmitter:
                 # 移除所有该类型的持续监听器
                 count = len(self._listeners[event_type])
                 self._listeners[event_type].clear()
-                self._listener_count[event_type] = self._listener_count.get(event_type, 0) - count
+                self._listener_count[event_type] = (
+                    self._listener_count.get(event_type, 0) - count
+                )
                 removed = count > 0
             else:
                 # 移除特定的监听器
                 original_length = len(self._listeners[event_type])
                 self._listeners[event_type] = [
-                    l for l in self._listeners[event_type]
-                    if l.callback != callback
+                    l for l in self._listeners[event_type] if l.callback != callback
                 ]
                 removed_count = original_length - len(self._listeners[event_type])
                 if removed_count > 0:
-                    self._listener_count[event_type] = self._listener_count.get(event_type, 0) - removed_count
+                    self._listener_count[event_type] = (
+                        self._listener_count.get(event_type, 0) - removed_count
+                    )
                     removed = True
 
                 # 如果没有监听器了，清理字典
@@ -210,17 +228,22 @@ class EventEmitter:
             if callback is None:
                 count = len(self._once_listeners[event_type])
                 self._once_listeners[event_type].clear()
-                self._listener_count[event_type] = self._listener_count.get(event_type, 0) - count
+                self._listener_count[event_type] = (
+                    self._listener_count.get(event_type, 0) - count
+                )
                 removed = removed or (count > 0)
             else:
                 original_length = len(self._once_listeners[event_type])
                 self._once_listeners[event_type] = [
-                    l for l in self._once_listeners[event_type]
+                    l
+                    for l in self._once_listeners[event_type]
                     if l.callback != callback
                 ]
                 removed_count = original_length - len(self._once_listeners[event_type])
                 if removed_count > 0:
-                    self._listener_count[event_type] = self._listener_count.get(event_type, 0) - removed_count
+                    self._listener_count[event_type] = (
+                        self._listener_count.get(event_type, 0) - removed_count
+                    )
                     removed = True
 
                 if not self._once_listeners[event_type]:
@@ -271,25 +294,23 @@ class EventEmitter:
 
         for event_type, listeners in self._listeners.items():
             info[event_type] = [
-                {
-                    'id': l.id,
-                    'created_at': l.created_at.isoformat(),
-                    'is_once': False
-                }
+                {"id": l.id, "created_at": l.created_at.isoformat(), "is_once": False}
                 for l in listeners
             ]
 
         for event_type, listeners in self._once_listeners.items():
             if event_type not in info:
                 info[event_type] = []
-            info[event_type].extend([
-                {
-                    'id': l.id,
-                    'created_at': l.created_at.isoformat(),
-                    'is_once': True
-                }
-                for l in listeners
-            ])
+            info[event_type].extend(
+                [
+                    {
+                        "id": l.id,
+                        "created_at": l.created_at.isoformat(),
+                        "is_once": True,
+                    }
+                    for l in listeners
+                ]
+            )
 
         return info
 
@@ -300,8 +321,8 @@ class EventEmitter:
     def get_monitoring_metrics(self) -> Dict:
         """获取监控指标"""
         return {
-            'active_listeners': sum(self._listener_count.values()),
-            'event_types': len(self.event_names()),
-            'performance_stats': self.get_performance_stats(),
-            'listener_counts': self._listener_count.copy(),
+            "active_listeners": sum(self._listener_count.values()),
+            "event_types": len(self.event_names()),
+            "performance_stats": self.get_performance_stats(),
+            "listener_counts": self._listener_count.copy(),
         }

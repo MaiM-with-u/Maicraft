@@ -1,6 +1,7 @@
 """
 重生点重置事件实现
 """
+
 from typing import Optional
 from typing_extensions import TypedDict
 from ..base_event import BaseEvent
@@ -17,7 +18,13 @@ class SpawnResetEvent(BaseEvent[SpawnResetEventData]):
 
     EVENT_TYPE = EventType.SPAWN_RESET.value
 
-    def __init__(self, type: str, gameTick: int, timestamp: float, data: SpawnResetEventData = None):
+    def __init__(
+        self,
+        type: str,
+        gameTick: int,
+        timestamp: float,
+        data: SpawnResetEventData = None,
+    ):
         """初始化重生点重置事件"""
         super().__init__(type, gameTick, timestamp, data)
 

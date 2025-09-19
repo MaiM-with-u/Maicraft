@@ -1,6 +1,7 @@
 """
 实体受伤事件实现
 """
+
 from typing import Optional
 from typing_extensions import TypedDict
 from ..base_event import BaseEvent
@@ -17,7 +18,13 @@ class EntityHurtEvent(BaseEvent[EntityHurtEventData]):
 
     EVENT_TYPE = EventType.ENTITY_HURT.value
 
-    def __init__(self, type: str, gameTick: int, timestamp: float, data: EntityHurtEventData = None):
+    def __init__(
+        self,
+        type: str,
+        gameTick: int,
+        timestamp: float,
+        data: EntityHurtEventData = None,
+    ):
         """初始化实体受伤事件"""
         super().__init__(type, gameTick, timestamp, data)
 

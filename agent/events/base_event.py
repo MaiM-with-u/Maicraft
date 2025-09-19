@@ -1,10 +1,15 @@
 """
 事件基类定义
 """
+
 from typing import Dict, Any, Optional, Union, TypeVar, Generic
 from typing_extensions import TypedDict
 from datetime import datetime
-from utils.timestamp_utils import normalize_timestamp, format_timestamp_for_display, convert_timestamp_for_datetime
+from utils.timestamp_utils import (
+    normalize_timestamp,
+    format_timestamp_for_display,
+    convert_timestamp_for_datetime,
+)
 from .event_registry import event_registry
 
 
@@ -60,24 +65,25 @@ class DataWrapper:
     def _is_player_dict(self, data: dict) -> bool:
         """判断字典是否表示Player对象"""
         # Player对象特征：有username/uuid，但没有health属性（因为Player类没有health字段）
-        has_user_info = 'username' in data or 'uuid' in data
-        no_entity_attrs = 'health' not in data and 'type' not in data
+        has_user_info = "username" in data or "uuid" in data
+        no_entity_attrs = "health" not in data and "type" not in data
         return has_user_info and no_entity_attrs
 
     def _is_entity_dict(self, data: dict) -> bool:
         """判断字典是否表示Entity对象"""
         # Entity对象特征：有type，且有position或health
-        return 'type' in data and ('position' in data or 'health' in data)
+        return "type" in data and ("position" in data or "health" in data)
 
     def _is_position_dict(self, data: dict) -> bool:
         """判断字典是否表示Position对象"""
-        return all(k in data for k in ('x', 'y', 'z'))
+        return all(k in data for k in ("x", "y", "z"))
 
     def _convert_to_player(self, data: dict) -> Any:
         """转换为Player对象"""
         try:
             # 使用绝对导入
             from agent.common.basic_class import Player
+
             return Player.from_dict(data)
         except Exception:
             # 如果转换失败，返回原字典
@@ -88,6 +94,7 @@ class DataWrapper:
         try:
             # 使用绝对导入
             from agent.common.basic_class import Entity
+
             return Entity.from_raw_entity(data)
         except Exception:
             # 如果转换失败，返回原字典
@@ -98,11 +105,8 @@ class DataWrapper:
         try:
             # 使用绝对导入
             from agent.common.basic_class import Position
-            return Position(
-                x=data.get('x', 0),
-                y=data.get('y', 0),
-                z=data.get('z', 0)
-            )
+
+            return Position(x=data.get("x", 0), y=data.get("y", 0), z=data.get("z", 0))
         except Exception:
             # 如果转换失败，返回原字典
             return data
@@ -112,7 +116,8 @@ class DataWrapper:
 
 
 # 泛型类型变量，用于事件数据类型
-T = TypeVar('T', bound=Dict[str, Any])
+T = TypeVar("T", bound=Dict[str, Any])
+
 
 class BaseEvent(Generic[T]):
     """事件基类，只包含所有事件都必有的字段"""
@@ -156,7 +161,6 @@ class BaseEvent(Generic[T]):
         """获取datetime对象（自动处理时间戳转换）"""
         return datetime.fromtimestamp(convert_timestamp_for_datetime(self.timestamp))
 
-
     def get_category(self) -> str:
         """获取事件分类，子类应该重写此方法"""
         return "unknown"
@@ -181,14 +185,14 @@ class BaseEvent(Generic[T]):
         }
 
     @classmethod
-    def from_raw_data(cls, event_data_item: dict) -> 'BaseEvent[T]':
+    def from_raw_data(cls, event_data_item: dict) -> "BaseEvent[T]":
         """从原始数据创建事件实例（通用实现）"""
         data: T = event_data_item.get("data", {})
         return cls(
             type=cls.EVENT_TYPE,
             gameTick=event_data_item.get("gameTick", 0),
             timestamp=event_data_item.get("timestamp", 0),
-            data=data
+            data=data,
         )
 
     def __str__(self) -> str:
@@ -202,7 +206,7 @@ class EventFactory:
     @staticmethod
     def create(**kwargs) -> BaseEvent:
         """使用注册表创建对应的事件实例"""
-        event_type = kwargs.get('type', '')
+        event_type = kwargs.get("type", "")
         event = event_registry.create_event(event_type, **kwargs)
 
         if event is not None:
@@ -225,6 +229,5 @@ class EventFactory:
             type=event_type,
             gameTick=event_data_item.get("gameTick", 0),
             timestamp=event_data_item.get("timestamp", 0),
-            data=event_data_item.get("data", {})
+            data=event_data_item.get("data", {}),
         )
-    

@@ -1,6 +1,7 @@
 """
 玩家离开事件实现
 """
+
 from typing import Optional
 from typing_extensions import TypedDict
 from ..base_event import BaseEvent
@@ -17,7 +18,13 @@ class PlayerLeftEvent(BaseEvent[PlayerLeftEventData]):
 
     EVENT_TYPE = EventType.PLAYER_LEFT.value
 
-    def __init__(self, type: str, gameTick: int, timestamp: float, data: PlayerLeftEventData = None):
+    def __init__(
+        self,
+        type: str,
+        gameTick: int,
+        timestamp: float,
+        data: PlayerLeftEventData = None,
+    ):
         """初始化玩家离开事件"""
         super().__init__(type, gameTick, timestamp, data)
 

@@ -1,6 +1,7 @@
 """
 事件注册表 - 自动扫描注册事件类，消除手动配置
 """
+
 from typing import Dict, Type, Any, Callable, Set
 import importlib
 import pkgutil
@@ -9,6 +10,7 @@ from utils.logger import get_logger
 
 # 获取当前模块的日志器
 logger = get_logger("EventRegistry")
+
 
 class EventRegistry:
     """事件注册表，管理事件类型到事件类的映射"""
@@ -68,7 +70,7 @@ def _convert_class_name_to_event_type(event_class_name: str) -> str:
     PlayerJoinedEvent -> playerJoined
     EntityHurtEvent -> entityHurt
     """
-    if not event_class_name.endswith('Event'):
+    if not event_class_name.endswith("Event"):
         return event_class_name.lower()
 
     # 移除Event后缀
@@ -89,9 +91,9 @@ def _convert_class_name_to_event_type(event_class_name: str) -> str:
             current_word.append(char.lower())
         elif char.isupper():
             # 如果当前是大写字母
-            if current_word and name[i-1].islower():
+            if current_word and name[i - 1].islower():
                 # 前一个是小写，说明是大写单词的开始，先保存当前单词
-                words.append(''.join(current_word))
+                words.append("".join(current_word))
                 current_word = [char.lower()]
             else:
                 # 前一个是大写或当前是连续大写，直接添加
@@ -102,7 +104,7 @@ def _convert_class_name_to_event_type(event_class_name: str) -> str:
 
     # 添加最后一个单词
     if current_word:
-        words.append(''.join(current_word))
+        words.append("".join(current_word))
 
     # 重新组合：第一个单词全小写，其他单词首字母大写
     if not words:
@@ -128,11 +130,13 @@ def auto_discover_and_register_events(package_name: str = "agent.events.impl") -
         package = importlib.import_module(package_name)
 
         # 获取包的路径
-        package_path = package.__path__ if hasattr(package, '__path__') else None
+        package_path = package.__path__ if hasattr(package, "__path__") else None
         if package_path:
             # 使用pkgutil扫描包中的所有模块
-            for importer, modname, ispkg in pkgutil.iter_modules(package_path, f"{package_name}."):
-                if not ispkg and modname.endswith('_event'):
+            for importer, modname, ispkg in pkgutil.iter_modules(
+                package_path, f"{package_name}."
+            ):
+                if not ispkg and modname.endswith("_event"):
                     try:
                         # 导入模块
                         module = importlib.import_module(modname)
@@ -141,19 +145,29 @@ def auto_discover_and_register_events(package_name: str = "agent.events.impl") -
                         for name, obj in inspect.getmembers(module, inspect.isclass):
                             # 检查是否是BaseEvent的子类（但不是BaseEvent本身）
                             from .base_event import BaseEvent
-                            if inspect.isclass(obj) and issubclass(obj, BaseEvent) and obj is not BaseEvent:
 
+                            if (
+                                inspect.isclass(obj)
+                                and issubclass(obj, BaseEvent)
+                                and obj is not BaseEvent
+                            ):
                                 # 转换为事件类型
-                                event_type = _convert_class_name_to_event_type(obj.__name__)
+                                event_type = _convert_class_name_to_event_type(
+                                    obj.__name__
+                                )
 
                                 # 注册事件类
                                 event_registry.register_event_class(event_type, obj)
 
                                 # 注册原始数据处理器
-                                if hasattr(obj, 'from_raw_data'):
-                                    event_registry.register_raw_data_handler(event_type, obj.from_raw_data)
+                                if hasattr(obj, "from_raw_data"):
+                                    event_registry.register_raw_data_handler(
+                                        event_type, obj.from_raw_data
+                                    )
 
-                                logger.info(f"自动注册事件类: {obj.__name__} -> {event_type}")
+                                logger.info(
+                                    f"自动注册事件类: {obj.__name__} -> {event_type}"
+                                )
 
                     except Exception as e:
                         logger.warning(f"跳过模块 {modname}: {e}")
@@ -171,7 +185,7 @@ def manual_register_event(event_type: str, event_class: Type) -> None:
         event_class: 事件类
     """
     event_registry.register_event_class(event_type, event_class)
-    if hasattr(event_class, 'from_raw_data'):
+    if hasattr(event_class, "from_raw_data"):
         event_registry.register_raw_data_handler(event_type, event_class.from_raw_data)
 
 

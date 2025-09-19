@@ -1,6 +1,7 @@
 """
 重生事件实现
 """
+
 from typing import Optional, Dict, Any
 from typing_extensions import TypedDict
 from ..base_event import BaseEvent
@@ -17,7 +18,9 @@ class SpawnEvent(BaseEvent[SpawnEventData]):
 
     EVENT_TYPE = EventType.SPAWN.value
 
-    def __init__(self, type: str, gameTick: int, timestamp: float, data: SpawnEventData = None):
+    def __init__(
+        self, type: str, gameTick: int, timestamp: float, data: SpawnEventData = None
+    ):
         """初始化重生事件"""
         super().__init__(type, gameTick, timestamp, data)
 

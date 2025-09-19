@@ -1,6 +1,7 @@
 """
 玩家收集事件实现
 """
+
 from typing import Optional, Dict, Any
 from typing_extensions import TypedDict
 from ..base_event import BaseEvent
@@ -10,6 +11,7 @@ from ...common.basic_class import Entity
 
 class CollectedItem(TypedDict):
     """收集的物品信息"""
+
     id: int
     name: str
     displayName: str
@@ -27,7 +29,13 @@ class PlayerCollectEvent(BaseEvent[PlayerCollectEventData]):
 
     EVENT_TYPE = EventType.PLAYER_COLLECT.value
 
-    def __init__(self, type: str, gameTick: int, timestamp: float, data: PlayerCollectEventData = None):
+    def __init__(
+        self,
+        type: str,
+        gameTick: int,
+        timestamp: float,
+        data: PlayerCollectEventData = None,
+    ):
         """初始化玩家收集事件"""
         super().__init__(type, gameTick, timestamp, data)
 
@@ -55,8 +63,8 @@ class PlayerCollectEvent(BaseEvent[PlayerCollectEventData]):
         # 构建物品描述
         item_descriptions = []
         for item in collected_items:
-            display_name = item.get('displayName', item.get('name', '未知物品'))
-            count = item.get('count', 1)
+            display_name = item.get("displayName", item.get("name", "未知物品"))
+            count = item.get("count", 1)
             count_str = f" x{count}" if count > 1 else ""
             item_descriptions.append(f"{display_name}{count_str}")
 
@@ -66,36 +74,34 @@ class PlayerCollectEvent(BaseEvent[PlayerCollectEventData]):
         """转换为字典格式"""
         result = super().to_dict()
         result["player_name"] = self.get_collector_username()
-        result.update({
-            "collector": self.data.collector,
-            "collected": self.data.collected,
-        })
+        result.update(
+            {
+                "collector": self.data.collector,
+                "collected": self.data.collected,
+            }
+        )
         return result
 
     def get_collector_username(self) -> str:
         """获取收集者的用户名"""
         # Entity对象使用属性访问而不是字典访问
-        username = getattr(self.data.collector, 'username', None)
+        username = getattr(self.data.collector, "username", None)
         if username:
             return username
 
         # 如果没有username，尝试使用name
-        name = getattr(self.data.collector, 'name', None)
-        return name or '未知玩家'
+        name = getattr(self.data.collector, "name", None)
+        return name or "未知玩家"
 
     def get_collector_position(self) -> Optional[Dict[str, float]]:
         """获取收集者的位置"""
-        position = getattr(self.data.collector, 'position', None)
+        position = getattr(self.data.collector, "position", None)
         if position is None:
             return None
 
         # 如果position是Position对象，转换为字典
-        if hasattr(position, 'x') and hasattr(position, 'y') and hasattr(position, 'z'):
-            return {
-                'x': position.x,
-                'y': position.y,
-                'z': position.z
-            }
+        if hasattr(position, "x") and hasattr(position, "y") and hasattr(position, "z"):
+            return {"x": position.x, "y": position.y, "z": position.z}
 
         # 如果已经是字典格式，直接返回，否则返回None
         return position if isinstance(position, dict) else None
@@ -106,16 +112,16 @@ class PlayerCollectEvent(BaseEvent[PlayerCollectEventData]):
 
     def get_total_item_count(self) -> int:
         """获取收集的物品总数"""
-        return sum(item.get('count', 0) for item in self.data.collected)
+        return sum(item.get("count", 0) for item in self.data.collected)
 
     def get_unique_item_names(self) -> list[str]:
         """获取收集的唯一物品名称列表"""
-        return [item.get('name', 'unknown') for item in self.data.collected]
+        return [item.get("name", "unknown") for item in self.data.collected]
 
     def is_self_collect(self, bot_entity_id: int = None) -> bool:
         """判断是否是机器人自己收集的物品"""
         if bot_entity_id is None:
             return False
 
-        collector_id = getattr(self.data.collector, 'id', None)
+        collector_id = getattr(self.data.collector, "id", None)
         return collector_id == bot_entity_id

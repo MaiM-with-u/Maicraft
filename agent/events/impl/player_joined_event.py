@@ -1,6 +1,7 @@
 """
 玩家加入事件实现
 """
+
 from typing_extensions import TypedDict
 from ..base_event import BaseEvent
 from ..event_types import EventType
@@ -16,7 +17,13 @@ class PlayerJoinedEvent(BaseEvent[PlayerJoinedEventData]):
 
     EVENT_TYPE = EventType.PLAYER_JOINED.value
 
-    def __init__(self, type: str, gameTick: int, timestamp: float, data: PlayerJoinedEventData = None):
+    def __init__(
+        self,
+        type: str,
+        gameTick: int,
+        timestamp: float,
+        data: PlayerJoinedEventData = None,
+    ):
         """初始化玩家加入事件"""
         super().__init__(type, gameTick, timestamp, data)
 

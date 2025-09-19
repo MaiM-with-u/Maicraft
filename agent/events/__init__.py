@@ -5,10 +5,14 @@ from .event_types import EventType, SUPPORTED_EVENTS
 from .event_registry import register_all_events
 from .impl.chat_event import ChatEvent
 from .event_emitter import EventEmitter, ListenerHandle  # 新增
+
+
 # 延迟导入handlers，避免循环依赖
 def _setup_handlers():
     from .handlers import setup_health_handlers
+
     setup_health_handlers()
+
 
 # 创建全局事件存储实例
 global_event_store = GameEventStore()
@@ -48,18 +52,27 @@ def event_listener(event_type: str, once: bool = False):
             username = event.data.username
             print(f"欢迎 {username} 加入游戏！")
     """
+
     def decorator(func):
         if once:
             global_event_emitter.once(event_type, func)
         else:
             global_event_emitter.on(event_type, func)
         return func
+
     return decorator
 
 
 __all__ = [
-    'BaseEvent', 'EventFactory', 'GameEventStore', 'global_event_store',
-    'EventType', 'SUPPORTED_EVENTS', 'ChatEvent',
-    'EventEmitter', 'global_event_emitter', 'ListenerHandle',  # 新增
-    'event_listener'  # 装饰器
+    "BaseEvent",
+    "EventFactory",
+    "GameEventStore",
+    "global_event_store",
+    "EventType",
+    "SUPPORTED_EVENTS",
+    "ChatEvent",
+    "EventEmitter",
+    "global_event_emitter",
+    "ListenerHandle",  # 新增
+    "event_listener",  # 装饰器
 ]

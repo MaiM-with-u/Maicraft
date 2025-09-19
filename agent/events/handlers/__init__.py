@@ -7,4 +7,4 @@
 
 from .health_event_handler import setup_health_handlers
 
-__all__ = ['setup_health_handlers']
+__all__ = ["setup_health_handlers"]

@@ -1,6 +1,7 @@
 """
 物品丢弃事件实现
 """
+
 from typing import Optional, Dict, Any, List
 from typing_extensions import TypedDict
 from ..base_event import BaseEvent
@@ -10,6 +11,7 @@ from ...common.basic_class import Position
 
 class DroppedItem(TypedDict):
     """丢弃的物品信息"""
+
     id: int
     name: str
     displayName: str
@@ -27,7 +29,9 @@ class ItemDropEvent(BaseEvent[ItemDropEventData]):
 
     EVENT_TYPE = EventType.ITEM_DROP.value
 
-    def __init__(self, type: str, gameTick: int, timestamp: float, data: ItemDropEventData = None):
+    def __init__(
+        self, type: str, gameTick: int, timestamp: float, data: ItemDropEventData = None
+    ):
         """初始化物品丢弃事件"""
         super().__init__(type, gameTick, timestamp, data)
 
@@ -63,8 +67,8 @@ class ItemDropEvent(BaseEvent[ItemDropEventData]):
         # 构建物品描述
         item_descriptions = []
         for item in dropped_items:
-            display_name = item.get('displayName', item.get('name', '未知物品'))
-            count = item.get('count', 1)
+            display_name = item.get("displayName", item.get("name", "未知物品"))
+            count = item.get("count", 1)
             count_str = f" x{count}" if count > 1 else ""
             item_descriptions.append(f"{display_name}{count_str}")
 
@@ -73,10 +77,12 @@ class ItemDropEvent(BaseEvent[ItemDropEventData]):
     def to_dict(self) -> dict:
         """转换为字典格式"""
         result = super().to_dict()
-        result.update({
-            "dropped": self.data.dropped,
-            "position": self.data.position,
-        })
+        result.update(
+            {
+                "dropped": self.data.dropped,
+                "position": self.data.position,
+            }
+        )
         return result
 
     def get_drop_position(self) -> Optional[Position]:
@@ -89,11 +95,11 @@ class ItemDropEvent(BaseEvent[ItemDropEventData]):
 
     def get_total_item_count(self) -> int:
         """获取丢弃的物品总数"""
-        return sum(item.get('count', 0) for item in self.data.dropped)
+        return sum(item.get("count", 0) for item in self.data.dropped)
 
     def get_unique_item_names(self) -> List[str]:
         """获取丢弃的唯一物品名称列表"""
-        return [item.get('name', 'unknown') for item in self.data.dropped]
+        return [item.get("name", "unknown") for item in self.data.dropped]
 
     def get_item_names_string(self) -> str:
         """获取物品名称字符串，用于日志记录"""
@@ -101,5 +107,5 @@ class ItemDropEvent(BaseEvent[ItemDropEventData]):
 
     def get_item_counts_string(self) -> str:
         """获取物品数量字符串，用于日志记录"""
-        counts = [str(item.get('count', 0)) for item in self.data.dropped]
+        counts = [str(item.get("count", 0)) for item in self.data.dropped]
         return ", ".join(counts)

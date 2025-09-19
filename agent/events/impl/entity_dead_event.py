@@ -1,6 +1,7 @@
 """
 实体死亡事件实现
 """
+
 from typing import Optional
 from typing_extensions import TypedDict
 from ..base_event import BaseEvent
@@ -17,7 +18,13 @@ class EntityDeadEvent(BaseEvent[EntityDeadEventData]):
 
     EVENT_TYPE = EventType.ENTITY_DEAD.value
 
-    def __init__(self, type: str, gameTick: int, timestamp: float, data: EntityDeadEventData = None):
+    def __init__(
+        self,
+        type: str,
+        gameTick: int,
+        timestamp: float,
+        data: EntityDeadEventData = None,
+    ):
         """初始化实体死亡事件"""
         super().__init__(type, gameTick, timestamp, data)
 

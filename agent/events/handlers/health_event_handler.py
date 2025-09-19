@@ -22,6 +22,7 @@ HEALTH_CONFIG = {
     "enable_damage_interrupt": True,  # 是否启用伤害中断（最高优先级）
 }
 
+
 class HealthEventHandler:
     """健康事件处理器"""
 
@@ -33,36 +34,45 @@ class HealthEventHandler:
     def setup_listeners(self):
         """设置事件监听器"""
         # 注册健康事件监听器
-        global_event_emitter.on('health', self.handle_health_event)
+        global_event_emitter.on("health", self.handle_health_event)
 
     async def handle_health_event(self, event):
-                """处理健康事件 - 只要受到伤害就立即中断"""
-                async with self._processing_lock:  # 使用锁保护状态访问和更新
-                    try:
-                        current_health = event.data.health
-                        logger.info(f"🏥 收到健康事件: 生命值 = {current_health}, 上一生命值 = {self.last_health}")
+        """处理健康事件 - 只要受到伤害就立即中断"""
+        async with self._processing_lock:  # 使用锁保护状态访问和更新
+            try:
+                current_health = event.data.health
+                logger.info(
+                    f"🏥 收到健康事件: 生命值 = {current_health}, 上一生命值 = {self.last_health}"
+                )
 
-                        # 核心逻辑：只要生命值下降就立即中断！
-                        if self._has_taken_damage(current_health):
-                            damage_taken = self.last_health - current_health if self.last_health else 0
-                            logger.warning(f"⚠️ 检测到伤害: 损失 {damage_taken} 点生命值，从 {self.last_health} 降至 {current_health}")
-                            await self._trigger_damage_interrupt(current_health)
+                # 核心逻辑：只要生命值下降就立即中断！
+                if self._has_taken_damage(current_health):
+                    damage_taken = (
+                        self.last_health - current_health if self.last_health else 0
+                    )
+                    logger.warning(
+                        f"⚠️ 检测到伤害: 损失 {damage_taken} 点生命值，从 {self.last_health} 降至 {current_health}"
+                    )
+                    await self._trigger_damage_interrupt(current_health)
 
-                            # 🚨 新增：触发专门的伤害响应处理
-                            await self._handle_damage_response(current_health, damage_taken)
-                        else:
-                            logger.debug(f"生命值未下降，无需响应 (当前: {current_health}, 上次: {self.last_health})")
+                    # 🚨 新增：触发专门的伤害响应处理
+                    await self._handle_damage_response(current_health, damage_taken)
+                else:
+                    logger.debug(
+                        f"生命值未下降，无需响应 (当前: {current_health}, 上次: {self.last_health})"
+                    )
 
-                        # 更新状态
-                        old_health = self.last_health
-                        self.last_health = current_health
-                        if old_health != current_health:
-                            logger.debug(f"更新last_health: {old_health} -> {current_health}")
+                # 更新状态
+                old_health = self.last_health
+                self.last_health = current_health
+                if old_health != current_health:
+                    logger.debug(f"更新last_health: {old_health} -> {current_health}")
 
-                    except Exception as e:
-                        logger.error(f"处理健康事件时发生错误: {e}")
-                        import traceback
-                        logger.error(f"异常详情: {traceback.format_exc()}")
+            except Exception as e:
+                logger.error(f"处理健康事件时发生错误: {e}")
+                import traceback
+
+                logger.error(f"异常详情: {traceback.format_exc()}")
 
     def _has_taken_damage(self, current_health: Optional[int]) -> bool:
         """判断是否受到伤害（生命值下降）"""
@@ -74,7 +84,11 @@ class HealthEventHandler:
 
     async def _trigger_damage_interrupt(self, current_health: Optional[int]):
         """由于受到伤害触发中断"""
-        damage_taken = self.last_health - current_health if self.last_health and current_health else "未知"
+        damage_taken = (
+            self.last_health - current_health
+            if self.last_health and current_health
+            else "未知"
+        )
 
         # 构建中断原因
         reason = f"受到伤害！生命值下降 {damage_taken} 点，当前生命值: {current_health}"
@@ -85,45 +99,55 @@ class HealthEventHandler:
         # 记录到思考日志
         global_thinking_log.add_thinking_log(
             f"🚨 受到伤害！生命值从 {self.last_health} 降至 {current_health}，中断当前任务",
-            type="damage_interrupt"
+            type="damage_interrupt",
         )
 
         logger.warning(f"伤害中断触发: {reason}")
 
         # 注意：伤害响应处理已在handle_health_event中调用，这里不再重复调用
 
-    async def _handle_damage_response(self, current_health: Optional[int], damage_taken):
-                """处理伤害响应 - 使用专门的提示词"""
-                try:
-                    logger.info("🔍 开始识别伤害来源...")
-                    # 识别伤害来源
-                    damage_source = await self._identify_damage_source()
-                    logger.info(f"📊 伤害来源识别结果: {damage_source}")
+    async def _handle_damage_response(
+        self, current_health: Optional[int], damage_taken
+    ):
+        """处理伤害响应 - 使用专门的提示词"""
+        try:
+            logger.info("🔍 开始识别伤害来源...")
+            # 识别伤害来源
+            damage_source = await self._identify_damage_source()
+            logger.info(f"📊 伤害来源识别结果: {damage_source}")
 
-                    # 根据伤害来源选择响应策略
-                    if damage_source.get("type") == "player":
-                        # 玩家攻击 - 使用聊天工具进行交涉
-                        logger.info("🎯 识别为玩家攻击，触发交涉逻辑")
-                        await self._handle_player_attack(damage_source, current_health, damage_taken)
-                    elif damage_source.get("type") == "hostile_mob":
-                        # 敌对生物攻击 - 进行反击
-                        logger.info("⚔️ 识别为敌对生物攻击，触发反击逻辑")
-                        await self._handle_mob_attack(damage_source, current_health, damage_taken)
-                    else:
-                        # 未知伤害来源 - 假设是玩家攻击，尝试交涉
-                        logger.warning("❓ 无法识别伤害来源，假设为玩家攻击并尝试交涉")
-                        await self._handle_unknown_damage_as_player(current_health, damage_taken)
+            # 根据伤害来源选择响应策略
+            if damage_source.get("type") == "player":
+                # 玩家攻击 - 使用聊天工具进行交涉
+                logger.info("🎯 识别为玩家攻击，触发交涉逻辑")
+                await self._handle_player_attack(
+                    damage_source, current_health, damage_taken
+                )
+            elif damage_source.get("type") == "hostile_mob":
+                # 敌对生物攻击 - 进行反击
+                logger.info("⚔️ 识别为敌对生物攻击，触发反击逻辑")
+                await self._handle_mob_attack(
+                    damage_source, current_health, damage_taken
+                )
+            else:
+                # 未知伤害来源 - 假设是玩家攻击，尝试交涉
+                logger.warning("❓ 无法识别伤害来源，假设为玩家攻击并尝试交涉")
+                await self._handle_unknown_damage_as_player(
+                    current_health, damage_taken
+                )
 
-                except Exception as e:
-                    logger.error(f"处理伤害响应时发生错误: {e}")
-                    import traceback
-                    logger.error(f"异常详情: {traceback.format_exc()}")
+        except Exception as e:
+            logger.error(f"处理伤害响应时发生错误: {e}")
+            import traceback
+
+            logger.error(f"异常详情: {traceback.format_exc()}")
 
     async def _identify_damage_source(self) -> dict:
         """识别伤害来源"""
         try:
             # 获取bot自己的名字，避免把自己识别为伤害来源
             from config import global_config
+
             bot_name = global_config.bot.player_name
             logger.info(f"Bot名字: {bot_name}")
 
@@ -137,30 +161,44 @@ class HealthEventHandler:
                 logger.info("所有entityHurt事件:")
                 for i, event in enumerate(recent_hurt_events):
                     logger.info(f"  [{i}] {event.type} - {event.data}")
-                logger.info(f"选择最新的entityHurt事件 [-1]: {latest_event.type}, 数据: {latest_event.data}")
+                logger.info(
+                    f"选择最新的entityHurt事件 [-1]: {latest_event.type}, 数据: {latest_event.data}"
+                )
 
-                if hasattr(latest_event, 'data') and latest_event.data and latest_event.data.get('entity'):
-                    entity = latest_event.data['entity']
+                if (
+                    hasattr(latest_event, "data")
+                    and latest_event.data
+                    and latest_event.data.get("entity")
+                ):
+                    entity = latest_event.data["entity"]
                     logger.info(f"最新实体信息: {entity}")
 
                     # 处理Entity对象或字典
-                    if hasattr(entity, 'type'):  # Entity对象
+                    if hasattr(entity, "type"):  # Entity对象
                         entity_type = entity.type
-                        entity_name = getattr(entity, 'username', None) or getattr(entity, 'name', None) or "未知"
+                        entity_name = (
+                            getattr(entity, "username", None)
+                            or getattr(entity, "name", None)
+                            or "未知"
+                        )
                     else:  # 字典
-                        entity_type = entity.get('type')
-                        entity_name = entity.get('username', entity.get('name', '未知'))
+                        entity_type = entity.get("type")
+                        entity_name = entity.get("username", entity.get("name", "未知"))
 
                     logger.info(f"实体类型: {entity_type}, 名称: {entity_name}")
 
                     # entityHurt事件中的entity是受伤者，不是攻击者
                     if entity_name == bot_name:
-                        logger.info(f"✅ entityHurt事件确认bot({bot_name})受到了伤害，现在寻找最近的非bot实体作为攻击者")
+                        logger.info(
+                            f"✅ entityHurt事件确认bot({bot_name})受到了伤害，现在寻找最近的非bot实体作为攻击者"
+                        )
                         # 确认bot受到伤害，继续寻找攻击者
                     elif entity_name != bot_name:
                         # 如果entityHurt事件中的实体不是bot自己，那可能是其他实体受到了伤害
                         # 这可能不是我们关心的伤害事件
-                        logger.debug(f"entityHurt事件中的受伤者不是bot自己: {entity_name}")
+                        logger.debug(
+                            f"entityHurt事件中的受伤者不是bot自己: {entity_name}"
+                        )
                         # 继续检查，可能有其他相关的伤害事件
 
             # 方法2：检查周围的实体（寻找最近的非bot实体作为可能的攻击者）
@@ -171,16 +209,22 @@ class HealthEventHandler:
             potential_attackers = []
             for entity in nearby_entities:
                 # 处理Entity对象或字典
-                if hasattr(entity, 'type'):  # Entity对象
+                if hasattr(entity, "type"):  # Entity对象
                     entity_type = entity.type
-                    entity_name = getattr(entity, 'username', None) or getattr(entity, 'name', None) or "未知"
-                    entity_distance = getattr(entity, 'distance', 100)  # 默认距离100
+                    entity_name = (
+                        getattr(entity, "username", None)
+                        or getattr(entity, "name", None)
+                        or "未知"
+                    )
+                    entity_distance = getattr(entity, "distance", 100)  # 默认距离100
                 else:  # 字典
-                    entity_type = entity.get('type')
-                    entity_name = entity.get('username', entity.get('name', '未知'))
-                    entity_distance = entity.get('distance', 100)
+                    entity_type = entity.get("type")
+                    entity_name = entity.get("username", entity.get("name", "未知"))
+                    entity_distance = entity.get("distance", 100)
 
-                logger.info(f"检查周围实体: {entity_type} - {entity_name} (距离: {entity_distance})")
+                logger.info(
+                    f"检查周围实体: {entity_type} - {entity_name} (距离: {entity_distance})"
+                )
 
                 # 跳过bot自己
                 if entity_name == bot_name:
@@ -188,36 +232,53 @@ class HealthEventHandler:
                     continue
 
                 # 收集可能的攻击者（玩家和敌对生物）
-                if entity_type == 'player' or entity_type in ['zombie', 'skeleton', 'spider', 'creeper', 'enderman']:
-                    potential_attackers.append({
-                        'entity': entity,
-                        'type': entity_type,
-                        'name': entity_name,
-                        'distance': entity_distance,
-                        'is_player': entity_type == 'player'
-                    })
+                if entity_type == "player" or entity_type in [
+                    "zombie",
+                    "skeleton",
+                    "spider",
+                    "creeper",
+                    "enderman",
+                ]:
+                    potential_attackers.append(
+                        {
+                            "entity": entity,
+                            "type": entity_type,
+                            "name": entity_name,
+                            "distance": entity_distance,
+                            "is_player": entity_type == "player",
+                        }
+                    )
 
             # 按距离排序（最近的优先），玩家优先于怪物
-            potential_attackers.sort(key=lambda x: (0 if x['is_player'] else 1, x['distance']))
+            potential_attackers.sort(
+                key=lambda x: (0 if x["is_player"] else 1, x["distance"])
+            )
 
             # 返回最近的可能的攻击者
             if potential_attackers:
                 closest_attacker = potential_attackers[0]
-                attacker_type = "player" if closest_attacker['is_player'] else "hostile_mob"
-                logger.info(f"🎯 选择最近的可能攻击者: {closest_attacker['name']} (类型: {attacker_type}, 距离: {closest_attacker['distance']})")
+                attacker_type = (
+                    "player" if closest_attacker["is_player"] else "hostile_mob"
+                )
+                logger.info(
+                    f"🎯 选择最近的可能攻击者: {closest_attacker['name']} (类型: {attacker_type}, 距离: {closest_attacker['distance']})"
+                )
 
                 return {
                     "type": attacker_type,
-                    "name": closest_attacker['name'],
-                    "entity": closest_attacker['entity']
+                    "name": closest_attacker["name"],
+                    "entity": closest_attacker["entity"],
                 }
 
-            logger.warning("未找到明确的伤害来源（没有entityHurt事件或周围没有可疑实体）")
+            logger.warning(
+                "未找到明确的伤害来源（没有entityHurt事件或周围没有可疑实体）"
+            )
             return {"type": "unknown", "name": "未知"}
 
         except Exception as e:
             logger.error(f"识别伤害来源时发生错误: {e}")
             import traceback
+
             logger.error(traceback.format_exc())
             return {"type": "unknown", "name": "未知"}
 
@@ -225,7 +286,9 @@ class HealthEventHandler:
         """获取最近的entityHurt事件"""
         try:
             # 从事件存储中获取最近的entityHurt事件
-            return global_event_store.get_events_by_type(EventType.ENTITY_HURT.value, limit=10)
+            return global_event_store.get_events_by_type(
+                EventType.ENTITY_HURT.value, limit=10
+            )
         except Exception as e:
             logger.error(f"获取最近伤害事件时发生错误: {e}")
             return []
@@ -235,38 +298,49 @@ class HealthEventHandler:
         try:
             # 延迟导入以避免循环引用
             from agent.environment.environment import global_environment
+
             return global_environment.nearby_entities
         except Exception as e:
             logger.error(f"获取周围实体时发生错误: {e}")
             return []
 
-    async def _handle_player_attack(self, damage_source: dict, current_health: Optional[int], damage_taken):
+    async def _handle_player_attack(
+        self, damage_source: dict, current_health: Optional[int], damage_taken
+    ):
         """处理玩家攻击 - 使用聊天进行交涉"""
         player_name = damage_source.get("name", "未知玩家")
 
         # 记录伤害事件
         global_thinking_log.add_thinking_log(
             f"⚔️ 受到玩家 {player_name} 攻击！生命值: {current_health}",
-            type="player_attack"
+            type="player_attack",
         )
 
         # 触发专门的玩家交涉提示词
-        await self._trigger_player_negotiation_prompt(player_name, current_health, damage_taken, damage_source)
+        await self._trigger_player_negotiation_prompt(
+            player_name, current_health, damage_taken, damage_source
+        )
 
-    async def _handle_mob_attack(self, damage_source: dict, current_health: Optional[int], damage_taken):
+    async def _handle_mob_attack(
+        self, damage_source: dict, current_health: Optional[int], damage_taken
+    ):
         """处理敌对生物攻击 - 进行反击"""
         mob_name = damage_source.get("name", "敌对生物")
 
         # 记录伤害事件
         global_thinking_log.add_thinking_log(
             f"👹 受到敌对生物 {mob_name} 攻击！生命值: {current_health}",
-            type="mob_attack"
+            type="mob_attack",
         )
 
         # 触发专门的反击提示词
-        await self._trigger_mob_combat_prompt(mob_name, current_health, damage_taken, damage_source)
+        await self._trigger_mob_combat_prompt(
+            mob_name, current_health, damage_taken, damage_source
+        )
 
-    async def _handle_unknown_damage_as_player(self, current_health: Optional[int], damage_taken):
+    async def _handle_unknown_damage_as_player(
+        self, current_health: Optional[int], damage_taken
+    ):
         """处理未知伤害来源 - 假设是玩家攻击并尝试交涉"""
         logger.warning(f"未知伤害来源，假设为玩家攻击，当前生命值: {current_health}")
 
@@ -274,39 +348,51 @@ class HealthEventHandler:
         mock_player_source = {
             "type": "player",
             "name": "附近玩家",  # 通用名称，因为无法识别具体玩家
-            "entity": None
+            "entity": None,
         }
 
         # 触发玩家交涉逻辑
-        await self._handle_player_attack(mock_player_source, current_health, damage_taken)
+        await self._handle_player_attack(
+            mock_player_source, current_health, damage_taken
+        )
 
-    async def _handle_unknown_damage(self, damage_source: dict, current_health: Optional[int], damage_taken):
+    async def _handle_unknown_damage(
+        self, damage_source: dict, current_health: Optional[int], damage_taken
+    ):
         """处理未知伤害来源"""
         global_thinking_log.add_thinking_log(
-            f"❓ 受到未知伤害来源攻击！生命值: {current_health}",
-            type="unknown_damage"
+            f"❓ 受到未知伤害来源攻击！生命值: {current_health}", type="unknown_damage"
         )
 
         logger.info("触发未知伤害处理")
 
-    async def _trigger_player_negotiation_prompt(self, player_name: str, current_health: int, damage_taken, damage_source: dict):
+    async def _trigger_player_negotiation_prompt(
+        self, player_name: str, current_health: int, damage_taken, damage_source: dict
+    ):
         """触发玩家交涉提示词"""
         try:
             # 构建专门的玩家交涉提示词
-            negotiation_prompt = await self._build_player_negotiation_prompt(player_name, current_health, damage_taken, damage_source)
+            negotiation_prompt = await self._build_player_negotiation_prompt(
+                player_name, current_health, damage_taken, damage_source
+            )
 
             # 调用AI系统处理专门的玩家交涉提示词
             logger.info(f"触发玩家交涉提示词: {player_name}")
-            await self._process_ai_negotiation(negotiation_prompt, player_name, current_health)
+            await self._process_ai_negotiation(
+                negotiation_prompt, player_name, current_health
+            )
 
         except Exception as e:
             logger.error(f"触发玩家交涉提示词时发生错误: {e}")
 
-    async def _process_ai_negotiation(self, negotiation_prompt: str, player_name: str, current_health: int):
+    async def _process_ai_negotiation(
+        self, negotiation_prompt: str, player_name: str, current_health: int
+    ):
         """处理AI交涉逻辑"""
         try:
             # 延迟导入mai_chat以避免循环导入
             from agent.mai_chat import mai_chat
+
             # 使用mai_chat的LLM客户端处理交涉提示词
             thinking_reply = await mai_chat.llm_client.simple_chat(negotiation_prompt)
 
@@ -326,7 +412,9 @@ class HealthEventHandler:
         except Exception as e:
             logger.error(f"处理AI交涉逻辑时发生错误: {e}")
             # 发生错误时发送默认消息
-            default_message = f"嘿 {player_name}，为什么攻击我？我不想战斗，能不能谈谈？"
+            default_message = (
+                f"嘿 {player_name}，为什么攻击我？我不想战斗，能不能谈谈？"
+            )
             await self._send_chat_message(default_message)
 
     async def _send_chat_message(self, message: str):
@@ -336,11 +424,15 @@ class HealthEventHandler:
             from agent.utils.utils import parse_tool_result
 
             args = {"message": message}
-            call_result: CallToolResult = await global_mcp_client.call_tool_directly("chat", args)
+            call_result: CallToolResult = await global_mcp_client.call_tool_directly(
+                "chat", args
+            )
             is_success, result_content = parse_tool_result(call_result)
 
             if is_success:
-                global_thinking_log.add_thinking_log(f"发送交涉消息: {message}", type="notice")
+                global_thinking_log.add_thinking_log(
+                    f"发送交涉消息: {message}", type="notice"
+                )
                 logger.info(f"成功发送交涉消息: {message}")
             else:
                 logger.error(f"发送交涉消息失败: {result_content}")
@@ -348,24 +440,37 @@ class HealthEventHandler:
         except Exception as e:
             logger.error(f"发送聊天消息时发生错误: {e}")
 
-    async def _trigger_mob_combat_prompt(self, mob_name: str, current_health: int, damage_taken, damage_source: dict):
+    async def _trigger_mob_combat_prompt(
+        self, mob_name: str, current_health: int, damage_taken, damage_source: dict
+    ):
         """触发敌对生物反击提示词"""
         try:
             # 构建专门的反击提示词
-            combat_prompt = self._build_mob_combat_prompt(mob_name, current_health, damage_taken, damage_source)
+            combat_prompt = self._build_mob_combat_prompt(
+                mob_name, current_health, damage_taken, damage_source
+            )
 
             # 调用AI系统处理专门的反击提示词
             logger.info(f"触发敌对生物反击提示词: {mob_name}")
-            await self._process_ai_combat(combat_prompt, mob_name, current_health, damage_source)
+            await self._process_ai_combat(
+                combat_prompt, mob_name, current_health, damage_source
+            )
 
         except Exception as e:
             logger.error(f"触发敌对生物反击提示词时发生错误: {e}")
 
-    async def _process_ai_combat(self, combat_prompt: str, mob_name: str, current_health: int, damage_source: dict):
+    async def _process_ai_combat(
+        self,
+        combat_prompt: str,
+        mob_name: str,
+        current_health: int,
+        damage_source: dict,
+    ):
         """处理AI反击逻辑"""
         try:
             # 延迟导入mai_chat以避免循环导入
             from agent.mai_chat import mai_chat
+
             # 使用mai_chat的LLM客户端处理反击提示词
             thinking_reply = await mai_chat.llm_client.simple_chat(combat_prompt)
 
@@ -374,14 +479,20 @@ class HealthEventHandler:
             logger.info(f"AI反击回复: {thinking_reply}")
 
             # 解析并执行战斗动作
-            await self._execute_combat_actions(thinking_reply, mob_name, current_health, damage_source)
+            await self._execute_combat_actions(
+                thinking_reply, mob_name, current_health, damage_source
+            )
 
         except Exception as e:
             logger.error(f"处理AI反击逻辑时发生错误: {e}")
             # 发生错误时执行默认反击策略
-            await self._execute_default_combat_strategy(mob_name, current_health, damage_source)
+            await self._execute_default_combat_strategy(
+                mob_name, current_health, damage_source
+            )
 
-    async def _execute_combat_actions(self, ai_reply: str, mob_name: str, current_health: int, damage_source: dict):
+    async def _execute_combat_actions(
+        self, ai_reply: str, mob_name: str, current_health: int, damage_source: dict
+    ):
         """执行战斗动作"""
         try:
             # 解析AI回复，提取战斗指令
@@ -395,7 +506,9 @@ class HealthEventHandler:
         except Exception as e:
             logger.error(f"执行战斗动作时发生错误: {e}")
 
-    async def _execute_default_combat_strategy(self, mob_name: str, current_health: int, damage_source: dict):
+    async def _execute_default_combat_strategy(
+        self, mob_name: str, current_health: int, damage_source: dict
+    ):
         """执行默认战斗策略"""
         try:
             logger.info(f"执行默认反击策略对 {mob_name}")
@@ -403,7 +516,9 @@ class HealthEventHandler:
         except Exception as e:
             logger.error(f"执行默认战斗策略时发生错误: {e}")
 
-    async def _build_player_negotiation_prompt(self, player_name: str, current_health: int, damage_taken, damage_source: dict) -> str:
+    async def _build_player_negotiation_prompt(
+        self, player_name: str, current_health: int, damage_taken, damage_source: dict
+    ) -> str:
         """构建玩家交涉提示词"""
         # 获取环境信息
         try:
@@ -435,16 +550,24 @@ class HealthEventHandler:
             nearby_block_info = "周围方块信息不可用"
             if global_environment.block_position:
                 try:
-                    nearby_block_info = await nearby_block_manager.get_visible_blocks_str(
-                        global_environment.block_position, distance=16)
+                    nearby_block_info = (
+                        await nearby_block_manager.get_visible_blocks_str(
+                            global_environment.block_position, distance=16
+                        )
+                    )
                 except Exception as e:
                     logger.debug(f"获取周围方块信息失败: {e}")
 
             # 获取周围箱子信息
             from agent.container_cache.container_cache import global_container_cache
+
             container_cache_info = ""
             if global_environment.block_position:
-                container_cache_info = global_container_cache.get_nearby_containers_info(global_environment.block_position, 3)
+                container_cache_info = (
+                    global_container_cache.get_nearby_containers_info(
+                        global_environment.block_position, 3
+                    )
+                )
 
             # 获取周围实体信息
             nearby_entities_info = global_environment.get_nearby_entities_info()
@@ -458,6 +581,7 @@ class HealthEventHandler:
         except Exception as e:
             logger.warning(f"获取环境信息失败，使用默认值: {e}")
             import traceback
+
             logger.debug(f"环境信息获取异常详情: {traceback.format_exc()}")
 
             # 使用默认值
@@ -512,7 +636,9 @@ class HealthEventHandler:
 - 直接回复聊天内容，不要添加多余格式
 """
 
-    def _build_mob_combat_prompt(self, mob_name: str, current_health: int, damage_taken, damage_source: dict) -> str:
+    def _build_mob_combat_prompt(
+        self, mob_name: str, current_health: int, damage_taken, damage_source: dict
+    ) -> str:
         """构建敌对生物反击提示词"""
         return f"""
 你刚刚受到敌对生物 {mob_name} 的攻击，损失了 {damage_taken} 点生命值，当前生命值是 {current_health}。
@@ -542,14 +668,14 @@ class HealthEventHandler:
                 logger.warning(f"生命值过低 ({current_health})，考虑逃跑而不是战斗")
                 global_thinking_log.add_thinking_log(
                     f"⚠️ 生命值过低 ({current_health})，准备逃跑而不是与 {mob_name} 战斗",
-                    type="combat_preparation"
+                    type="combat_preparation",
                 )
                 return
 
             # 记录战斗意图到思考日志
             global_thinking_log.add_thinking_log(
                 f"⚔️ 准备反击 {mob_name}，当前生命值: {current_health}",
-                type="combat_preparation"
+                type="combat_preparation",
             )
 
             # 这里可以添加更多的战斗准备逻辑：
@@ -563,22 +689,23 @@ class HealthEventHandler:
         except Exception as e:
             logger.error(f"准备战斗响应时发生错误: {e}")
 
+
 # 全局健康事件处理器实例
 health_handler = HealthEventHandler()
+
 
 # 便捷函数
 def get_health_status():
     """获取当前健康状态"""
-    return {
-        "last_health": health_handler.last_health,
-        "config": HEALTH_CONFIG.copy()
-    }
+    return {"last_health": health_handler.last_health, "config": HEALTH_CONFIG.copy()}
+
 
 def update_health_config(new_config: dict):
     """更新健康配置"""
     global HEALTH_CONFIG
     HEALTH_CONFIG.update(new_config)
     logger.info(f"更新健康配置: {new_config}")
+
 
 def setup_health_handlers():
     """

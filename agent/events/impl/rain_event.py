@@ -1,6 +1,7 @@
 """
 下雨事件实现
 """
+
 from typing_extensions import TypedDict
 from ..base_event import BaseEvent
 from ..event_types import EventType
@@ -17,7 +18,9 @@ class RainEvent(BaseEvent[RainEventData]):
 
     EVENT_TYPE = EventType.RAIN.value
 
-    def __init__(self, type: str, gameTick: int, timestamp: float, data: RainEventData = None):
+    def __init__(
+        self, type: str, gameTick: int, timestamp: float, data: RainEventData = None
+    ):
         """初始化下雨事件"""
         super().__init__(type, gameTick, timestamp, data)
 
@@ -60,6 +63,7 @@ class RainEvent(BaseEvent[RainEventData]):
                 return f"[weather] 雷声轰鸣 (雷电强度: {thunder_state:.1f})"
         else:
             return f"[weather] 天气变化: {weather} (下雨: {is_raining}, 雷电: {thunder_state:.1f})"
+
     def get_weather_description(self) -> str:
         """获取详细的天气描述"""
         weather = self.data.weather
