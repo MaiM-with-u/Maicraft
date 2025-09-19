@@ -2,7 +2,7 @@ import asyncio
 
 from config import global_config
 from mcp_server.client import global_mcp_client
-from utils.logger import setup_advanced_logging
+from utils.logger import setup_advanced_logging, get_logger
 from agent.block_cache.block_cache import global_block_cache
 
 from agent.mai_chat import mai_chat
@@ -10,6 +10,9 @@ from agent.environment.movement import global_movement
 
 # 导入API服务器
 from api import get_websocket_server
+
+# 获取当前模块的日志器
+logger = get_logger("Main")
 
 
 
@@ -21,7 +24,7 @@ async def run_main_agent() -> None:
 
     connected = await global_mcp_client.connect()
     if not connected:
-        print("[启动] 无法连接 MCP 服务器，退出")
+        logger.error("无法连接 MCP 服务器，退出")
         return
 
     agent = MaiAgent()
@@ -34,7 +37,7 @@ async def run_main_agent() -> None:
 
     await global_movement.run_speed_monitor()
 
-    print("[启动] Maicraft-Mai 已启动，按 Ctrl+C 退出")
+    logger.info("Maicraft-Mai 已启动，按 Ctrl+C 退出")
     try:
         while True:
             await asyncio.sleep(3600)
@@ -84,10 +87,10 @@ async def run_websocket_server() -> None:
     port = api_config.port
     log_level = api_config.log_level
 
-    print("[API] WebSocket 日志服务器已启动")
-    print(f"📡 WebSocket地址: ws://{host}:{port}/ws/logs")
-    print(f"🌐 REST API地址: http://{host}:{port}/api/")
-    print(f"🔧 服务器配置: 主机={host}, 端口={port}, 日志级别={log_level}")
+    logger.info("WebSocket 日志服务器已启动")
+    logger.info(f"WebSocket地址: ws://{host}:{port}/ws/logs")
+    logger.info(f"REST API地址: http://{host}:{port}/api/")
+    logger.info(f"服务器配置: 主机={host}, 端口={port}, 日志级别={log_level}")
 
     # 创建FastAPI应用
     app = create_websocket_app()
@@ -106,8 +109,8 @@ async def run_websocket_server() -> None:
     try:
         await server.serve()
     except (KeyboardInterrupt, SystemExit, asyncio.CancelledError):
-        print("[API] 正在关闭WebSocket服务器...")
-        print("[API] WebSocket服务器已关闭")
+        logger.info("正在关闭WebSocket服务器...")
+        logger.info("WebSocket服务器已关闭")
 
 
 async def main() -> None:
@@ -128,7 +131,7 @@ async def main() -> None:
         # 忽略日志初始化错误
         pass
 
-    print("[启动] 正在启动 Maicraft-Mai 和 WebSocket API 服务器...")
+    logger.info("正在启动 Maicraft-Mai 和 WebSocket API 服务器...")
 
     try:
         # 并发运行两个服务
@@ -138,9 +141,9 @@ async def main() -> None:
             return_exceptions=True  # 如果一个任务出错，允许其他任务继续运行
         )
     except (KeyboardInterrupt, SystemExit, asyncio.CancelledError):
-        print("[启动] 接收到退出信号，正在关闭服务...")
+        logger.info("接收到退出信号，正在关闭服务...")
     except Exception as e:
-        print(f"[启动] 启动过程中发生错误: {e}")
+        logger.error(f"启动过程中发生错误: {e}")
         raise
 
 

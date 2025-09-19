@@ -11,6 +11,10 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from config import global_config
+from utils.logger import get_logger
+
+# 获取当前模块的日志器
+logger = get_logger("APIServer")
 from .routers.logs import lifespan
 from .routers import (
     logs_router,
@@ -107,12 +111,12 @@ async def start_api_server(host: Optional[str] = None, port: Optional[int] = Non
         sys.path.append(os.path.dirname(os.path.dirname(__file__)))
         from mcp_server.client import global_mcp_client
 
-    print("[API] 正在连接MCP客户端...")
+    logger.info("正在连接MCP客户端...")
     connected = await global_mcp_client.connect()
     if connected:
-        print("[API] MCP客户端连接成功")
+        logger.info("MCP客户端连接成功")
     else:
-        print("[API] MCP客户端连接失败")
+        logger.error("MCP客户端连接失败")
 
     app = create_app()
 

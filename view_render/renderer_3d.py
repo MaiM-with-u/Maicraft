@@ -11,7 +11,7 @@ try:
     from OpenGL.GLU import *
     OPENGL_AVAILABLE = True
 except ImportError:
-    print("警告: PyOpenGL未安装，3D渲染器将无法工作。请运行: pip install PyOpenGL PyOpenGL-accelerate")
+    logger.warning("PyOpenGL未安装，3D渲染器将无法工作。请运行: pip install PyOpenGL PyOpenGL-accelerate")
     OPENGL_AVAILABLE = False
 import time
 import os
@@ -2260,7 +2260,7 @@ def stop_3d_renderer():
 
 if __name__ == "__main__":
     # 独立运行模式
-    print("启动3D Minecraft渲染器...")
+    logger.info("启动3D Minecraft渲染器...")
     renderer = Renderer3D()
     try:
         renderer.start()
@@ -2268,6 +2268,6 @@ if __name__ == "__main__":
         if renderer.thread:
             renderer.thread.join()
     except KeyboardInterrupt:
-        print("正在退出...")
+        logger.info("正在退出...")
     finally:
         renderer.stop()

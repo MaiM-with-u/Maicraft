@@ -5,6 +5,10 @@ from typing import Dict, Type, Any, Callable, Set
 import importlib
 import pkgutil
 import inspect
+from utils.logger import get_logger
+
+# 获取当前模块的日志器
+logger = get_logger("EventRegistry")
 
 class EventRegistry:
     """事件注册表，管理事件类型到事件类的映射"""
@@ -149,13 +153,13 @@ def auto_discover_and_register_events(package_name: str = "agent.events.impl") -
                                 if hasattr(obj, 'from_raw_data'):
                                     event_registry.register_raw_data_handler(event_type, obj.from_raw_data)
 
-                                print(f"✅ 自动注册事件类: {obj.__name__} -> {event_type}")
+                                logger.info(f"自动注册事件类: {obj.__name__} -> {event_type}")
 
                     except Exception as e:
-                        print(f"⚠️  跳过模块 {modname}: {e}")
+                        logger.warning(f"跳过模块 {modname}: {e}")
 
     except Exception as e:
-        print(f"❌ 自动发现事件类失败: {e}")
+        logger.error(f"自动发现事件类失败: {e}")
 
 
 def manual_register_event(event_type: str, event_class: Type) -> None:
@@ -173,7 +177,7 @@ def manual_register_event(event_type: str, event_class: Type) -> None:
 
 def register_all_events() -> None:
     """注册所有事件类型（自动发现 + 手动补充）"""
-    print("🔍 开始自动发现和注册事件类...")
+    logger.info("开始自动发现和注册事件类...")
 
     # 自动发现并注册事件类
     auto_discover_and_register_events("agent.events.impl")
@@ -182,9 +186,9 @@ def register_all_events() -> None:
     registered_count = event_registry.get_registered_count()
     registered_types = event_registry.get_registered_event_types()
 
-    print("📊 事件注册完成:")
-    print(f"  📋 已注册事件类型数量: {registered_count}")
-    print(f"  📋 已注册的事件类型: {sorted(registered_types)}")
+    logger.info("事件注册完成:")
+    logger.info(f"已注册事件类型数量: {registered_count}")
+    logger.info(f"已注册的事件类型: {sorted(registered_types)}")
 
     if registered_count == 0:
-        print("⚠️  警告: 未发现任何事件类，请检查 agent.events.impl 包结构")
+        logger.warning("未发现任何事件类，请检查 agent.events.impl 包结构")

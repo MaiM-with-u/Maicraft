@@ -19,9 +19,12 @@ try:
     from mcp_server.client import  global_mcp_client
     from utils.logger import get_logger
 except ImportError as e:
-    print(f"导入错误: {e}")
+    print(f"导入错误: {e}")  # 这里保持print，因为此时日志系统可能不可用
     print("请确保在项目根目录下运行此脚本")
     sys.exit(1)
+
+# 设置日志系统并获取日志器
+logger = get_logger("MCPToolsBrowser")
 
 
 class MCPToolsBrowser:

@@ -153,7 +153,6 @@ class MaiAgent:
         
         i = 0
         while not self.complete_goal:
-            # print(f"执行循环{i}")
             await self.next_thinking()
             i += 1
             if i % 5 == 0:
