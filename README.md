@@ -23,6 +23,14 @@ Maicraft-Mai 是一个智能的Minecraft游戏代理系统，它结合了：
 - 与Amaidesu配合，使用tts生成麦麦语音
 - 配合MaiCore的插件进行交互
 
+## 📚 文档
+
+- **[🎮 事件系统文档](doc/event-system.md)** - 完整的Maicraft-Mai事件驱动架构指南
+  - 支持14种Minecraft原生事件类型
+  - 智能中断机制和AI驱动响应
+  - 并发安全的事件处理和存储
+  - 模块化设计和扩展方式
+
 ## 🚀 快速开始
 
 ### 环境要求
