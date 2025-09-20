@@ -20,6 +20,7 @@ from .routers import (
     logs_router,
     websocket_router,
     game_ws_router,
+    token_usage_ws_router,
     game_rest_router,
     locations_router,
     containers_router,
@@ -54,10 +55,16 @@ class MaicraftAPIServer:
 
     def _setup_routes(self):
         """设置路由"""
+        # 设置Token使用量WebSocket回调
+        from .routers.token_usage_ws import token_usage_handler
+        from openai_client.token_usage_manager import set_global_token_manager_callback
+        set_global_token_manager_callback(token_usage_handler.on_usage_update)
+
         # 包含路由器
         self.app.include_router(logs_router)
         self.app.include_router(websocket_router)
         self.app.include_router(game_ws_router)
+        self.app.include_router(token_usage_ws_router)
         self.app.include_router(game_rest_router)
         self.app.include_router(locations_router)
         self.app.include_router(containers_router)

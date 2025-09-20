@@ -1,29 +1,83 @@
+"""
+Token使用量管理器
+负责跟踪和管理LLM API调用的token使用情况
+
+全局管理器使用方式：
+1. 直接创建 TokenUsageManager() - 会自动使用全局实例
+2. 使用 get_global_token_manager() - 显式获取全局实例
+3. 使用 set_global_token_manager_callback() - 设置回调函数（用于WebSocket推送）
+
+注意：所有地方都应该使用全局实例以确保数据一致性
+"""
+
 import json
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Callable
 from pathlib import Path
 import tomllib
 from utils.logger import get_logger
 
+# 全局Token使用量管理器实例
+global_token_manager = None
+
+def get_global_token_manager() -> "TokenUsageManager":
+    """获取全局Token使用量管理器实例
+
+    这是获取全局Token使用量管理器的推荐方式。
+    确保所有地方都使用同一个实例以保持数据一致性。
+    """
+    global global_token_manager
+    if global_token_manager is None:
+        # 如果还没有全局实例，创建一个，但不设置回调（回调应该通过set_global_token_manager_callback设置）
+        global_token_manager = TokenUsageManager(use_global=False)
+    return global_token_manager
+
+def set_global_token_manager_callback(callback: Optional[Callable[[str, Dict[str, Any]], None]]) -> None:
+    """设置全局Token使用量管理器的回调"""
+    global global_token_manager
+    if global_token_manager is None:
+        global_token_manager = TokenUsageManager(update_callback=callback)
+    else:
+        global_token_manager.update_callback = callback
+
 class TokenUsageManager:
     """Token使用量管理器"""
-    
-    def __init__(self, usage_dir: str = "usage"):
+
+    def __init__(self, usage_dir: str = "usage", update_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None, use_global: bool = True):
         """初始化token使用量管理器
-        
+
         Args:
             usage_dir: 使用量记录文件存储目录，相对于项目根目录
+            update_callback: 使用量更新时的回调函数，参数为(model_name, usage_data)
+            use_global: 是否使用全局实例
         """
+        # 如果使用全局实例且已存在，则返回现有实例
+        global global_token_manager
+        if use_global and global_token_manager is not None:
+            # 如果提供了新回调，更新现有实例的回调
+            if update_callback:
+                global_token_manager.update_callback = update_callback
+            # 复制现有实例的所有属性到self
+            self.__dict__.update(global_token_manager.__dict__)
+            return
+
         # 获取项目根目录
         project_root = Path(__file__).parent.parent
         self.usage_dir = project_root / usage_dir
         self.usage_dir.mkdir(exist_ok=True)
-        
+
         # 初始化logger
         self.logger = get_logger("TokenUsageManager")
-        
+
         # 加载模型价格配置
         self.model_prices = self._load_model_prices()
+
+        # 设置更新回调
+        self.update_callback = update_callback
+
+        # 如果使用全局实例，保存到全局变量
+        if use_global:
+            global_token_manager = self
         
     def _load_model_prices(self) -> Dict[str, Dict[str, float]]:
         """加载模型价格配置
@@ -229,7 +283,14 @@ class TokenUsageManager:
         
         # 保存到文件
         self._save_usage(model_name, current_usage)
-        
+
+        # 触发更新回调（用于WebSocket推送）
+        if self.update_callback:
+            try:
+                self.update_callback(model_name, current_usage)
+            except Exception as e:
+                self._get_logger().warning(f"执行更新回调失败: {e}")
+
         # 记录日志
         cost_msg = f"，费用: {cost_info['cost']:.6f}" if cost_info["has_price"] else "，无价格配置"
         self._get_logger().info(

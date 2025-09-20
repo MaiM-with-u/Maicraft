@@ -18,6 +18,7 @@ class SubscriptionType(Enum):
     PLAYER = "player"
     WORLD = "world"
     MARKER = "marker"
+    TOKEN_USAGE = "token_usage"
 
 
 class SubscriptionManager:
@@ -28,7 +29,8 @@ class SubscriptionManager:
         self.subscriptions: Dict[SubscriptionType, Set[WebSocket]] = {
             SubscriptionType.PLAYER: set(),
             SubscriptionType.WORLD: set(),
-            SubscriptionType.MARKER: set()
+            SubscriptionType.MARKER: set(),
+            SubscriptionType.TOKEN_USAGE: set()
         }
         self.client_configs: Dict[WebSocket, Dict[str, Any]] = {}
         self._shutdown_event = asyncio.Event()
@@ -221,15 +223,19 @@ class SubscriptionManager:
 
     async def _get_data_for_type(self, sub_type: SubscriptionType) -> Optional[Dict[str, Any]]:
         """获取指定类型的数据"""
-        from .game_state_service import game_state_service
-
         try:
             if sub_type == SubscriptionType.PLAYER:
+                from .game_state_service import game_state_service
                 return game_state_service.get_player_data()
             elif sub_type == SubscriptionType.WORLD:
+                from .game_state_service import game_state_service
                 return game_state_service.get_world_data()
             elif sub_type == SubscriptionType.MARKER:
+                from .game_state_service import game_state_service
                 return game_state_service.get_marker_data()
+            elif sub_type == SubscriptionType.TOKEN_USAGE:
+                # Token使用量通过事件驱动，不需要定期获取
+                return None
             else:
                 return None
         except Exception as e:
