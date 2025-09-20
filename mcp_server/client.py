@@ -80,6 +80,36 @@ class MCPClient:
         # 兼容性属性
         self.connected = False
 
+        # 连接状态监控
+        self._last_tool_call_success = time.time()
+        self._connection_issue_detected = False
+
+    def _mark_tool_call_success(self) -> None:
+        """标记工具调用成功"""
+        self._last_tool_call_success = time.time()
+        self._connection_issue_detected = False
+
+    def _check_connection_health_immediately(self) -> None:
+        """立即检查连接健康状态"""
+        current_time = time.time()
+
+        # 如果最近的工具调用成功，说明连接正常
+        if current_time - self._last_tool_call_success < 10:  # 10秒内有成功调用
+            return
+
+        # 如果已经检测到连接问题，增加连续失败计数
+        if self._connection_issue_detected:
+            self._connection_health.consecutive_failures += 1
+        else:
+            self._connection_issue_detected = True
+
+        # 如果连续失败次数过多，触发重连
+        if (self._connection_health.consecutive_failures >= 3 and
+            self._reconnection_config.enabled and
+            self._connection_state == ConnectionState.CONNECTED):
+            self.logger.warning(f"[MCP] 检测到连接问题，连续失败 {self._connection_health.consecutive_failures} 次，启动重连")
+            asyncio.create_task(self._start_reconnection())
+
     @property
     def connection_state(self) -> ConnectionState:
         """获取当前连接状态"""
@@ -294,7 +324,7 @@ class MCPClient:
 
             # 如果启用了自动重连，启动重连机制
             if enable_auto_reconnect and self._reconnection_config.enabled:
-                self.logger.info("[MCP] 启动自动重连机制...")
+                self.logger.info("[MCP] 首次连接失败，启动自动重连机制...")
                 asyncio.create_task(self._start_reconnection())
 
             return False
@@ -422,6 +452,7 @@ class MCPClient:
                 
                 # 工具调用正常完成
                 result = tool_task.result()
+                self._mark_tool_call_success()  # 标记工具调用成功
                 return result
             else:
                 # 其他工具直接调用，不检查中断
@@ -439,15 +470,58 @@ class MCPClient:
                         is_error=True,
                         data=None,
                     )
+                self._mark_tool_call_success()  # 标记工具调用成功
                 return result
         except Exception as e:
-            err_msg = f"[MCP] 调用工具失败: {e}"
-            self.logger.error(err_msg)
+            # 分析错误类型
+            error_type = self._diagnose_connection_error(e)
+            error_msg = self._get_error_message(error_type, str(e))
+
+            # 记录详细错误信息
+            self.logger.error(f"[MCP] 调用工具失败 [{tool_name}]: {error_msg}")
+            self.logger.debug(f"[MCP] 原始错误详情: {type(e).__name__}: {e}")
+
+            # 根据错误类型决定是否需要重连
+            should_reconnect = False
+
+            if error_type in [ConnectionErrorType.NETWORK_ERROR, ConnectionErrorType.TIMEOUT_ERROR,
+                            ConnectionErrorType.SERVER_ERROR]:
+                # 明确的连接错误，需要重连
+                should_reconnect = True
+                self.logger.warning(f"[MCP] 检测到连接问题，更新状态并准备重连: {error_type.value}")
+            elif error_type == ConnectionErrorType.UNKNOWN_ERROR:
+                # 未知错误也可能需要重连，但先记录连续失败次数
+                self._connection_health.consecutive_failures += 1
+                if self._connection_health.consecutive_failures >= 3:
+                    should_reconnect = True
+                    self.logger.warning(f"[MCP] 连续失败次数过多 ({self._connection_health.consecutive_failures})，准备重连")
+                else:
+                    self.logger.warning(f"[MCP] 未知错误，连续失败次数: {self._connection_health.consecutive_failures}")
+
+            # 更新连接状态
+            if should_reconnect:
+                self._update_connection_state(ConnectionState.FAILED, error_msg)
+
+                # 如果启用了重连，触发重连机制
+                if self._reconnection_config.enabled:
+                    asyncio.create_task(self._start_reconnection())
+            else:
+                # 只更新健康状态，不改变连接状态
+                self._connection_health.last_error = error_msg
+                self._connection_health.consecutive_failures += 1
+
+            # 立即检查连接健康状态
+            self._check_connection_health_immediately()
+
             return CallToolResult(
                 content=[
-                    TextContent(type="text", text=err_msg),
+                    TextContent(type="text", text=f"工具调用失败: {error_msg}"),
                 ],
-                structured_content=None,
+                structured_content={
+                    "error_type": error_type.value,
+                    "tool_name": tool_name,
+                    "original_error": str(e)
+                },
                 is_error=True,
                 data=None,
             )
@@ -518,18 +592,43 @@ class MCPClient:
             )
 
             if tools:
+                # 健康检查成功，重置失败计数
                 self._update_connection_state(ConnectionState.CONNECTED)
+                self._connection_health.consecutive_failures = 0
+                self.logger.debug(f"[MCP] 健康检查正常，获取到 {len(tools)} 个工具")
             else:
-                raise Exception("获取工具列表失败")
+                raise Exception("获取工具列表为空")
 
         except Exception as e:
-            self.logger.warning(f"[MCP] 健康检查失败: {e}")
-            self._update_connection_state(ConnectionState.FAILED, str(e))
+            # 分析健康检查失败的原因
+            error_type = self._diagnose_connection_error(e)
+            error_msg = self._get_error_message(error_type, str(e))
 
-            # 如果启用了自动重连，启动重连
-            if self._reconnection_config.enabled:
-                self.logger.info("[MCP] 检测到连接异常，启动重连机制...")
-                asyncio.create_task(self._start_reconnection())
+            self.logger.warning(f"[MCP] 健康检查失败: {error_msg}")
+            self._connection_health.consecutive_failures += 1
+            self._connection_health.last_error = error_msg
+
+            # 根据连续失败次数和错误类型决定是否需要重连
+            should_reconnect = False
+
+            if error_type in [ConnectionErrorType.NETWORK_ERROR, ConnectionErrorType.TIMEOUT_ERROR,
+                            ConnectionErrorType.SERVER_ERROR]:
+                should_reconnect = True
+                self.logger.warning(f"[MCP] 健康检查检测到严重连接问题: {error_type.value}")
+            elif self._connection_health.consecutive_failures >= 2:
+                should_reconnect = True
+                self.logger.warning(f"[MCP] 健康检查连续失败 {self._connection_health.consecutive_failures} 次，准备重连")
+
+            if should_reconnect:
+                self._update_connection_state(ConnectionState.FAILED, error_msg)
+
+                # 如果启用了自动重连，启动重连
+                if self._reconnection_config.enabled:
+                    self.logger.info("[MCP] 启动自动重连机制...")
+                    asyncio.create_task(self._start_reconnection())
+            else:
+                # 只记录警告，不立即重连
+                self.logger.warning(f"[MCP] 健康检查失败 {self._connection_health.consecutive_failures} 次，继续监控")
 
     async def _start_reconnection(self) -> None:
         """启动重连机制"""
@@ -564,21 +663,44 @@ class MCPClient:
                     break
 
                 # 尝试重连
+                self.logger.info(f"[MCP] 正在尝试重新连接到 MCP 服务器...")
                 success = await self.connect(enable_auto_reconnect=False)
+
                 if success:
-                    self.logger.info(f"[MCP] 重连成功！(第 {attempt} 次尝试)")
+                    self.logger.info(f"[MCP] 🎉 重连成功！(第 {attempt} 次尝试)")
+                    # 重连成功后立即进行一次健康检查以验证连接稳定性
+                    await asyncio.sleep(2)  # 短暂等待让连接稳定
+                    try:
+                        tools = await asyncio.wait_for(self.list_available_tools(), timeout=5.0)
+                        if tools:
+                            self.logger.info(f"[MCP] 重连验证成功，获取到 {len(tools)} 个工具")
+                        else:
+                            self.logger.warning("[MCP] 重连验证：工具列表为空，可能存在问题")
+                    except Exception as verify_error:
+                        self.logger.warning(f"[MCP] 重连验证失败: {verify_error}")
                     break
                 else:
-                    self.logger.warning(f"[MCP] 第 {attempt} 次重连失败")
+                    self.logger.warning(f"[MCP] 第 {attempt} 次重连失败，将在下次重试")
 
             except asyncio.CancelledError:
+                self.logger.info("[MCP] 重连任务被取消")
                 break
             except Exception as e:
-                self.logger.error(f"[MCP] 重连过程中发生异常: {e}")
+                error_type = self._diagnose_connection_error(e)
+                self.logger.error(f"[MCP] 第 {attempt} 次重连异常 ({error_type.value}): {e}")
+
+                # 如果是严重错误（如依赖缺失），可能不需要继续重试
+                if error_type == ConnectionErrorType.DEPENDENCY_MISSING:
+                    self.logger.error("[MCP] 检测到依赖缺失错误，停止重连")
+                    break
 
         if attempt >= self._reconnection_config.max_attempts:
-            self.logger.error(f"[MCP] 重连失败，已达到最大重试次数 ({self._reconnection_config.max_attempts})")
-            self._update_connection_state(ConnectionState.FAILED, "重连失败，达到最大重试次数")
+            error_msg = f"重连失败，已达到最大重试次数 ({self._reconnection_config.max_attempts})"
+            self.logger.error(f"[MCP] {error_msg}")
+            self._update_connection_state(ConnectionState.FAILED, error_msg)
+            self.logger.error("[MCP] 💔 无法恢复MCP连接，请检查网络和服务器状态")
+        elif self._shutdown_event.is_set():
+            self.logger.info("[MCP] 重连因关闭事件而停止")
 
     def get_connection_status(self) -> Dict[str, Any]:
         """获取详细的连接状态信息"""
