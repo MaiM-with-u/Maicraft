@@ -4,6 +4,7 @@ from agent.prompt_manager.chest_gui import init_templates_chest_gui
 from agent.prompt_manager.furnace_gui import init_templates_furnace_gui
 from agent.prompt_manager.template_task import init_templates_task
 from agent.prompt_manager.judge import init_templates_judge
+from agent.prompt_manager.template_health import init_templates_health
 
 def init_templates() -> None:
     """初始化提示词模板"""
@@ -12,6 +13,7 @@ def init_templates() -> None:
     init_templates_chest_gui()
     init_templates_furnace_gui()
     init_templates_judge()
+    init_templates_health()
     
     prompt_manager.register_template(
         PromptTemplate(
