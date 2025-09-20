@@ -45,7 +45,10 @@ class TokenUsageWebSocketHandler:
             "update_interval": 0,  # Token使用量默认实时推送
             "last_heartbeat": time.time(),
             "subscribed": False,
-            "model_filter": None  # 可选的模型过滤器
+            "model_filter": None,  # 可选的模型过滤器
+            "awaiting_pong": False,  # 是否正在等待pong响应
+            "last_ping_sent": 0,     # 最后发送ping的时间
+            "last_client_ping": 0,   # 最后收到客户端ping的时间
         }
 
         try:
@@ -65,12 +68,18 @@ class TokenUsageWebSocketHandler:
                         break
                     # 发送ping保持连接活跃
                     try:
+                        current_time = time.time()
                         await websocket.send_json({
                             "type": "ping",
-                            "timestamp": int(time.time() * 1000),
+                            "timestamp": int(current_time * 1000),
                             "message": "服务器保持连接ping"
                         })
                         logger.debug(f"发送服务器ping保持连接: {websocket}")
+
+                        # 设置等待pong响应的标志
+                        client_config["awaiting_pong"] = True
+                        client_config["last_ping_sent"] = current_time
+
                     except Exception:
                         logger.warning(f"发送服务器ping失败: {websocket}")
                         break
@@ -82,6 +91,7 @@ class TokenUsageWebSocketHandler:
             logger.error(f"WebSocket连接错误: {e}")
         finally:
             # 清理订阅
+            logger.info(f"清理客户端连接和订阅: {websocket}")
             if client_config.get("subscribed"):
                 await subscription_manager.unsubscribe(websocket)
 
@@ -184,24 +194,54 @@ class TokenUsageWebSocketHandler:
         })
 
     async def _handle_ping(self, websocket: WebSocket, data: dict, client_config: Dict[str, Any]) -> None:
-        """处理客户端心跳请求"""
+        """处理客户端ping"""
+        current_time = time.time()
         client_timestamp = data.get("timestamp", 0)
 
         # 更新最后心跳时间
-        client_config["last_heartbeat"] = time.time()
+        client_config["last_heartbeat"] = current_time
+
+        # 检查客户端ping频率是否合理（防止滥发ping）
+        last_ping_time = client_config.get("last_client_ping", 0)
+        min_ping_interval = 1.0  # 最短ping间隔1秒
+
+        if current_time - last_ping_time < min_ping_interval:
+            logger.warning(f"客户端 {websocket} ping频率过高，忽略此次ping")
+            return
+
+        # 更新最后客户端ping时间
+        client_config["last_client_ping"] = current_time
 
         # 发送pong响应
         await websocket.send_json({
             "type": "pong",
             "timestamp": client_timestamp,
-            "server_timestamp": int(time.time() * 1000)
+            "server_timestamp": int(current_time * 1000)
         })
+
+        logger.debug(f"回复客户端ping: {websocket}")
 
     async def _handle_pong(self, websocket: WebSocket, data: dict, client_config: Dict[str, Any]) -> None:
         """处理客户端对服务器ping的响应"""
+        current_time = time.time()
+        client_timestamp = data.get("timestamp", 0)
+
         # 更新最后心跳时间
-        client_config["last_heartbeat"] = time.time()
-        logger.debug(f"收到客户端pong响应: {websocket}")
+        client_config["last_heartbeat"] = current_time
+
+        # 验证pong响应是否有效
+        if not client_config.get("awaiting_pong", False):
+            # 如果服务器没有在等待pong，这可能是客户端主动发送的ping/pong
+            # 对于token_usage_ws，我们允许这种情况，不做严格验证
+            logger.debug(f"收到客户端主动pong: {websocket}")
+        else:
+            # 这是对服务器ping的响应，清除等待标志
+            logger.debug(f"收到服务器ping的pong响应: {websocket}")
+
+        # 清除等待pong响应的标志
+        client_config["awaiting_pong"] = False
+
+        logger.debug(f"收到有效的pong响应: {websocket}")
 
     async def _handle_get_usage(self, websocket: WebSocket, data: dict, client_config: Dict[str, Any]) -> None:
         """处理获取使用量请求"""
@@ -261,18 +301,36 @@ class TokenUsageWebSocketHandler:
         # 存储最新数据
         self.last_update_data[model_name] = usage_data
 
+        # 检查是否有订阅的客户端
+        if not subscription_manager.subscriptions[self.subscription_type]:
+            logger.debug(f"没有订阅客户端，跳过推送: {model_name}")
+            return
+
         # 异步推送给所有订阅的客户端
         try:
-            # 确保在事件循环中运行
-            loop = asyncio.get_running_loop()
-            loop.create_task(self._broadcast_update(model_name, usage_data))
-            logger.debug(f"创建WebSocket推送任务: {model_name}")
-        except RuntimeError:
-            # 如果没有运行中的事件循环，使用同步方式记录日志
-            logger.info(f"Token使用量更新 (无事件循环): 模型={model_name}, 调用次数={usage_data.get('total_calls', 0)}")
-            # 可以选择在这里缓存数据，稍后推送
+            # 尝试获取当前事件循环
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._broadcast_update(model_name, usage_data))
+                logger.debug(f"在当前事件循环中创建推送任务: {model_name}")
+            except RuntimeError:
+                # 如果没有运行中的事件循环，调度到新的线程中运行
+                import threading
+                def run_in_thread():
+                    try:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        loop.run_until_complete(self._broadcast_update(model_name, usage_data))
+                        loop.close()
+                    except Exception as e:
+                        logger.error(f"线程中推送失败: {e}")
+                
+                thread = threading.Thread(target=run_in_thread, daemon=True)
+                thread.start()
+                logger.debug(f"在新线程中创建推送任务: {model_name}")
         except Exception as e:
             logger.error(f"创建推送任务失败: {e}")
+            # 记录失败但不抛出异常，避免影响token记录
 
     async def _broadcast_update(self, model_name: str, usage_data: Dict[str, Any]) -> None:
         """广播使用量更新给所有订阅的客户端"""
@@ -297,7 +355,6 @@ class TokenUsageWebSocketHandler:
         }
 
         # 推送给所有活跃的WebSocket连接
-        disconnected_clients = []
         sent_count = 0
 
         for websocket in subscription_manager.subscriptions[self.subscription_type]:
@@ -315,17 +372,16 @@ class TokenUsageWebSocketHandler:
                 else:
                     logger.warning(f"客户端缺少配置: {websocket}")
             except Exception as e:
-                logger.warning(f"推送给客户端失败: {e}, 标记为断开连接")
-                disconnected_clients.append(websocket)
+                logger.warning(f"推送给客户端失败: {e}")
+                # 注意：推送失败不一定意味着连接断开
+                # 可能是客户端处理不过来或者临时阻塞
+                # 让心跳机制来检测真正的连接断开
 
-        # 清理断开的连接
-        for websocket in disconnected_clients:
-            logger.info(f"清理断开的WebSocket连接: {websocket}")
-            subscription_manager.subscriptions[self.subscription_type].discard(websocket)
-            if websocket in subscription_manager.client_configs:
-                del subscription_manager.client_configs[websocket]
+        # 注意：不再在这里清理断开的连接
+        # 推送失败的客户端由心跳机制检测和清理
+        # 这样可以避免误删正常但暂时阻塞的连接
 
-        logger.debug(f"广播完成: 发送给 {sent_count} 个客户端，清理了 {len(disconnected_clients)} 个断开连接")
+        logger.debug(f"广播完成: 发送给 {sent_count} 个客户端")
 
 
 # 创建处理器实例

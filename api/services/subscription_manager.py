@@ -45,7 +45,6 @@ class SubscriptionManager:
         self.client_configs[websocket] = {
             "subscription_type": sub_type,
             "update_interval": update_interval,
-            "last_heartbeat": time.time(),
             "subscribed_at": time.time()
         }
 
@@ -164,21 +163,13 @@ class SubscriptionManager:
             try:
                 # 获取活跃的WebSocket连接
                 active_websockets = []
-                inactive_websockets = []
 
                 for websocket in self.subscriptions[sub_type]:
                     config = self.client_configs.get(websocket)
                     if config:
-                        # 检查心跳超时（30秒）
-                        if time.time() - config["last_heartbeat"] > 30:
-                            inactive_websockets.append(websocket)
-                            continue
-
+                        # 不再检查心跳超时，只要WebSocket连接存在就认为是活跃的
+                        # WebSocket的心跳机制会处理连接断开
                         active_websockets.append((websocket, config))
-
-                # 清理不活跃的连接
-                for websocket in inactive_websockets:
-                    await self.unsubscribe(websocket)
 
                 # 推送数据给活跃连接
                 if active_websockets:
