@@ -16,6 +16,7 @@ from agent.events import global_event_store, EventType
 from agent.prompt_manager.prompt_manager import prompt_manager
 from mcp_server.client import global_mcp_client
 from agent.utils.utils import parse_tool_result
+from agent.common.basic_class import Entity
 from utils.logger import get_logger
 
 logger = get_logger("HurtResponseHandler")
@@ -58,7 +59,7 @@ class HurtResponseHandler:
                 # 从事件数据或环境获取生命值
                 from agent.environment.environment import global_environment
                 current_health = event.data.entity.health if event.data.entity.health is not None else global_environment.health
-                damage_source = getattr(event.data, 'source', None)
+                damage_source: Optional[Entity] = getattr(event.data, 'source', None)
 
                 logger.info(
                     f"🏥 收到实体受伤事件: 受伤实体 = {event.data.entity.username}, 生命值 = {current_health}, 伤害来源 = {damage_source.username if damage_source else '未知'}"
@@ -81,12 +82,6 @@ class HurtResponseHandler:
                 import traceback
 
                 logger.error(f"异常详情: {traceback.format_exc()}")
-
-    def _has_taken_damage(self, current_health: Optional[int]) -> bool:
-        """判断是否受到伤害（生命值下降）- 委托给环境类"""
-        # 这个方法现在已经不再使用了，但保留以防万一
-        from agent.environment.environment import global_environment
-        return global_environment.has_taken_damage(current_health)
 
     async def _trigger_damage_interrupt(self, current_health: Optional[int], damage_source):
         """由于受到伤害触发中断"""
@@ -166,7 +161,7 @@ class HurtResponseHandler:
             logger.error(f"发送紧急求救消息时发生错误: {e}")
 
     async def _handle_damage_response(
-        self, current_health: Optional[int], damage_source
+        self, current_health: Optional[int], damage_source: Optional[Entity]
     ):
         """处理伤害响应 - 根据伤害来源选择策略"""
         try:
@@ -196,7 +191,7 @@ class HurtResponseHandler:
 
             logger.error(f"异常详情: {traceback.format_exc()}")
 
-    def _classify_damage_source(self, damage_source) -> str:
+    def _classify_damage_source(self, damage_source: Optional[Entity]) -> str:
         """根据EntityHurtEvent的source字段分类伤害来源"""
         try:
             if not damage_source:
@@ -212,7 +207,7 @@ class HurtResponseHandler:
             # 分类逻辑
             if source_type == "player":
                 return "player"
-            elif source_type in ["zombie", "skeleton", "spider", "creeper", "enderman", "witch", "blaze", "ghast", "magma_cube", "slime", "phantom", "guardian", "elder_guardian", "wither_skeleton", "stray", "husk", "drowned", "cave_spider", "vex", "evoker", "illusioner", "pillager", "ravager", "vindicator"]:
+            elif source_type == "hostile":
                 return "hostile_mob"
             else:
                 # 可能是其他玩家或其他未知实体，暂时归类为玩家（会尝试交涉）
@@ -259,10 +254,54 @@ class HurtResponseHandler:
             logger.warning(f"生命值过低 ({current_health})，触发求救逻辑")
             await self._trigger_distress_call(current_health, damage_source)
         else:
-            # 触发专门的反击提示词
-            await self._trigger_mob_combat_prompt(
-                mob_name, mob_type, current_health, damage_source
-            )
+            # 直接使用kill_mob工具进行反击
+            logger.info(f"⚔️ 开始反击 {mob_name}")
+            await self._execute_mob_counterattack(damage_source, current_health)
+
+    async def _execute_mob_counterattack(self, damage_source, current_health: int):
+        """执行怪物反击逻辑 - 使用kill_mob工具"""
+        try:
+            mob_name = getattr(damage_source, 'name', None) or "敌对生物"
+
+            # 使用kill_mob工具击杀怪物
+            logger.info(f"使用kill_mob工具击杀 {mob_name}")
+
+            # 调用kill_mob工具
+            args = {"mob": mob_name}
+            call_result = await global_mcp_client.call_tool_directly("kill_mob", args)
+
+            # 解析工具调用结果
+            is_success, result_content = parse_tool_result(call_result)
+
+            if is_success:
+                logger.info(f"✅ 成功击杀怪物 {mob_name}")
+                global_thinking_log.add_thinking_log(
+                    f"⚔️ 成功反击并击杀 {mob_name}！",
+                    type="mob_counterattack_success",
+                )
+            else:
+                logger.warning(f"❌ 击杀怪物 {mob_name} 失败: {result_content}")
+                global_thinking_log.add_thinking_log(
+                    f"⚔️ 反击 {mob_name} 失败: {result_content}",
+                    type="mob_counterattack_failed",
+                )
+                # 失败时尝试使用AI进行策略性反击
+                await self._trigger_mob_combat_prompt(
+                    mob_name, getattr(damage_source, 'type', None) or "未知生物",
+                    current_health, damage_source
+                )
+
+        except Exception as e:
+            logger.error(f"执行怪物反击时发生错误: {e}")
+            # 发生错误时回退到AI策略
+            try:
+                mob_name = getattr(damage_source, 'name', None) or "敌对生物"
+                mob_type = getattr(damage_source, 'type', None) or "未知生物"
+                await self._trigger_mob_combat_prompt(
+                    mob_name, mob_type, current_health, damage_source
+                )
+            except Exception as e2:
+                logger.error(f"回退到AI策略也失败: {e2}")
 
     async def _handle_unknown_damage_as_player(
         self, current_health: Optional[int]
