@@ -3,11 +3,10 @@ MaicraftAgent API包
 提供WebSocket和REST API接口
 """
 
-from .server import get_websocket_server, create_websocket_app, start_websocket_server, start_api_server
+from .server import get_api_server, create_app, start_api_server
 
 __all__ = [
-    "get_websocket_server",
-    "create_websocket_app",
-    "start_websocket_server",
+    "get_api_server",
+    "create_app",
     "start_api_server"
 ]

@@ -57,18 +57,29 @@ class GameWebSocketHandler:
 
         try:
             while True:
-                # 设置30秒超时
+                # 设置60秒超时
                 try:
                     message = await asyncio.wait_for(
                         websocket.receive_text(),
-                        timeout=30.0
+                        timeout=60.0
                     )
                     await self._handle_message(websocket, message, client_config)
 
                 except asyncio.TimeoutError:
-                    # 检查心跳超时
-                    if time.time() - client_config["last_heartbeat"] > 60:
+                    # 检查心跳超时（最后心跳超过90秒视为超时）
+                    if time.time() - client_config["last_heartbeat"] > 90:
                         logger.info(f"客户端 {websocket} 心跳超时，断开连接")
+                        break
+                    # 发送ping保持连接活跃
+                    try:
+                        await websocket.send_json({
+                            "type": "ping",
+                            "timestamp": int(time.time() * 1000),
+                            "message": "服务器保持连接ping"
+                        })
+                        logger.debug(f"发送服务器ping保持连接: {websocket}")
+                    except Exception:
+                        logger.warning(f"发送服务器ping失败: {websocket}")
                         break
                     continue
 
@@ -94,6 +105,8 @@ class GameWebSocketHandler:
                 await self._handle_unsubscribe(websocket, client_config)
             elif message_type == "ping":
                 await self._handle_ping(websocket, data, client_config)
+            elif message_type == "pong":
+                await self._handle_pong(websocket, data, client_config)
             else:
                 await websocket.send_json({
                     "type": "error",
@@ -186,6 +199,12 @@ class GameWebSocketHandler:
             "timestamp": client_timestamp,
             "server_timestamp": int(time.time() * 1000)
         })
+
+    async def _handle_pong(self, websocket: WebSocket, data: dict, client_config: Dict[str, Any]) -> None:
+        """处理客户端对服务器ping的响应"""
+        # 更新最后心跳时间
+        client_config["last_heartbeat"] = time.time()
+        logger.debug(f"收到客户端pong响应: {websocket}")
 
     async def _send_data_update(self, websocket: WebSocket) -> None:
         """发送数据更新"""

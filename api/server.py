@@ -18,7 +18,6 @@ logger = get_logger("APIServer")
 from .routers.logs import lifespan
 from .routers import (
     logs_router,
-    websocket_router,
     game_ws_router,
     token_usage_ws_router,
     game_rest_router,
@@ -62,7 +61,6 @@ class MaicraftAPIServer:
 
         # 包含路由器
         self.app.include_router(logs_router)
-        self.app.include_router(websocket_router)
         self.app.include_router(game_ws_router)
         self.app.include_router(token_usage_ws_router)
         self.app.include_router(game_rest_router)
@@ -144,8 +142,3 @@ async def start_api_server(host: Optional[str] = None, port: Optional[int] = Non
         # 优雅退出
         pass
 
-
-# 向后兼容的别名
-get_websocket_server = get_api_server
-create_websocket_app = create_app
-start_websocket_server = start_api_server

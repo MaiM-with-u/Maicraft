@@ -3,6 +3,7 @@
 包含WebSocket和REST API路由
 """
 
+import asyncio
 from typing import Optional
 import time
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -19,7 +20,6 @@ websocket_manager = WebSocketManager()
 
 # 创建路由器
 logs_router = APIRouter(prefix="/api/logs", tags=["logs"])
-websocket_router = APIRouter(tags=["websocket"])
 
 # 创建lifespan管理器
 @asynccontextmanager
@@ -34,22 +34,43 @@ async def lifespan(app):
     await websocket_manager.shutdown()
 
 
-@websocket_router.websocket("/ws/logs")
+@logs_router.websocket("/ws/logs")
 async def websocket_logs(websocket: WebSocket):
     """WebSocket日志推送接口"""
     await websocket_manager.connect(websocket)
 
     try:
         while True:
-            # 设置30秒超时
+            # 设置60秒超时
             try:
-                message = await websocket.receive_text()
+                message = await asyncio.wait_for(
+                    websocket.receive_text(),
+                    timeout=60.0
+                )
                 await websocket_manager.handle_message(websocket, message)
+            except asyncio.TimeoutError:
+                # 检查心跳超时（最后心跳超过90秒视为超时）
+                last_heartbeat = websocket_manager.connected_clients.get(websocket, {}).get("last_heartbeat", 0)
+                if time.time() - last_heartbeat > 90:
+                    # 心跳超时，断开连接
+                    break
+                # 发送ping保持连接活跃
+                try:
+                    await websocket.send_json({
+                        "type": "ping",
+                        "timestamp": int(time.time() * 1000),
+                        "message": "服务器保持连接ping"
+                    })
+                except Exception:
+                    # 发送ping失败，断开连接
+                    break
+                continue
             except WebSocketDisconnect:
                 break
             except Exception as e:
-                # 30秒超时或其他错误
-                if time.time() - websocket_manager.connected_clients.get(websocket, {}).get("last_heartbeat", 0) > 60:
+                # 其他错误，检查心跳超时
+                last_heartbeat = websocket_manager.connected_clients.get(websocket, {}).get("last_heartbeat", 0)
+                if time.time() - last_heartbeat > 90:
                     # 心跳超时，断开连接
                     break
 

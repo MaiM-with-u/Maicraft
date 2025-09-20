@@ -57,6 +57,8 @@ class WebSocketManager:
                 await self._handle_subscription(websocket, data)
             elif message_type == "ping":
                 await self._handle_ping(websocket, data)
+            elif message_type == "pong":
+                await self._handle_pong(websocket, data)
             elif message_type == "unsubscribe":
                 await self._handle_unsubscribe(websocket)
             else:
@@ -116,6 +118,13 @@ class WebSocketManager:
             "timestamp": client_timestamp,
             "server_timestamp": int(time.time() * 1000)
         })
+
+    async def _handle_pong(self, websocket: WebSocket, data: dict) -> None:
+        """处理客户端对服务器ping的响应"""
+        # 更新最后心跳时间
+        if websocket in self.connected_clients:
+            self.connected_clients[websocket]["last_heartbeat"] = time.time()
+            self.logger.debug(f"收到客户端pong响应: {websocket}")
 
     async def _handle_unsubscribe(self, websocket: WebSocket) -> None:
         """处理取消订阅"""

@@ -574,6 +574,41 @@ ws://localhost:20914/ws/game/marker
 }
 ```
 
+#### 心跳机制
+
+为保持WebSocket连接稳定，所有WebSocket端点都使用双向心跳机制：
+
+**客户端 → 服务端心跳:**
+```json
+{
+  "type": "ping",
+  "timestamp": 1704067200000
+}
+```
+
+**服务端 → 客户端心跳:**
+```json
+{
+  "type": "ping",
+  "timestamp": 1704067200000,
+  "message": "服务器保持连接ping"
+}
+```
+
+**心跳响应:**
+```json
+{
+  "type": "pong",
+  "timestamp": 1704067200000
+}
+```
+
+**心跳配置:**
+- 客户端应每30秒发送一次ping
+- 服务端在60秒无消息后发送ping
+- 90秒无心跳响应断开连接
+- 建议客户端定期（30秒）发送ping以保持连接
+
 ### 3.3 WebSocket Token使用量监控
 
 系统提供Token使用量实时监控WebSocket端点，支持订阅Token使用量更新推送。

@@ -9,7 +9,7 @@ from agent.mai_chat import mai_chat
 from agent.environment.movement import global_movement
 
 # 导入API服务器
-from api import get_websocket_server
+from api import get_api_server
 
 # 获取当前模块的日志器
 logger = get_logger("Main")
@@ -93,10 +93,10 @@ async def run_main_agent() -> None:
 async def run_websocket_server() -> None:
     """运行WebSocket API服务器"""
     import uvicorn
-    from api import create_websocket_app
+    from api import create_app
 
     # 获取API服务器实例
-    api_server = get_websocket_server()
+    api_server = get_api_server()
 
     # 从配置获取API服务器设置
     api_config = global_config.api
@@ -110,7 +110,7 @@ async def run_websocket_server() -> None:
     logger.info(f"服务器配置: 主机={host}, 端口={port}, 日志级别={log_level}")
 
     # 创建FastAPI应用
-    app = create_websocket_app()
+    app = create_app()
 
     # 配置uvicorn服务器
     config = uvicorn.Config(
