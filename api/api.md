@@ -11,15 +11,39 @@ python -c "from api import start_api_server; import asyncio; asyncio.run(start_a
 
 **成功响应:**
 ```json
-{"is_success": true, "message": "成功", "data": {...}, "timestamp": 1704067200000}
+{
+  "code": "SUCCESS",
+  "success": true,
+  "message": "操作成功",
+  "data": {...},
+  "timestamp": 1704067200000
+}
 ```
 
 **错误响应:**
 ```json
-{"is_success": false, "message": "错误", "error_code": "ERROR_CODE", "timestamp": 1704067200000}
+{
+  "code": "ERROR",
+  "success": false,
+  "message": "操作失败",
+  "error_code": "ERROR_CODE",
+  "data": null,
+  "timestamp": 1704067200000
+}
 ```
 
-**错误码:** `INTERNAL_ERROR`, `VALIDATION_ERROR`, `RESOURCE_NOT_FOUND`, `INVALID_PARAMETER`, `OPERATION_FAILED`
+**警告响应:**
+```json
+{
+  "code": "WARNING",
+  "success": true,
+  "message": "警告信息",
+  "data": {...},
+  "timestamp": 1704067200000
+}
+```
+
+**错误码:** `INTERNAL_ERROR`, `VALIDATION_ERROR`, `RESOURCE_NOT_FOUND`, `INVALID_PARAMETER`, `OPERATION_FAILED`, `CONNECTION_ERROR`, `SUBSCRIPTION_ERROR`, `GAME_STATE_ERROR`, `ENVIRONMENT_ERROR`
 
 ## 1. 健康检查
 

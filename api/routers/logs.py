@@ -10,10 +10,10 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from contextlib import asynccontextmanager
 
 from ..models.requests import LogLevelUpdate
-from ..models.responses import ApiResponse
+from ..models.responses import UnifiedApiResponse
 from ..services.log_service import LogService
 from ..services.websocket_manager import WebSocketManager
-from ..utils.error_handlers import handle_route_error, create_success_response
+from ..error_handler import handle_route_error, create_success_response
 
 # 创建服务实例
 log_service = LogService()
@@ -83,7 +83,7 @@ async def websocket_logs(websocket: WebSocket):
         await websocket_manager.disconnect(websocket)
 
 
-@logs_router.get("/config", response_model=ApiResponse)
+@logs_router.get("/config", response_model=UnifiedApiResponse)
 async def get_logs_config():
     """获取当前日志配置"""
     try:
@@ -96,7 +96,7 @@ async def get_logs_config():
         return handle_route_error("get_logs_config", e)
 
 
-@logs_router.get("/level", response_model=ApiResponse)
+@logs_router.get("/level", response_model=UnifiedApiResponse)
 async def get_logs_level():
     """获取日志级别信息"""
     try:
@@ -113,7 +113,7 @@ async def get_logs_level():
         return handle_route_error("get_logs_level", e)
 
 
-@logs_router.post("/level", response_model=ApiResponse)
+@logs_router.post("/level", response_model=UnifiedApiResponse)
 async def update_logs_level(request: LogLevelUpdate):
     """更新日志级别"""
     try:
@@ -130,7 +130,7 @@ async def update_logs_level(request: LogLevelUpdate):
         return handle_route_error("update_logs_level", e)
 
 
-@logs_router.get("/recent", response_model=ApiResponse)
+@logs_router.get("/recent", response_model=UnifiedApiResponse)
 async def get_recent_logs(
     limit: int = 100,
     level: Optional[str] = None,
@@ -156,7 +156,7 @@ async def get_recent_logs(
         return handle_route_error("get_recent_logs", e)
 
 
-@logs_router.get("/stats", response_model=ApiResponse)
+@logs_router.get("/stats", response_model=UnifiedApiResponse)
 async def get_logs_stats():
     """获取日志统计信息"""
     try:
@@ -169,7 +169,7 @@ async def get_logs_stats():
         return handle_route_error("get_logs_stats", e)
 
 
-@logs_router.post("/clear", response_model=ApiResponse)
+@logs_router.post("/clear", response_model=UnifiedApiResponse)
 async def clear_logs_cache():
     """清空日志缓存"""
     try:

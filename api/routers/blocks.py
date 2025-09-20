@@ -6,7 +6,7 @@
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Query, HTTPException
 
-from ..models.responses import ApiResponse
+from ..models.responses import UnifiedApiResponse
 from agent.block_cache.block_cache import global_block_cache
 from agent.common.basic_class import BlockPosition
 
@@ -14,26 +14,28 @@ from agent.common.basic_class import BlockPosition
 blocks_router = APIRouter(prefix="/api/blocks", tags=["blocks"])
 
 
-@blocks_router.get("/stats", response_model=ApiResponse)
+@blocks_router.get("/stats", response_model=UnifiedApiResponse)
 async def get_block_cache_stats():
     """获取方块缓存统计信息"""
     try:
         stats = global_block_cache.get_stats()
 
-        return ApiResponse(
-            isSuccess=True,
-            message="获取方块缓存统计成功",
-            data=stats
-        )
+        return {
+            "code": "SUCCESS",
+            "success": True,
+            "message":"获取方块缓存统计成功",
+            "data":stats
+        }
     except Exception as e:
-        return ApiResponse(
-            isSuccess=False,
-            message=f"获取方块缓存统计失败: {str(e)}",
-            data=None
-        )
+        return {
+            "code": "ERROR",
+            "success": False,
+            "message":f"获取方块缓存统计失败: {str(e)}",
+            "data":None
+        }
 
 
-@blocks_router.get("/region", response_model=ApiResponse)
+@blocks_router.get("/region", response_model=UnifiedApiResponse)
 async def get_blocks_in_region(
     x: int = Query(..., description="区域中心X坐标"),
     z: int = Query(..., description="区域中心Z坐标"),
@@ -70,25 +72,27 @@ async def get_blocks_in_region(
         # 按距离排序
         block_list.sort(key=lambda b: b["distance"])
 
-        return ApiResponse(
-            isSuccess=True,
-            message="获取区域方块成功",
-            data={
+        return {
+            "code": "SUCCESS",
+            "success": True,
+            "message":"获取区域方块成功",
+            "data":{
                 "blocks": block_list,
                 "total": len(block_list),
                 "center": {"x": x, "z": z},
                 "radius": radius
             }
-        )
+        }
     except Exception as e:
-        return ApiResponse(
-            isSuccess=False,
-            message=f"获取区域方块失败: {str(e)}",
-            data=None
-        )
+        return {
+            "code": "ERROR",
+            "success": False,
+            "message":f"获取区域方块失败: {str(e)}",
+            "data":None
+        }
 
 
-@blocks_router.get("/search", response_model=ApiResponse)
+@blocks_router.get("/search", response_model=UnifiedApiResponse)
 async def search_blocks(
     name: str = Query(..., description="方块名称，支持部分匹配"),
     limit: int = Query(50, description="返回结果数量限制", ge=1, le=200)
@@ -114,25 +118,27 @@ async def search_blocks(
             }
             block_list.append(block_data)
 
-        return ApiResponse(
-            isSuccess=True,
-            message="搜索方块成功",
-            data={
+        return {
+            "code": "SUCCESS",
+            "success": True,
+            "message":"搜索方块成功",
+            "data":{
                 "blocks": block_list,
                 "total": len(block_list),
                 "search_term": name,
                 "limit": limit
             }
-        )
+        }
     except Exception as e:
-        return ApiResponse(
-            isSuccess=False,
-            message=f"搜索方块失败: {str(e)}",
-            data=None
-        )
+        return {
+            "code": "ERROR",
+            "success": False,
+            "message":f"搜索方块失败: {str(e)}",
+            "data":None
+        }
 
 
-@blocks_router.get("/types", response_model=ApiResponse)
+@blocks_router.get("/types", response_model=UnifiedApiResponse)
 async def get_block_types():
     """获取缓存中的方块类型统计"""
     try:
@@ -150,23 +156,25 @@ async def get_block_types():
         # 按数量排序
         types_data.sort(key=lambda x: x["count"], reverse=True)
 
-        return ApiResponse(
-            isSuccess=True,
-            message="获取方块类型统计成功",
-            data={
+        return {
+            "code": "SUCCESS",
+            "success": True,
+            "message":"获取方块类型统计成功",
+            "data":{
                 "types": types_data,
                 "total_types": len(types_data)
             }
-        )
+        }
     except Exception as e:
-        return ApiResponse(
-            isSuccess=False,
-            message=f"获取方块类型统计失败: {str(e)}",
-            data=None
-        )
+        return {
+            "code": "ERROR",
+            "success": False,
+            "message":f"获取方块类型统计失败: {str(e)}",
+            "data":None
+        }
 
 
-@blocks_router.get("/position/{x}/{y}/{z}", response_model=ApiResponse)
+@blocks_router.get("/position/{x}/{y}/{z}", response_model=UnifiedApiResponse)
 async def get_block_at_position(x: int, y: int, z: int):
     """获取指定位置的方块信息"""
     try:
@@ -193,37 +201,41 @@ async def get_block_at_position(x: int, y: int, z: int):
                 "message": "该位置的方块信息未被缓存"
             }
 
-        return ApiResponse(
-            isSuccess=True,
-            message="获取位置方块信息成功",
-            data=block_data
-        )
+        return {
+            "code": "SUCCESS",
+            "success": True,
+            "message":"获取位置方块信息成功",
+            "data":block_data
+        }
     except Exception as e:
-        return ApiResponse(
-            isSuccess=False,
-            message=f"获取位置方块信息失败: {str(e)}",
-            data=None
-        )
+        return {
+            "code": "ERROR",
+            "success": False,
+            "message":f"获取位置方块信息失败: {str(e)}",
+            "data":None
+        }
 
 
-@blocks_router.delete("/cache", response_model=ApiResponse)
+@blocks_router.delete("/cache", response_model=UnifiedApiResponse)
 async def clear_block_cache():
     """清空方块缓存"""
     try:
         # 注意：这里可能需要管理员权限验证
         cleared_count = global_block_cache.clear_cache()
 
-        return ApiResponse(
-            isSuccess=True,
-            message="清空方块缓存成功",
-            data={
+        return {
+            "code": "SUCCESS",
+            "success": True,
+            "message":"清空方块缓存成功",
+            "data":{
                 "cleared_blocks": cleared_count,
                 "message": f"成功清除了 {cleared_count} 个方块缓存"
             }
-        )
+        }
     except Exception as e:
-        return ApiResponse(
-            isSuccess=False,
-            message=f"清空方块缓存失败: {str(e)}",
-            data=None
-        )
+        return {
+            "code": "ERROR",
+            "success": False,
+            "message":f"清空方块缓存失败: {str(e)}",
+            "data":None
+        }

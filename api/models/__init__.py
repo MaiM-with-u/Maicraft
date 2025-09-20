@@ -9,7 +9,7 @@ from .requests import (
     LogLevelUpdate
 )
 from .responses import (
-    ApiResponse,
+    UnifiedApiResponse,
     LogConfigResponse,
     LogEntry,
     LogStats
@@ -19,7 +19,7 @@ __all__ = [
     "LogSubscription",
     "HeartbeatMessage",
     "LogLevelUpdate",
-    "ApiResponse",
+    "UnifiedApiResponse",
     "LogConfigResponse",
     "LogEntry",
     "LogStats"

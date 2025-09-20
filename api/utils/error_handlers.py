@@ -9,7 +9,7 @@ from typing import Any, Optional
 from fastapi import HTTPException, status
 from fastapi.responses import JSONResponse
 
-from ..models.responses import ApiResponse, ErrorCode
+from ..models.responses import ErrorCode
 from utils.logger import get_logger
 
 logger = get_logger("APIErrorHandler")
@@ -72,15 +72,17 @@ def create_success_response(
     data: Any = None,
     message: str = "Success",
     include_timestamp: bool = True
-) -> ApiResponse:
+) -> Dict[str, Any]:
     """创建成功响应"""
-    timestamp = int(time.time() * 1000) if include_timestamp else None
-    return ApiResponse(
-        is_success=True,
-        message=message,
-        data=data,
-        timestamp=timestamp
-    )
+    response = {
+        "code": "SUCCESS",
+        "success": True,
+        "message": message,
+        "data": data
+    }
+    if include_timestamp:
+        response["timestamp"] = int(time.time() * 1000)
+    return response
 
 
 def create_error_response(
@@ -88,16 +90,18 @@ def create_error_response(
     error_code: ErrorCode = ErrorCode.INTERNAL_ERROR,
     data: Optional[Any] = None,
     include_timestamp: bool = True
-) -> ApiResponse:
+) -> Dict[str, Any]:
     """创建错误响应"""
-    timestamp = int(time.time() * 1000) if include_timestamp else None
-    return ApiResponse(
-        is_success=False,
-        message=message,
-        error_code=error_code,
-        data=data,
-        timestamp=timestamp
-    )
+    response = {
+        "code": "ERROR",
+        "success": False,
+        "message": message,
+        "error_code": error_code if isinstance(error_code, str) else error_code.value,
+        "data": data
+    }
+    if include_timestamp:
+        response["timestamp"] = int(time.time() * 1000)
+    return response
 
 
 def handle_api_error(error: Exception) -> JSONResponse:
@@ -142,8 +146,8 @@ def handle_api_error(error: Exception) -> JSONResponse:
         )
 
 
-def handle_route_error(func_name: str, error: Exception) -> ApiResponse:
-    """处理路由级别的错误，返回ApiResponse对象"""
+def handle_route_error(func_name: str, error: Exception) -> Dict[str, Any]:
+    """处理路由级别的错误，返回统一格式的响应字典"""
 
     # 记录错误
     logger.warning(f"Error in {func_name}: {str(error)}")

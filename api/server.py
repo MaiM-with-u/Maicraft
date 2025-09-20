@@ -5,6 +5,7 @@ MaicraftAgent API服务器
 
 import asyncio
 from typing import Optional
+from dataclasses import dataclass
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +28,7 @@ from .routers import (
     blocks_router,
     mcp_router
 )
+from .config import APIConfig
 
 
 class MaicraftAPIServer:
@@ -40,15 +42,22 @@ class MaicraftAPIServer:
             lifespan=lifespan
         )
 
+        # 使用统一的配置
+        self.config = api_config
+
         # 设置CORS（如果配置中启用）
-        if global_config.api.enable_cors:
+        if self.config.cors.enabled:
             self.app.add_middleware(
                 CORSMiddleware,
-                allow_origins=["*"],  # 生产环境请限制域名
-                allow_credentials=True,
-                allow_methods=["*"],
-                allow_headers=["*"],
+                allow_origins=self.config.cors.allow_origins,
+                allow_credentials=self.config.cors.allow_credentials,
+                allow_methods=self.config.cors.allow_methods,
+                allow_headers=self.config.cors.allow_headers,
             )
+
+        # 设置统一的异常处理器
+        from .error_handler import create_api_exception_handler
+        create_api_exception_handler(self.app)
 
         # 注册路由
         self._setup_routes()
@@ -102,11 +111,14 @@ def create_app() -> FastAPI:
 
 async def start_api_server(host: Optional[str] = None, port: Optional[int] = None):
     """启动API服务器"""
+    # 使用统一的API配置
+    server_config = api_config.server
+
     # 使用配置中的设置或参数中的设置
-    api_config = global_config.api
-    server_host = host or api_config.host
-    server_port = port or api_config.port
-    log_level = api_config.log_level
+    server_host = host or server_config.host
+    server_port = port or server_config.port
+    log_level = server_config.log_level
+    access_log = server_config.access_log
 
     # 检查MCP客户端连接状态（由main.py负责连接）
     try:
@@ -139,8 +151,8 @@ async def start_api_server(host: Optional[str] = None, port: Optional[int] = Non
         app,
         host=server_host,
         port=server_port,
-        log_level=log_level,  # 使用配置中的日志级别
-        access_log=False      # 关闭访问日志
+        log_level=log_level,
+        access_log=access_log
     )
 
     server = uvicorn.Server(config)

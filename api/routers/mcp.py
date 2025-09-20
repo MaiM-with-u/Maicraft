@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..models.responses import ApiResponse
+from ..models.responses import UnifiedApiResponse
 
 # 导入MCP客户端
 try:
@@ -30,17 +30,18 @@ class ToolCallRequest(BaseModel):
     arguments: Dict[str, Any]
 
 
-@mcp_router.get("/tools", response_model=ApiResponse)
+@mcp_router.get("/tools", response_model=UnifiedApiResponse)
 async def get_tools_metadata():
     """获取所有可用MCP工具的元数据信息"""
     try:
         # 检查MCP客户端是否连接
         if not global_mcp_client.connected:
-            return ApiResponse(
-                isSuccess=False,
-                message="MCP_NOT_CONNECTED: MCP客户端未连接",
-                data=None
-            )
+            return {
+                "code": "ERROR",
+            "success": False,
+                "message":"MCP_NOT_CONNECTED: MCP客户端未连接",
+                "data":None
+            }
 
         # 获取工具元数据
         tools = await global_mcp_client.get_tools_metadata()
@@ -55,42 +56,46 @@ async def get_tools_metadata():
             }
             tools_data.append(tool_info)
 
-        return ApiResponse(
-            isSuccess=True,
-            message="获取工具元数据成功",
-            data={
+        return {
+            "code": "SUCCESS",
+            "success": True,
+            "message":"获取工具元数据成功",
+            "data":{
                 "tools": tools_data,
                 "total": len(tools_data)
             }
-        )
+        }
 
     except Exception as e:
-        return ApiResponse(
-            isSuccess=False,
-            message=f"INTERNAL_ERROR: 获取工具元数据失败: {str(e)}",
-            data=None
-        )
+        return {
+            "code": "ERROR",
+            "success": False,
+            "message":f"INTERNAL_ERROR: 获取工具元数据失败: {str(e)}",
+            "data":None
+        }
 
 
-@mcp_router.post("/tools/call", response_model=ApiResponse)
+@mcp_router.post("/tools/call", response_model=UnifiedApiResponse)
 async def call_tool(request: ToolCallRequest):
     """直接调用指定的MCP工具"""
     try:
         # 检查MCP客户端是否连接
         if not global_mcp_client.connected:
-            return ApiResponse(
-                isSuccess=False,
-                message="MCP_NOT_CONNECTED: MCP客户端未连接",
-                data=None
-            )
+            return {
+                "code": "ERROR",
+            "success": False,
+                "message":"MCP_NOT_CONNECTED: MCP客户端未连接",
+                "data":None
+            }
 
         # 验证工具名称
         if not request.tool_name:
-            return ApiResponse(
-                isSuccess=False,
-                message="VALIDATION_ERROR: 工具名称不能为空",
-                data={"field": "tool_name", "reason": "工具名称不能为空"}
-            )
+            return {
+                "code": "ERROR",
+            "success": False,
+                "message":"VALIDATION_ERROR: 工具名称不能为空",
+                "data":{"field": "tool_name", "reason": "工具名称不能为空"}
+            }
 
         # 调用工具
         result = await global_mcp_client.call_tool_directly(
@@ -101,10 +106,11 @@ async def call_tool(request: ToolCallRequest):
         # 处理结果
         if result.is_error:
             # 工具调用失败
-            return ApiResponse(
-                isSuccess=False,
-                message=f"TOOL_ERROR: {result.content[0].text if result.content else '工具调用失败'}",
-                data={
+            return {
+                "code": "ERROR",
+            "success": False,
+                "message":f"TOOL_ERROR: {result.content[0].text if result.content else '工具调用失败'}",
+                "data":{
                     "tool_name": request.tool_name,
                     "arguments": request.arguments,
                     "result": {
@@ -114,13 +120,14 @@ async def call_tool(request: ToolCallRequest):
                         "data": result.data
                     }
                 }
-            )
+            }
         else:
             # 工具调用成功
-            return ApiResponse(
-                isSuccess=True,
-                message="工具调用成功",
-                data={
+            return {
+                "code": "SUCCESS",
+            "success": True,
+                "message":"工具调用成功",
+                "data":{
                     "tool_name": request.tool_name,
                     "arguments": request.arguments,
                     "result": {
@@ -130,14 +137,15 @@ async def call_tool(request: ToolCallRequest):
                         "data": result.data
                     }
                 }
-            )
+            }
 
     except Exception as e:
-        return ApiResponse(
-            isSuccess=False,
-            message=f"INTERNAL_ERROR: 工具调用失败: {str(e)}",
-            data={
+        return {
+            "code": "ERROR",
+            "success": False,
+            "message":f"INTERNAL_ERROR: 工具调用失败: {str(e)}",
+            "data":{
                 "tool_name": request.tool_name,
                 "arguments": request.arguments
             }
-        )
+        }

@@ -32,8 +32,21 @@ class ErrorCode(str, Enum):
 
 
 class ApiResponse(BaseModel):
-    """通用API响应模型"""
+    """通用API响应模型（已弃用，请使用UnifiedApiResponse）
+
+    @deprecated: 此模型已弃用，请使用UnifiedApiResponse以获得更好的响应格式
+    """
     is_success: bool
+    message: str
+    data: Optional[Any] = None
+    timestamp: Optional[int] = None
+    error_code: Optional[str] = None
+
+
+class UnifiedApiResponse(BaseModel):
+    """统一的API响应模型"""
+    code: str  # SUCCESS, ERROR, WARNING
+    success: bool
     message: str
     data: Optional[Any] = None
     timestamp: Optional[int] = None
