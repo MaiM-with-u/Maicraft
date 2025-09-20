@@ -24,6 +24,7 @@ class BaseWebSocketHandler(ABC):
         self.logger = get_logger(f"WS-{handler_name}")
         self.connected_clients: Dict[WebSocket, Dict[str, Any]] = {}
         self._heartbeat_tasks: Dict[WebSocket, asyncio.Task] = {}
+        self._cleanup_task: asyncio.Task = None
         self._shutdown_event = asyncio.Event()
 
     async def handle_connection(self, websocket: WebSocket) -> None:
@@ -41,6 +42,9 @@ class BaseWebSocketHandler(ABC):
 
             # 启动心跳监控
             self._start_heartbeat_monitor(websocket)
+
+            # 启动清理任务（如果还没有启动）
+            self._start_cleanup_task()
 
             # 处理连接
             await self._handle_connection_loop(websocket, client_config)
@@ -60,7 +64,10 @@ class BaseWebSocketHandler(ABC):
             "last_heartbeat": time.time(),
             "last_activity": time.time(),
             "is_active": True,
-            "handler_name": self.handler_name
+            "handler_name": self.handler_name,
+            "awaiting_pong": False,  # 是否正在等待pong响应
+            "last_ping_sent": 0,     # 最后发送ping的时间
+            "last_client_ping": 0,   # 最后收到客户端ping的时间
         }
 
     async def _send_welcome_message(self, websocket: WebSocket) -> None:
@@ -81,6 +88,12 @@ class BaseWebSocketHandler(ABC):
         task = asyncio.create_task(self._heartbeat_monitor_task(websocket))
         self._heartbeat_tasks[websocket] = task
 
+    def _start_cleanup_task(self) -> None:
+        """启动清理任务"""
+        if self._cleanup_task is None or self._cleanup_task.done():
+            self._cleanup_task = asyncio.create_task(self._cleanup_monitor_task())
+            self.logger.debug(f"{self.handler_name} 清理任务已启动")
+
     async def _heartbeat_monitor_task(self, websocket: WebSocket) -> None:
         """心跳监控任务"""
         while not self._shutdown_event.is_set():
@@ -92,7 +105,13 @@ class BaseWebSocketHandler(ABC):
                 client_config = self.connected_clients[websocket]
                 current_time = time.time()
 
-                # 检查心跳超时
+                # 检查pong响应超时
+                if client_config["awaiting_pong"] and (current_time - client_config["last_ping_sent"] > api_config.websocket.heartbeat_timeout):
+                    self.logger.warning(f"客户端 {websocket} pong响应超时，断开连接")
+                    await self._force_disconnect(websocket)
+                    break
+
+                # 检查整体心跳超时（客户端最后活动时间）
                 if current_time - client_config["last_heartbeat"] > api_config.websocket.heartbeat_timeout:
                     self.logger.warning(f"客户端 {websocket} 心跳超时，断开连接")
                     await self._force_disconnect(websocket)
@@ -106,6 +125,11 @@ class BaseWebSocketHandler(ABC):
                         "message": f"服务器心跳 - {self.handler_name}"
                     })
                     self.logger.debug(f"发送服务器心跳: {websocket}")
+
+                    # 标记正在等待pong响应
+                    client_config["awaiting_pong"] = True
+                    client_config["last_ping_sent"] = current_time
+
                 except Exception:
                     self.logger.warning(f"发送心跳失败: {websocket}")
                     break
@@ -172,23 +196,56 @@ class BaseWebSocketHandler(ABC):
 
     async def _handle_ping(self, websocket: WebSocket, data: dict, client_config: Dict[str, Any]) -> None:
         """处理客户端ping"""
+        current_time = time.time()
         client_timestamp = data.get("timestamp", 0)
 
         # 更新最后心跳时间
-        client_config["last_heartbeat"] = time.time()
+        client_config["last_heartbeat"] = current_time
+
+        # 检查客户端ping频率是否合理（防止滥发ping）
+        last_ping_time = client_config.get("last_client_ping", 0)
+        min_ping_interval = 1.0  # 最短ping间隔1秒
+
+        if current_time - last_ping_time < min_ping_interval:
+            self.logger.warning(f"客户端 {websocket} ping频率过高，忽略此次ping")
+            return
+
+        # 更新最后客户端ping时间
+        client_config["last_client_ping"] = current_time
 
         # 发送pong响应
         await websocket.send_json({
             "type": "pong",
             "timestamp": client_timestamp,
-            "server_timestamp": int(time.time() * 1000)
+            "server_timestamp": int(current_time * 1000)
         })
+
+        self.logger.debug(f"回复客户端ping: {websocket}")
 
     async def _handle_pong(self, websocket: WebSocket, data: dict, client_config: Dict[str, Any]) -> None:
         """处理客户端pong响应"""
+        current_time = time.time()
+        client_timestamp = data.get("timestamp", 0)
+
         # 更新最后心跳时间
-        client_config["last_heartbeat"] = time.time()
-        self.logger.debug(f"收到客户端pong响应: {websocket}")
+        client_config["last_heartbeat"] = current_time
+
+        # 验证pong响应是否有效
+        if not client_config.get("awaiting_pong", False):
+            # 如果服务器没有在等待pong，这可能是一个意外的pong
+            self.logger.warning(f"收到意外的pong响应，服务端未发送过ping给客户端 {websocket}")
+            return
+
+        # 验证时间戳是否合理（pong的时间戳应该接近服务器发送ping的时间戳）
+        last_ping_sent = client_config.get("last_ping_sent", 0)
+        if abs(client_timestamp / 1000 - last_ping_sent) > 10:  # 允许10秒的时钟偏差
+            self.logger.warning(f"收到无效的pong时间戳，客户端 {websocket}")
+            return
+
+        # 清除等待pong响应的标志
+        client_config["awaiting_pong"] = False
+
+        self.logger.debug(f"收到有效的pong响应: {websocket}")
 
     async def _send_error(self, websocket: WebSocket, message: str, error_code: str = "UNKNOWN_ERROR") -> None:
         """发送错误消息"""
@@ -278,9 +335,32 @@ class BaseWebSocketHandler(ABC):
             self.logger.info(f"清理不活跃客户端: {websocket}")
             await self._cleanup_connection(websocket)
 
+    async def _cleanup_monitor_task(self) -> None:
+        """定期清理不活跃客户端的任务"""
+        cleanup_interval = api_config.websocket.cleanup_interval
+
+        while not self._shutdown_event.is_set():
+            try:
+                await asyncio.sleep(cleanup_interval)
+                if not self._shutdown_event.is_set():
+                    await self.cleanup_inactive_clients()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.logger.error(f"清理监控任务错误: {e}")
+                break
+
     async def shutdown(self) -> None:
         """关闭处理器"""
         self._shutdown_event.set()
+
+        # 取消清理任务
+        if self._cleanup_task and not self._cleanup_task.done():
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
 
         # 取消所有心跳任务
         for task in self._heartbeat_tasks.values():
@@ -288,7 +368,9 @@ class BaseWebSocketHandler(ABC):
                 task.cancel()
 
         # 等待任务完成
-        await asyncio.gather(*self._heartbeat_tasks.values(), return_exceptions=True)
+        tasks_to_wait = list(self._heartbeat_tasks.values())
+        if tasks_to_wait:
+            await asyncio.gather(*tasks_to_wait, return_exceptions=True)
 
         # 清理所有连接
         for websocket in list(self.connected_clients.keys()):
