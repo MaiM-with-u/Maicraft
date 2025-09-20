@@ -28,7 +28,7 @@ from .routers import (
     blocks_router,
     mcp_router
 )
-from .config import APIConfig
+from .config import api_config
 
 
 class MaicraftAPIServer:

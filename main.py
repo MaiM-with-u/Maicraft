@@ -95,38 +95,51 @@ async def run_websocket_server() -> None:
     import uvicorn
     from api import create_app
 
-    # 获取API服务器实例
-    api_server = get_api_server()
-
-    # 从配置获取API服务器设置
-    api_config = global_config.api
-    host = api_config.host
-    port = api_config.port
-    log_level = api_config.log_level
-
-    logger.info("WebSocket 日志服务器已启动")
-    logger.info(f"WebSocket地址: ws://{host}:{port}/ws/logs")
-    logger.info(f"REST API地址: http://{host}:{port}/api/")
-    logger.info(f"服务器配置: 主机={host}, 端口={port}, 日志级别={log_level}")
-
-    # 创建FastAPI应用
-    app = create_app()
-
-    # 配置uvicorn服务器
-    config = uvicorn.Config(
-        app,
-        host=host,
-        port=port,
-        log_level=log_level,  # 使用配置中的日志级别
-        access_log=False      # 关闭访问日志
-    )
-
-    server = uvicorn.Server(config)
-
     try:
+        # 获取API服务器实例
+        logger.info("正在初始化API服务器...")
+        api_server = get_api_server()
+        logger.info("API服务器实例创建成功")
+
+        # 从API配置获取服务器设置
+        from api.config import api_config as api_server_config, update_api_config_from_global
+
+        # 更新API配置以使用全局配置
+        update_api_config_from_global()
+
+        host = api_server_config.server.host
+        port = api_server_config.server.port
+        log_level = api_server_config.server.log_level
+
+        logger.info("正在启动WebSocket API服务器...")
+        logger.info(f"WebSocket地址: ws://{host}:{port}/ws/logs")
+        logger.info(f"REST API地址: http://{host}:{port}/api/")
+        logger.info(f"服务器配置: 主机={host}, 端口={port}, 日志级别={log_level}")
+
+        # 创建FastAPI应用
+        logger.info("正在创建FastAPI应用...")
+        app = create_app()
+        logger.info("FastAPI应用创建成功")
+
+        # 配置uvicorn服务器
+        config = uvicorn.Config(
+            app,
+            host=host,
+            port=port,
+            log_level=log_level,  # 使用配置中的日志级别
+            access_log=False      # 关闭访问日志
+        )
+
+        server = uvicorn.Server(config)
+        logger.info("正在启动uvicorn服务器...")
+
         await server.serve()
-    except (KeyboardInterrupt, SystemExit, asyncio.CancelledError):
-        logger.info("正在关闭WebSocket服务器...")
+    except Exception as e:
+        logger.error(f"WebSocket服务器启动失败: {e}")
+        import traceback
+        logger.error(f"详细错误信息: {traceback.format_exc()}")
+        raise
+    finally:
         logger.info("WebSocket服务器已关闭")
 
 
