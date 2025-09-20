@@ -10,7 +10,7 @@ from typing import Dict, Any, Set
 from datetime import datetime
 
 from fastapi import WebSocket, WebSocketDisconnect
-from utils.logger import get_logger_manager
+from utils.logger import get_logger, get_logger_manager
 from ..config import api_config
 
 
@@ -18,7 +18,8 @@ class WebSocketManager:
     """WebSocket管理器"""
 
     def __init__(self):
-        self.logger = get_logger_manager()
+        self.logger = get_logger("WebSocketManager")  # 用于记录日志
+        self.logger_manager = get_logger_manager()    # 用于获取最近日志
         self.connected_clients: Dict[WebSocket, Dict[str, Any]] = {}
         self._log_listener_task: asyncio.Task = None
         self._cleanup_task: asyncio.Task = None
@@ -273,7 +274,7 @@ class WebSocketManager:
                     next_heartbeat_time = current_time + heartbeat_interval
 
                 # 获取最近的日志
-                recent_logs = self.logger._recent_logs
+                recent_logs = self.logger_manager._recent_logs
 
                 # 检查是否有新日志
                 if len(recent_logs) > last_log_count:
