@@ -15,7 +15,7 @@ from utils.logger import get_logger
 logger = get_logger("GameWSRouter")
 
 # 创建路由器
-game_ws_router = APIRouter(tags=["game_websocket"])
+game_ws_router = APIRouter(prefix="/ws", tags=["game_websocket"])
 
 
 class GameWebSocketHandler:
@@ -229,19 +229,19 @@ world_handler = GameWebSocketHandler(SubscriptionType.WORLD)
 marker_handler = GameWebSocketHandler(SubscriptionType.MARKER)
 
 
-@game_ws_router.websocket("/ws/game/player")
+@game_ws_router.websocket("/game/player")
 async def websocket_game_player(websocket: WebSocket):
     """玩家数据WebSocket端点"""
     await player_handler.handle_connection(websocket)
 
 
-@game_ws_router.websocket("/ws/game/world")
+@game_ws_router.websocket("/game/world")
 async def websocket_game_world(websocket: WebSocket):
     """世界数据WebSocket端点"""
     await world_handler.handle_connection(websocket)
 
 
-@game_ws_router.websocket("/ws/game/marker")
+@game_ws_router.websocket("/game/marker")
 async def websocket_game_marker(websocket: WebSocket):
     """标记点数据WebSocket端点"""
     await marker_handler.handle_connection(websocket)

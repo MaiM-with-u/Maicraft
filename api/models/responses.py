@@ -4,14 +4,40 @@ API响应数据模型
 
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
+from enum import Enum
+
+
+class ErrorCode(str, Enum):
+    """错误码枚举"""
+    # 系统级错误
+    INTERNAL_ERROR = "INTERNAL_ERROR"
+    VALIDATION_ERROR = "VALIDATION_ERROR"
+    NOT_FOUND = "NOT_FOUND"
+    UNAUTHORIZED = "UNAUTHORIZED"
+    FORBIDDEN = "FORBIDDEN"
+
+    # 业务级错误
+    INVALID_PARAMETER = "INVALID_PARAMETER"
+    RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND"
+    OPERATION_FAILED = "OPERATION_FAILED"
+    SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
+
+    # WebSocket相关
+    CONNECTION_ERROR = "CONNECTION_ERROR"
+    SUBSCRIPTION_ERROR = "SUBSCRIPTION_ERROR"
+
+    # 游戏相关
+    GAME_STATE_ERROR = "GAME_STATE_ERROR"
+    ENVIRONMENT_ERROR = "ENVIRONMENT_ERROR"
 
 
 class ApiResponse(BaseModel):
     """通用API响应模型"""
-    isSuccess: bool
+    is_success: bool
     message: str
     data: Optional[Any] = None
     timestamp: Optional[int] = None
+    error_code: Optional[str] = None
 
 
 class LogConfigResponse(BaseModel):

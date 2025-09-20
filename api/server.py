@@ -18,6 +18,7 @@ logger = get_logger("APIServer")
 from .routers.logs import lifespan
 from .routers import (
     logs_router,
+    logs_ws_router,
     game_ws_router,
     token_usage_ws_router,
     game_rest_router,
@@ -61,6 +62,7 @@ class MaicraftAPIServer:
 
         # 包含路由器
         self.app.include_router(logs_router)
+        self.app.include_router(logs_ws_router)
         self.app.include_router(game_ws_router)
         self.app.include_router(token_usage_ws_router)
         self.app.include_router(game_rest_router)
@@ -106,7 +108,7 @@ async def start_api_server(host: Optional[str] = None, port: Optional[int] = Non
     server_port = port or api_config.port
     log_level = api_config.log_level
 
-    # 连接MCP客户端
+    # 检查MCP客户端连接状态（由main.py负责连接）
     try:
         from ...mcp_server.client import global_mcp_client
     except ImportError:
@@ -116,12 +118,19 @@ async def start_api_server(host: Optional[str] = None, port: Optional[int] = Non
         sys.path.append(os.path.dirname(os.path.dirname(__file__)))
         from mcp_server.client import global_mcp_client
 
-    logger.info("正在连接MCP客户端...")
-    connected = await global_mcp_client.connect()
-    if connected:
-        logger.info("MCP客户端连接成功")
+    # 检查MCP是否已连接（由main.py负责）
+    if global_mcp_client.connected:
+        logger.info("MCP客户端已连接（由main.py管理）")
     else:
-        logger.error("MCP客户端连接失败")
+        logger.warning("MCP客户端未连接，API服务器可能无法正常工作。建议通过main.py启动系统。")
+
+        # 作为备选方案，尝试连接MCP（仅在独立启动API服务器时）
+        logger.info("尝试独立连接MCP客户端...")
+        connected = await global_mcp_client.connect()
+        if connected:
+            logger.info("MCP客户端连接成功")
+        else:
+            logger.error("MCP客户端连接失败")
 
     app = create_app()
 

@@ -15,7 +15,7 @@ from utils.logger import get_logger
 logger = get_logger("TokenUsageWSRouter")
 
 # 创建路由器
-token_usage_ws_router = APIRouter(tags=["token_usage_websocket"])
+token_usage_ws_router = APIRouter(prefix="/ws", tags=["token_usage_websocket"])
 
 
 class TokenUsageWebSocketHandler:
@@ -335,7 +335,7 @@ token_usage_handler = TokenUsageWebSocketHandler()
 # token_manager已经在构造函数中使用get_global_token_manager()获取
 
 
-@token_usage_ws_router.websocket("/ws/token-usage")
+@token_usage_ws_router.websocket("/token-usage")
 async def websocket_token_usage(websocket: WebSocket):
     """Token使用量WebSocket端点"""
     await token_usage_handler.handle_connection(websocket)

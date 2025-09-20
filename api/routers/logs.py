@@ -13,6 +13,7 @@ from ..models.requests import LogLevelUpdate
 from ..models.responses import ApiResponse
 from ..services.log_service import LogService
 from ..services.websocket_manager import WebSocketManager
+from ..utils.error_handlers import handle_route_error, create_success_response
 
 # 创建服务实例
 log_service = LogService()
@@ -20,6 +21,7 @@ websocket_manager = WebSocketManager()
 
 # 创建路由器
 logs_router = APIRouter(prefix="/api/logs", tags=["logs"])
+logs_ws_router = APIRouter(prefix="/ws", tags=["logs_websocket"])
 
 # 创建lifespan管理器
 @asynccontextmanager
@@ -34,7 +36,7 @@ async def lifespan(app):
     await websocket_manager.shutdown()
 
 
-@logs_router.websocket("/ws/logs")
+@logs_ws_router.websocket("/logs")
 async def websocket_logs(websocket: WebSocket):
     """WebSocket日志推送接口"""
     await websocket_manager.connect(websocket)
@@ -86,17 +88,12 @@ async def get_logs_config():
     """获取当前日志配置"""
     try:
         config = log_service.get_config()
-        return ApiResponse(
-            isSuccess=True,
-            message="success",
-            data=config
+        return create_success_response(
+            data=config,
+            message="获取日志配置成功"
         )
     except Exception as e:
-        return ApiResponse(
-            isSuccess=False,
-            message=f"获取日志配置失败: {str(e)}",
-            data=None
-        )
+        return handle_route_error("get_logs_config", e)
 
 
 @logs_router.get("/level", response_model=ApiResponse)
@@ -108,17 +105,12 @@ async def get_logs_level():
             "current_level": config["level"],
             "available_levels": ["TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"]
         }
-        return ApiResponse(
-            isSuccess=True,
-            message="success",
-            data=data
+        return create_success_response(
+            data=data,
+            message="获取日志级别成功"
         )
     except Exception as e:
-        return ApiResponse(
-            isSuccess=False,
-            message=f"获取日志级别失败: {str(e)}",
-            data=None
-        )
+        return handle_route_error("get_logs_level", e)
 
 
 @logs_router.post("/level", response_model=ApiResponse)
@@ -130,23 +122,12 @@ async def update_logs_level(request: LogLevelUpdate):
         # 通知所有连接的客户端日志级别已更改
         await websocket_manager.broadcast_level_change(request.level.upper())
 
-        return ApiResponse(
-            isSuccess=True,
-            message="success",
-            data=result
-        )
-    except ValueError as e:
-        return ApiResponse(
-            isSuccess=False,
-            message=str(e),
-            data=None
+        return create_success_response(
+            data=result,
+            message="更新日志级别成功"
         )
     except Exception as e:
-        return ApiResponse(
-            isSuccess=False,
-            message=f"更新日志级别失败: {str(e)}",
-            data=None
-        )
+        return handle_route_error("update_logs_level", e)
 
 
 @logs_router.get("/recent", response_model=ApiResponse)
@@ -167,17 +148,12 @@ async def get_recent_logs(
             since_minutes=since_minutes
         )
 
-        return ApiResponse(
-            isSuccess=True,
-            message="success",
-            data=result
+        return create_success_response(
+            data=result,
+            message="获取日志记录成功"
         )
     except Exception as e:
-        return ApiResponse(
-            isSuccess=False,
-            message=f"获取日志记录失败: {str(e)}",
-            data=None
-        )
+        return handle_route_error("get_recent_logs", e)
 
 
 @logs_router.get("/stats", response_model=ApiResponse)
@@ -185,17 +161,12 @@ async def get_logs_stats():
     """获取日志统计信息"""
     try:
         stats = log_service.get_stats()
-        return ApiResponse(
-            isSuccess=True,
-            message="success",
-            data=stats
+        return create_success_response(
+            data=stats,
+            message="获取日志统计成功"
         )
     except Exception as e:
-        return ApiResponse(
-            isSuccess=False,
-            message=f"获取日志统计失败: {str(e)}",
-            data=None
-        )
+        return handle_route_error("get_logs_stats", e)
 
 
 @logs_router.post("/clear", response_model=ApiResponse)
@@ -203,14 +174,9 @@ async def clear_logs_cache():
     """清空日志缓存"""
     try:
         result = log_service.clear_logs()
-        return ApiResponse(
-            isSuccess=True,
-            message="success",
-            data=result
+        return create_success_response(
+            data=result,
+            message="清空日志缓存成功"
         )
     except Exception as e:
-        return ApiResponse(
-            isSuccess=False,
-            message=f"清空日志缓存失败: {str(e)}",
-            data=None
-        )
+        return handle_route_error("clear_logs_cache", e)
