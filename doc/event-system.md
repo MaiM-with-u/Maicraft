@@ -155,7 +155,9 @@ agent/events/
 │   ├── entity_hurt_event.py  # 实体受伤事件
 │   └── ...                # 其他11种事件
 └── handlers/              # 事件处理器 (业务逻辑)
-    ├── health_event_handler.py    # 智能伤害响应处理器
+    ├── health/               # 健康事件处理器目录
+    │   ├── __init__.py
+    │   └── health_event_handler.py    # 智能伤害响应处理器
     └── README.md
 ```
 
@@ -405,7 +407,7 @@ response_delay = 2.0
 支持运行时动态调整配置：
 
 ```python
-from agent.events.handlers.health_event_handler import update_health_config
+from agent.events.handlers.health.health_event_handler import update_health_config
 
 # 动态更新健康处理器配置
 update_health_config({

@@ -7,7 +7,9 @@
 ```
 handlers/
 ├── __init__.py           # 处理器包初始化
-├── health_event_handler.py  # 健康事件处理器
+├── health/               # 健康事件处理器目录
+│   ├── __init__.py
+│   └── health_event_handler.py
 └── README.md             # 说明文档
 ```
 
@@ -41,7 +43,7 @@ HEALTH_CONFIG = {
 处理器会在系统启动时自动初始化，无需手动调用。
 
 ```python
-from agent.events.handlers.health_event_handler import get_health_status, update_health_config
+from agent.events.handlers.health.health_event_handler import get_health_status, update_health_config
 
 # 获取当前健康状态
 status = get_health_status()
