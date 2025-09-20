@@ -2,9 +2,9 @@ from agent.prompt_manager.prompt_manager import PromptTemplate, prompt_manager
 
 def init_templates_health() -> None:
     """初始化健康事件提示词模板"""
-
-    # 玩家交涉提示词模板
-    prompt_manager.register_template(
+    try:
+        # 玩家交涉提示词模板
+        prompt_manager.register_template(
         PromptTemplate(
             name="health_player_negotiation",
             template="""
@@ -64,8 +64,8 @@ def init_templates_health() -> None:
         )
     )
 
-    # 敌对生物反击提示词模板
-    prompt_manager.register_template(
+        # 敌对生物反击提示词模板
+        prompt_manager.register_template(
         PromptTemplate(
             name="health_mob_combat",
             template="""
@@ -87,3 +87,10 @@ def init_templates_health() -> None:
             ],
         )
     )
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"初始化健康事件提示词模板失败: {e}")
+        import traceback
+        logger.error(f"异常详情: {traceback.format_exc()}")
+        raise

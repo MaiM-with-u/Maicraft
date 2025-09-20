@@ -108,8 +108,21 @@ class MaiAgent:
         """异步初始化"""
         try:
             self.logger.info(" 开始初始化")
-            
+
+            # 初始化提示词模板
+            self.logger.info(" 初始化提示词模板...")
             init_templates()
+            self.logger.info(" 提示词模板初始化完成")
+
+            # 检查模板是否注册成功
+            from agent.prompt_manager.prompt_manager import prompt_manager
+            template_count = len(prompt_manager.templates)
+            self.logger.info(f" 已注册 {template_count} 个提示词模板")
+
+            if 'health_player_negotiation' in prompt_manager.templates:
+                self.logger.info(" ✅ health_player_negotiation 模板已注册")
+            else:
+                self.logger.warning(" ❌ health_player_negotiation 模板未注册")
             
             # 初始化LLM客户端
             model_config = ModelConfig(

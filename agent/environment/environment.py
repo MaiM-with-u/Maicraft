@@ -56,6 +56,9 @@ class EnvironmentInfo:
         self.health: int = 0
         self.health_max: int = 20
         self.health_percentage: int = 0
+
+        # 生命值历史状态
+        self.last_health: Optional[int] = None
         self.food: int = 0
         self.food_max: int = 20
         self.food_saturation: int = 0
@@ -192,9 +195,12 @@ class EnvironmentInfo:
         
         # 更新状态信息
         health_data = data.get("health", {})
-        self.health = health_data.get("current", 0)
+        current_health = health_data.get("current", 0)
         self.health_max = health_data.get("max", 20)
         self.health_percentage = health_data.get("percentage", 0)
+
+        # 使用新的生命值状态管理统一更新生命值（当前+历史）
+        health_state_change = self.update_health_state(current_health)
         
         food_data = data.get("food", {})
         self.food = food_data.get("current", 0)
@@ -619,6 +625,71 @@ class EnvironmentInfo:
         
         
         return input_data
+
+    def update_health_state(self, current_health: int) -> dict:
+        """更新生命值状态，返回状态变化信息
+
+        Args:
+            current_health: 当前生命值
+
+        Returns:
+            dict: 包含状态变化信息的字典
+                {
+                    "has_damage": bool,  # 是否受到伤害
+                    "damage_taken": int,  # 受到的伤害值
+                    "old_health": int,    # 上一次生命值
+                    "new_health": int     # 当前生命值
+                }
+        """
+        # 获取上一次的生命值（用于伤害检测）
+        old_health = self.health  # 使用当前存储的值作为上一次的值
+        has_damage = False
+        damage_taken = 0
+
+        # 检测伤害：只有在有历史记录时才检测
+        if old_health is not None and current_health is not None:
+            if current_health < old_health:
+                has_damage = True
+                damage_taken = old_health - current_health
+
+        # 更新状态：更新当前生命值，保存旧值作为历史
+        self.last_health = old_health  # 保存旧值作为历史
+        self.health = current_health  # 更新当前值
+
+        return {
+            "has_damage": has_damage,
+            "damage_taken": damage_taken,
+            "old_health": old_health,
+            "new_health": current_health
+        }
+
+    def has_taken_damage(self, current_health: Optional[int] = None) -> bool:
+        """判断是否受到伤害
+
+        Args:
+            current_health: 当前生命值，如果不提供则使用self.health
+
+        Returns:
+            bool: 是否受到伤害
+        """
+        health_to_check = current_health if current_health is not None else self.health
+        return (health_to_check is not None and
+                self.last_health is not None and
+                health_to_check < self.last_health)
+
+    def get_health_status(self) -> dict:
+        """获取完整的生命值状态信息
+
+        Returns:
+            dict: 生命值状态信息
+        """
+        return {
+            "current_health": self.health,
+            "max_health": self.health_max,
+            "health_percentage": self.health_percentage,
+            "last_health": self.last_health,
+            "has_damage": self.has_taken_damage()
+        }
 
 
 # 全局环境信息实例

@@ -47,7 +47,7 @@ from agent.events.handlers.health.health_event_handler import get_health_status,
 
 # 获取当前健康状态
 status = get_health_status()
-print(f"生命值: {status['last_health']}, 饱食度: {status['last_food']}")
+print(f"当前生命值: {status['current_health']}, 上次生命值: {status['last_health']}, 是否受到伤害: {status['has_damage']}")
 
 # 更新配置
 update_health_config({

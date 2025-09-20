@@ -27,7 +27,6 @@ class HealthEventHandler:
     """健康事件处理器"""
 
     def __init__(self):
-        self.last_health = None
         self._processing_lock = asyncio.Lock()  # 添加并发锁保护状态更新
         self.setup_listeners()
 
@@ -41,32 +40,41 @@ class HealthEventHandler:
         async with self._processing_lock:  # 使用锁保护状态访问和更新
             try:
                 current_health = event.data.health
+
+                # 使用环境类的生命值状态管理
+                from agent.environment.environment import global_environment
+
+                # 获取上一次的生命值进行比较
+                previous_health = global_environment.health  # 获取当前存储的上一次生命值
+
+                # 直接比较当前事件数据和上一次存储的值
+                has_damage = False
+                damage_taken = 0
+                if previous_health is not None and current_health is not None:
+                    if current_health < previous_health:
+                        has_damage = True
+                        damage_taken = previous_health - current_health
+
+                # 更新环境的状态（使用事件数据）
+                global_environment.update_health_state(current_health)
+
                 logger.info(
-                    f"🏥 收到健康事件: 生命值 = {current_health}, 上一生命值 = {self.last_health}"
+                    f"🏥 收到健康事件: 生命值 = {current_health}, 上一生命值 = {previous_health}, 当前存储 = {global_environment.health}, 最后存储 = {global_environment.last_health}"
                 )
 
                 # 核心逻辑：只要生命值下降就立即中断！
-                if self._has_taken_damage(current_health):
-                    damage_taken = (
-                        self.last_health - current_health if self.last_health else 0
-                    )
+                if has_damage:
                     logger.warning(
-                        f"⚠️ 检测到伤害: 损失 {damage_taken} 点生命值，从 {self.last_health} 降至 {current_health}"
+                        f"⚠️ 检测到伤害: 损失 {damage_taken} 点生命值，从 {previous_health} 降至 {current_health}"
                     )
-                    await self._trigger_damage_interrupt(current_health)
+                    await self._trigger_damage_interrupt(current_health, damage_taken, previous_health)
 
                     # 🚨 新增：触发专门的伤害响应处理
                     await self._handle_damage_response(current_health, damage_taken)
                 else:
                     logger.debug(
-                        f"生命值未下降，无需响应 (当前: {current_health}, 上次: {self.last_health})"
+                        f"生命值未下降，无需响应 (当前: {current_health}, 上次: {previous_health})"
                     )
-
-                # 更新状态
-                old_health = self.last_health
-                self.last_health = current_health
-                if old_health != current_health:
-                    logger.debug(f"更新last_health: {old_health} -> {current_health}")
 
             except Exception as e:
                 logger.error(f"处理健康事件时发生错误: {e}")
@@ -75,20 +83,14 @@ class HealthEventHandler:
                 logger.error(f"异常详情: {traceback.format_exc()}")
 
     def _has_taken_damage(self, current_health: Optional[int]) -> bool:
-        """判断是否受到伤害（生命值下降）"""
-        if current_health is None or self.last_health is None:
-            return False
+        """判断是否受到伤害（生命值下降）- 委托给环境类"""
+        from agent.environment.environment import global_environment
+        return global_environment.has_taken_damage(current_health)
 
-        # 如果当前生命值低于上一次记录的生命值，说明受到了伤害
-        return current_health < self.last_health
-
-    async def _trigger_damage_interrupt(self, current_health: Optional[int]):
+    async def _trigger_damage_interrupt(self, current_health: Optional[int], damage_taken: int = 0, previous_health: Optional[int] = None):
         """由于受到伤害触发中断"""
-        damage_taken = (
-            self.last_health - current_health
-            if self.last_health and current_health
-            else "未知"
-        )
+        # 使用传入的参数
+        old_health = previous_health if previous_health is not None else "未知"
 
         # 构建中断原因
         reason = f"受到伤害！生命值下降 {damage_taken} 点，当前生命值: {current_health}"
@@ -98,7 +100,7 @@ class HealthEventHandler:
 
         # 记录到思考日志
         global_thinking_log.add_thinking_log(
-            f"🚨 受到伤害！生命值从 {self.last_health} 降至 {current_health}，中断当前任务",
+            f"🚨 受到伤害！生命值从 {old_health} 降至 {current_health}，中断当前任务",
             type="damage_interrupt",
         )
 
@@ -673,7 +675,14 @@ health_handler = HealthEventHandler()
 # 便捷函数
 def get_health_status():
     """获取当前健康状态"""
-    return {"last_health": health_handler.last_health, "config": HEALTH_CONFIG.copy()}
+    from agent.environment.environment import global_environment
+    health_status = global_environment.get_health_status()
+    return {
+        "last_health": health_status["last_health"],
+        "current_health": health_status["current_health"],
+        "has_damage": health_status["has_damage"],
+        "config": HEALTH_CONFIG.copy()
+    }
 
 
 def update_health_config(new_config: dict):

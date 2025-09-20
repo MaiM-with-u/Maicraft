@@ -28,8 +28,25 @@ async def run_main_agent() -> None:
         return
 
     agent = MaiAgent()
-    await agent.initialize()
-    await agent.start()
+    try:
+        logger.info("正在初始化 MaiAgent...")
+        await agent.initialize()
+        logger.info("MaiAgent 初始化完成")
+    except Exception as e:
+        logger.error(f"MaiAgent 初始化失败: {e}")
+        import traceback
+        logger.error(f"初始化异常详情: {traceback.format_exc()}")
+        return
+
+    try:
+        logger.info("正在启动 MaiAgent...")
+        await agent.start()
+        logger.info("MaiAgent 启动完成")
+    except Exception as e:
+        logger.error(f"MaiAgent 启动失败: {e}")
+        import traceback
+        logger.error(f"启动异常详情: {traceback.format_exc()}")
+        return
 
     await mai_chat.start()
 

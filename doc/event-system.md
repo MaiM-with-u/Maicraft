@@ -601,7 +601,9 @@ async def health_check():
             "event_system": {
                 "listeners": emitter_stats['total_listeners'],
                 "events_stored": store_stats['total_events'],
-                "last_health": health_status['last_health']
+                "current_health": health_status['current_health'],
+                "last_health": health_status['last_health'],
+                "has_damage": health_status['has_damage']
             }
         }
     except Exception as e:

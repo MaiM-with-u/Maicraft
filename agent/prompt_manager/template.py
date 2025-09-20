@@ -8,14 +8,15 @@ from agent.prompt_manager.template_health import init_templates_health
 
 def init_templates() -> None:
     """初始化提示词模板"""
-    init_templates_chat()
-    init_templates_task()
-    init_templates_chest_gui()
-    init_templates_furnace_gui()
-    init_templates_judge()
-    init_templates_health()
-    
-    prompt_manager.register_template(
+    try:
+        init_templates_chat()
+        init_templates_task()
+        init_templates_chest_gui()
+        init_templates_furnace_gui()
+        init_templates_judge()
+        init_templates_health()
+
+        prompt_manager.register_template(
         PromptTemplate(
         name="basic_info",
         template="""
@@ -65,10 +66,8 @@ def init_templates() -> None:
             "player_name",
             "bot_name"],
     ))
-    
-    
 
-    prompt_manager.register_template(
+        prompt_manager.register_template(
         PromptTemplate(
         name="main_thinking",
         template="""
@@ -254,9 +253,15 @@ timeout: 超时时间（秒），例如60s,120s
             "eat_action",
             "kill_mob_action"],
     ))
-    
-    
-    
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"初始化提示词模板失败: {e}")
+        import traceback
+        logger.error(f"异常详情: {traceback.format_exc()}")
+        raise
+
+
 # ?暂时没想好怎么处理合成，因为合成还要考虑2x2的  
 # **use_block**
 # 使用方块，目前可以使用的方块：
