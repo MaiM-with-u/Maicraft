@@ -5,6 +5,6 @@
 处理器可以中断当前任务、触发紧急响应等。
 """
 
-from .health.health_event_handler import setup_health_handlers
+from .hurt_response.hurt_response_handler import setup_hurt_response_handlers
 
-__all__ = ["setup_health_handlers"]
+__all__ = ["setup_hurt_response_handlers"]

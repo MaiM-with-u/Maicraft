@@ -31,6 +31,12 @@ async def run_main_agent() -> None:
     try:
         logger.info("正在初始化 MaiAgent...")
         await agent.initialize()
+
+        # 在MaiAgent初始化后设置事件处理器，避免循环依赖
+        from agent.events import setup_event_handlers
+        setup_event_handlers()
+        logger.info("事件处理器设置完成")
+
         logger.info("MaiAgent 初始化完成")
     except Exception as e:
         logger.error(f"MaiAgent 初始化失败: {e}")

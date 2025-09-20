@@ -7,13 +7,6 @@ from .impl.chat_event import ChatEvent
 from .event_emitter import EventEmitter, ListenerHandle  # 新增
 
 
-# 延迟导入handlers，避免循环依赖
-def _setup_handlers():
-    from .handlers import setup_health_handlers
-
-    setup_health_handlers()
-
-
 # 创建全局事件存储实例
 global_event_store = GameEventStore()
 
@@ -23,8 +16,16 @@ global_event_emitter = EventEmitter(max_listeners=200)
 # 注册所有事件类型（在所有模块导入完成后执行）
 register_all_events()
 
-# 初始化事件处理器
-_setup_handlers()
+
+def setup_event_handlers():
+    """
+    设置所有事件处理器
+
+    这个函数应该在应用启动时调用，而不是在模块导入时。
+    这样可以避免循环依赖问题。
+    """
+    from .handlers import setup_hurt_response_handlers
+    setup_hurt_response_handlers()
 
 
 def event_listener(event_type: str, once: bool = False):

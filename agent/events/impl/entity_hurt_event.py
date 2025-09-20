@@ -11,6 +11,7 @@ from ...common.basic_class import Entity
 
 class EntityHurtEventData(TypedDict):
     entity: Optional[Entity]
+    source: Optional[Entity]
 
 
 class EntityHurtEvent(BaseEvent[EntityHurtEventData]):
@@ -31,14 +32,24 @@ class EntityHurtEvent(BaseEvent[EntityHurtEventData]):
     def get_description(self) -> str:
         if self.data.entity:
             target = self.data.entity.username or self.data.entity.name or "实体"
-            return f"{target} 受到了伤害，当前生命值为 {self.data.entity.health}"
+            source_desc = ""
+            if hasattr(self.data, 'source') and self.data.source:
+                source = self.data.source.username or self.data.source.name or "实体"
+                source_desc = f"，伤害来源：{source}"
+
+            return f"{target} 受到了伤害{source_desc}，当前生命值为 {self.data.entity.health}"
         else:
             return "实体受到了伤害"
 
     def to_context_string(self) -> str:
         if self.data.entity:
             target = self.data.entity.username or self.data.entity.name or "实体"
-            return f"[entityHurt] {target} 受到了伤害"
+            source_desc = ""
+            if hasattr(self.data, 'source') and self.data.source:
+                source = self.data.source.username or self.data.source.name or "实体"
+                source_desc = f"（来自{source}）"
+
+            return f"[entityHurt] {target} 受到了伤害{source_desc}"
         else:
             return "[entityHurt] 实体受到了伤害"
 
@@ -46,4 +57,6 @@ class EntityHurtEvent(BaseEvent[EntityHurtEventData]):
         result = super().to_dict()
         if self.data.entity:
             result["entity"] = self.data.entity.to_dict()
+        if hasattr(self.data, 'source') and self.data.source:
+            result["source"] = self.data.source.to_dict()
         return result

@@ -9,12 +9,8 @@ def init_templates_health() -> None:
             name="health_player_negotiation",
             template="""
 你是{bot_name}，游戏名叫{player_name_game},你正在游玩Minecraft，是一名Minecraft玩家。
-刚刚有人攻击了你，损失了 {damage_taken} 点生命值，当前生命值是 {current_health}。
+刚刚有人攻击了你，当前生命值是 {current_health}。
 
-**当前目标和任务列表**：
-目标：{goal}
-任务列表：
-{to_do_list}
 
 **当前状态**
 {self_status_info}
@@ -25,31 +21,25 @@ def init_templates_health() -> None:
 **位置信息**
 {position}
 
-**周围方块的信息**
-{nearby_block_info}
-
-**周围箱子信息**
-{container_cache_info}
-
 **周围实体信息**
 {nearby_entities_info}
 
 **玩家聊天记录**：
 {chat_str}
 
-刚刚有人攻击了你，造成 {damage_taken} 点伤害。你需要回复这个攻击行为。
+刚刚有人攻击了你，你需要回复这个攻击行为。
 
 **回复要求**
 - 简短直接，可以参考微博、贴吧的语气
-- 表现出惊讶或困惑，但保持友好
+- 根据给出的信息，推断对方的意图，表现出惊讶或困惑，但保持友好
 - 想了解对方为什么攻击你，不想继续战斗
-- 直接回复聊天内容，不要添加多余格式
+- 不要重复已经说过的内容
+- 直接回复聊天内容，不要添加多余格式或者emoji
 """,
             description="健康事件-玩家交涉提示词",
             parameters=[
                 "bot_name",
                 "player_name_game",
-                "damage_taken",
                 "current_health",
                 "goal",
                 "to_do_list",

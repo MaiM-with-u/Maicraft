@@ -160,8 +160,8 @@ class EnvironmentUpdater:
 
                     # logger.info(event_data_item)
 
-                    # 注意：health事件现在被启用用于紧急中断处理
-                    ignore_event_name = []  # 不再忽略health事件
+                    # 注意：entityHurt事件现在被启用用于伤害响应处理
+                    ignore_event_name = []  # 不再忽略entityHurt事件
                     if event.type in ignore_event_name:
                         continue
 
