@@ -22,10 +22,12 @@ async def run_main_agent() -> None:
     # 延迟导入以避免模块顶层导入顺序告警
     from agent.mai_agent import MaiAgent
 
-    connected = await global_mcp_client.connect()
+    # 连接到MCP服务器，启用自动重连
+    logger.info("正在连接到 MCP 服务器...")
+    connected = await global_mcp_client.connect(enable_auto_reconnect=True)
     if not connected:
-        logger.error("无法连接 MCP 服务器，退出")
-        return
+        logger.error("无法连接 MCP 服务器，程序将继续运行，重连机制已启用")
+        # 不立即退出，让程序继续运行，依赖重连机制
 
     agent = MaiAgent()
     try:
@@ -72,6 +74,13 @@ async def run_main_agent() -> None:
         except Exception:
             pass
     finally:
+        # 优雅关闭MCP客户端
+        logger.info("正在关闭 MCP 客户端...")
+        try:
+            await global_mcp_client.shutdown()
+        except Exception as e:
+            logger.error(f"关闭MCP客户端时发生异常: {e}")
+
         # 兜底：强制关闭 pygame 窗口，防止残留窗口阻塞退出
         try:
             import pygame  # type: ignore
@@ -93,7 +102,6 @@ async def run_main_agent() -> None:
                 pass
         except Exception:
             pass
-        await global_mcp_client.disconnect()
 
 
 async def run_websocket_server() -> None:

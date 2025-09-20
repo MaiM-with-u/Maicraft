@@ -38,19 +38,23 @@ class MCPToolsBrowser:
     async def connect(self) -> bool:
         """连接到MCP服务器"""
         try:
-            
+            # 使用新的连接管理功能
+            self.connected = await global_mcp_client.connect(enable_auto_reconnect=False)
 
-            self.connected = await global_mcp_client.connect()
-            
             if self.connected:
-                # 创建工具适配器
-
                 self.logger.info("成功连接到MCP服务器")
+                # 显示连接状态信息
+                status = global_mcp_client.get_connection_status()
+                self.logger.info(f"连接状态: {status['state']}")
                 return True
             else:
                 self.logger.error("连接MCP服务器失败")
+                # 显示详细的错误信息
+                status = global_mcp_client.get_connection_status()
+                if status['health']['last_error']:
+                    self.logger.error(f"错误详情: {status['health']['last_error']}")
                 return False
-                
+
         except Exception as e:
             self.logger.error(f"连接过程中发生错误: {e}")
             return False
@@ -58,9 +62,41 @@ class MCPToolsBrowser:
     async def disconnect(self):
         """断开MCP连接"""
         if global_mcp_client and self.connected:
-            await global_mcp_client.disconnect()
+            await global_mcp_client.shutdown()
             self.connected = False
             self.logger.info("已断开MCP连接")
+
+    def show_connection_status(self):
+        """显示详细的连接状态信息"""
+        if not global_mcp_client:
+            print("MCP客户端未初始化")
+            return
+
+        status = global_mcp_client.get_connection_status()
+
+        print("\n" + "="*60)
+        print("MCP连接状态详情")
+        print("="*60)
+        print(f"当前状态: {status['state']}")
+        print(f"是否连接: {'是' if status['is_connected'] else '否'}")
+
+        print(f"\n健康状态:")
+        print(f"  是否健康: {'是' if status['health']['is_healthy'] else '否'}")
+        print(f"  连续失败次数: {status['health']['consecutive_failures']}")
+        if status['health']['last_error']:
+            print(f"  最后错误: {status['health']['last_error']}")
+        if status['health']['last_success_time']:
+            import time
+            last_success = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(status['health']['last_success_time']))
+            print(f"  最后成功时间: {last_success}")
+
+        print(f"\n重连配置:")
+        print(f"  重连启用: {'是' if status['reconnection']['enabled'] else '否'}")
+        print(f"  最大重试次数: {status['reconnection']['max_attempts']}")
+        print(f"  正在重连: {'是' if status['reconnection']['is_reconnecting'] else '否'}")
+
+        print(f"\n配置文件: {status['config_file']}")
+        print("="*60)
     
     async def get_tools_info(self) -> List[Dict[str, Any]]:
         """获取所有MCP工具的详细信息"""
@@ -256,36 +292,40 @@ class MCPToolsBrowser:
             print("4. 按名称或编号查看工具")
             print("5. 执行工具并查看返回值")
             print("6. 导出工具信息到JSON文件")
-            print("7. 退出")
+            print("7. 显示连接状态详情")
+            print("8. 退出")
             print("-"*60)
             
             try:
-                choice = input("请选择操作 (1-7): ").strip()
-                
+                choice = input("请选择操作 (1-8): ").strip()
+
                 if choice == "1":
                     self.display_tools_summary(tools_info)
-                
+
                 elif choice == "2":
                     self.browse_all_tools(tools_info)
-                
+
                 elif choice == "3":
                     self.search_tools(tools_info)
-                
+
                 elif choice == "4":
                     await self.view_tool_by_name_or_id(tools_info)
-                
+
                 elif choice == "5":
                     await self.execute_tool_flow(tools_info)
-                
+
                 elif choice == "6":
                     self.export_tools_to_json(tools_info)
-                
+
                 elif choice == "7":
+                    self.show_connection_status()
+
+                elif choice == "8":
                     print("退出MCP工具浏览器")
                     break
-                
+
                 else:
-                    print("无效选择，请输入1-7之间的数字")
+                    print("无效选择，请输入1-8之间的数字")
                     
             except KeyboardInterrupt:
                 print("\n\n用户中断，退出程序")
@@ -834,10 +874,9 @@ async def main():
         # 连接到MCP服务器
         print("正在连接MCP服务器...")
         if not await browser.connect():
-            print("连接MCP服务器失败，请检查:")
-            print("1. Minecraft服务器是否正在运行")
-            print("2. 是否开启了局域网模式（端口25565）")
-            print("3. Maicraft MCP服务器是否已启动")
+            print("连接MCP服务器失败！")
+            # 显示详细的连接状态和错误信息
+            browser.show_connection_status()
             return
         
         # 获取工具信息
