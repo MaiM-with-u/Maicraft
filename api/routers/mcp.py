@@ -11,13 +11,13 @@ from ..models.responses import UnifiedApiResponse
 
 # 导入MCP客户端
 try:
-    from ...mcp_server.client import global_mcp_client
-except ImportError:
-    # 如果相对导入失败，尝试绝对导入
-    import sys
-    import os
-    sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
     from mcp_server.client import global_mcp_client
+except ImportError:
+    # 如果绝对导入失败，尝试相对导入
+    try:
+        from ...mcp_server.client import global_mcp_client
+    except ImportError:
+        global_mcp_client = None
 
 
 # 创建路由器

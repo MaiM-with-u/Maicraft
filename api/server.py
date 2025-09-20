@@ -4,6 +4,7 @@ MaicraftAgent API服务器
 """
 
 import asyncio
+from contextlib import suppress
 from typing import Optional
 from dataclasses import dataclass
 
@@ -22,6 +23,7 @@ from .routers import (
     logs_ws_router,
     game_ws_router,
     token_usage_ws_router,
+    tasks_ws_router,
     game_rest_router,
     locations_router,
     containers_router,
@@ -74,6 +76,7 @@ class MaicraftAPIServer:
         self.app.include_router(logs_ws_router)
         self.app.include_router(game_ws_router)
         self.app.include_router(token_usage_ws_router)
+        self.app.include_router(tasks_ws_router)
         self.app.include_router(game_rest_router)
         self.app.include_router(locations_router)
         self.app.include_router(containers_router)
@@ -122,13 +125,14 @@ async def start_api_server(host: Optional[str] = None, port: Optional[int] = Non
 
     # 检查MCP客户端连接状态（由main.py负责连接）
     try:
-        from ...mcp_server.client import global_mcp_client
-    except ImportError:
-        # 如果相对导入失败，尝试绝对导入
-        import sys
-        import os
-        sys.path.append(os.path.dirname(os.path.dirname(__file__)))
         from mcp_server.client import global_mcp_client
+    except ImportError:
+        # 如果绝对导入失败，尝试相对导入
+        try:
+            from ...mcp_server.client import global_mcp_client
+        except ImportError:
+            logger.warning("无法导入MCP客户端，某些功能可能不可用")
+            global_mcp_client = None
 
     # 检查MCP是否已连接（由main.py负责）
     if global_mcp_client.connected:
@@ -157,9 +161,6 @@ async def start_api_server(host: Optional[str] = None, port: Optional[int] = Non
 
     server = uvicorn.Server(config)
 
-    try:
+    with suppress(KeyboardInterrupt):
         await server.serve()
-    except KeyboardInterrupt:
-        # 优雅退出
-        pass
 

@@ -276,7 +276,223 @@ WebSocket: /ws/logs
 }
 ```
 
-## 7. Token使用量监控
+## 7. 任务管理
+
+### WebSocket 任务管理
+
+```
+WebSocket: /ws/tasks
+```
+
+#### 订阅任务更新
+
+**订阅消息:**
+```json
+{
+  "type": "subscribe",
+  "update_interval": 5000
+}
+```
+
+**订阅确认:**
+```json
+{
+  "type": "subscribed",
+  "message": "已订阅任务数据更新",
+  "subscription": {
+    "type": "tasks",
+    "update_interval": 5000
+  },
+  "timestamp": 1704067200000
+}
+```
+
+**注意:** `update_interval` 参数保留以保持向后兼容性，但现在任务更新是事件驱动的，只有在任务发生变化时才会推送更新。
+
+#### 获取任务列表
+
+**请求消息:**
+```json
+{
+  "type": "get_tasks"
+}
+```
+
+**响应消息:**
+```json
+{
+  "type": "tasks_list",
+  "message": "任务列表获取成功",
+  "data": {
+    "tasks": [
+      {
+        "id": "1",
+        "details": "采集木材",
+        "done_criteria": "收集到10个原木",
+        "progress": "已收集5个原木",
+        "done": false
+      }
+    ],
+    "total": 1,
+    "completed": 0,
+    "pending": 1,
+    "goal": "生存挑战",
+    "is_done": false
+  },
+  "timestamp": 1704067200000
+}
+```
+
+#### 添加任务
+
+**请求消息:**
+```json
+{
+  "type": "add_task",
+  "details": "采集木材",
+  "done_criteria": "收集到10个原木"
+}
+```
+
+**响应消息:**
+```json
+{
+  "type": "task_added",
+  "message": "任务添加成功",
+  "data": {
+    "task_id": "1",
+    "details": "采集木材",
+    "done_criteria": "收集到10个原木",
+    "progress": "尚未开始",
+    "done": false
+  },
+  "timestamp": 1704067200000
+}
+```
+
+#### 更新任务进度
+
+**请求消息:**
+```json
+{
+  "type": "update_task",
+  "task_id": "1",
+  "progress": "已收集5个原木"
+}
+```
+
+**响应消息:**
+```json
+{
+  "type": "task_updated",
+  "message": "任务更新成功",
+  "data": {
+    "task_id": "1",
+    "progress": "已收集5个原木"
+  },
+  "timestamp": 1704067200000
+}
+```
+
+#### 删除任务
+
+**请求消息:**
+```json
+{
+  "type": "delete_task",
+  "task_id": "1"
+}
+```
+
+**响应消息:**
+```json
+{
+  "type": "task_deleted",
+  "message": "任务删除成功",
+  "data": {
+    "task_id": "1"
+  },
+  "timestamp": 1704067200000
+}
+```
+
+#### 标记任务完成
+
+**请求消息:**
+```json
+{
+  "type": "mark_done",
+  "task_id": "1"
+}
+```
+
+**响应消息:**
+```json
+{
+  "type": "task_marked_done",
+  "message": "任务标记完成成功",
+  "data": {
+    "task_id": "1"
+  },
+  "timestamp": 1704067200000
+}
+```
+
+#### 任务变更推送
+
+当任务发生变化时（添加、更新、删除、标记完成），系统会自动推送更新给所有订阅的客户端（发起操作的客户端除外，避免重复推送）。
+
+**推送消息:**
+```json
+{
+  "type": "tasks_update",
+  "timestamp": 1704067200000,
+  "data": {
+    "tasks": [
+      {
+        "id": "1",
+        "details": "采集木材",
+        "done_criteria": "收集到10个原木",
+        "progress": "已收集10个原木",
+        "done": true
+      }
+    ],
+    "total": 1,
+    "completed": 1,
+    "pending": 0,
+    "goal": "生存挑战",
+    "is_done": true
+  }
+}
+```
+
+**推送触发条件:**
+- 添加新任务时推送
+- 更新任务进度时推送
+- 删除任务时推送
+- 标记任务完成时推送
+
+#### 取消订阅
+
+**请求消息:**
+```json
+{
+  "type": "unsubscribe"
+}
+```
+
+**响应消息:**
+```json
+{
+  "type": "unsubscribed",
+  "message": "已取消订阅任务数据",
+  "timestamp": 1704067200000
+}
+```
+
+**说明:** 任务更新现在是事件驱动的，不再依赖定期推送机制。
+
+## 8. Token使用量监控
 
 ```
 WebSocket: /ws/token-usage
@@ -332,7 +548,7 @@ WebSocket: /ws/token-usage
 }
 ```
 
-## 8. MCP工具
+## 9. MCP工具
 
 ### REST API
 
