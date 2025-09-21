@@ -52,16 +52,91 @@ def event_listener(event_type: str, once: bool = False):
         async def welcome_player(event):
             username = event.data.username
             print(f"欢迎 {username} 加入游戏！")
+
+        # 对于类方法，需要在__init__中手动注册
+        class MyHandler:
+            @event_listener('forcedMove')  # 这个装饰器会被忽略，需手动注册
+            def handle_forced_move(self, event):
+                pass
+
+            def __init__(self):
+                # 在这里手动注册
+                global_event_emitter.on('forcedMove', self.handle_forced_move)
     """
 
     def decorator(func):
-        if once:
-            global_event_emitter.once(event_type, func)
-        else:
-            global_event_emitter.on(event_type, func)
+        # 为函数添加标记，表明它是一个事件监听器
+        func._event_listener_type = event_type
+        func._event_listener_once = once
+        # 不立即注册，让类在实例化时处理
         return func
 
     return decorator
+
+
+def event_listener_class(event_type: str, once: bool = False):
+    """
+    类方法事件监听器装饰器
+
+    此装饰器专门用于类方法，会在类实例化时自动注册监听器。
+
+    Args:
+        event_type: 事件类型
+        once: 是否只监听一次
+
+    Returns:
+        装饰器函数
+
+    Example:
+        class Movement:
+            @event_listener_class('forcedMove')
+            def handle_forced_move(self, event):
+                pass
+
+            def __init__(self):
+                # 装饰器会自动注册，无需手动调用
+                setup_class_event_listeners(self)
+                pass
+    """
+    def decorator(func):
+        func._event_listener_type = event_type
+        func._event_listener_once = once
+        func._is_class_event_listener = True
+        return func
+
+    return decorator
+
+
+def setup_class_event_listeners(instance):
+    """
+    为类实例自动设置所有用event_listener_class装饰的方法作为事件监听器
+
+    Args:
+        instance: 类实例
+
+    Example:
+        class MyHandler:
+            @event_listener_class('forcedMove')
+            def handle_forced_move(self, event):
+                pass
+
+            def __init__(self):
+                setup_class_event_listeners(self)  # 自动注册所有装饰的方法
+    """
+    import inspect
+
+    # 遍历实例的所有方法
+    for name, method in inspect.getmembers(instance, predicate=inspect.ismethod):
+        # 检查方法是否有事件监听器标记
+        if hasattr(method, '_is_class_event_listener') and method._is_class_event_listener:
+            event_type = method._event_listener_type
+            once = method._event_listener_once
+
+            # 注册事件监听器
+            if once:
+                global_event_emitter.once(event_type, method)
+            else:
+                global_event_emitter.on(event_type, method)
 
 
 __all__ = [
@@ -76,4 +151,6 @@ __all__ = [
     "global_event_emitter",
     "ListenerHandle",  # 新增
     "event_listener",  # 装饰器
+    "event_listener_class",  # 类方法装饰器
+    "setup_class_event_listeners",  # 自动注册函数
 ]

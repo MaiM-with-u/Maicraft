@@ -23,6 +23,7 @@ class EventType(Enum):
     PLAYER_COLLECT = "playerCollect"
     ITEM_DROP = "itemDrop"
     BREATH = "breath"
+    FORCED_MOVE = "forcedMove"
 
 
 # 所有支持的事件类型
