@@ -227,7 +227,7 @@ class HurtResponseHandler:
 
         # 记录伤害事件
         global_thinking_log.add_thinking_log(
-            f"⚔️ 受到玩家 {player_name} 攻击！生命值: {current_health}",
+            f"受到玩家 {player_name} 攻击！生命值: {current_health}",
             type="player_attack",
         )
 
@@ -245,7 +245,7 @@ class HurtResponseHandler:
 
         # 记录伤害事件
         global_thinking_log.add_thinking_log(
-            f"👹 受到{ mob_type }({mob_name})攻击！生命值: {current_health}",
+            f"受到{ mob_type }({mob_name})攻击！生命值: {current_health}",
             type="mob_attack",
         )
 
@@ -276,13 +276,13 @@ class HurtResponseHandler:
             if is_success:
                 logger.info(f"✅ 成功击杀怪物 {mob_name}")
                 global_thinking_log.add_thinking_log(
-                    f"⚔️ 成功反击并击杀 {mob_name}！",
+                    f"成功反击并击杀 {mob_name}！",
                     type="mob_counterattack_success",
                 )
             else:
-                logger.warning(f"❌ 击杀怪物 {mob_name} 失败: {result_content}")
+                logger.warning(f"击杀怪物 {mob_name} 失败: {result_content}")
                 global_thinking_log.add_thinking_log(
-                    f"⚔️ 反击 {mob_name} 失败: {result_content}",
+                    f"反击 {mob_name} 失败: {result_content}",
                     type="mob_counterattack_failed",
                 )
                 # 失败时尝试使用AI进行策略性反击

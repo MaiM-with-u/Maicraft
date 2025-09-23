@@ -50,7 +50,7 @@ class ThinkingLog:
                 thinking_items.append(item)
         
         # 从event_store获取最新的游戏事件
-        recent_events = global_event_store.get_recent_events(15)
+        recent_events = global_event_store.get_game_events(20)
         for event in recent_events:
             event_items.append((str(event), "event", event.timestamp))
         
@@ -107,7 +107,7 @@ class ThinkingLog:
                 thinking_items.append(item)
         
         # 从event_store获取更多的游戏事件
-        recent_events = global_event_store.get_recent_events(20)
+        recent_events = global_event_store.get_game_events(20)
         for event in recent_events:
             event_items.append((str(event), "event", event.timestamp))
         

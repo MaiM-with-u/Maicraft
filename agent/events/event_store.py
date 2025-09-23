@@ -38,6 +38,39 @@ class GameEventStore:
         filtered_events = [e for e in self.events if e.type == event_type]
         return filtered_events[-limit:] if filtered_events else []
 
+    def get_game_events(self, limit: int = 50) -> List[BaseEvent]:
+        """
+        获取游戏相关事件（死亡、实体、物品、玩家、天气、生成等）
+
+        Args:
+            limit: 最大返回事件数量，默认为50条
+
+        Returns:
+            游戏相关事件列表
+        """
+        # 定义需要过滤的事件类型
+        target_event_types = {
+            EventType.DEATH.value,
+            EventType.ENTITY_DEAD.value,
+            EventType.ENTITY_HURT.value,
+            EventType.ITEM_DROP.value,
+            EventType.PLAYER_COLLECT.value,
+            EventType.PLAYER_JOINED.value,
+            EventType.PLAYER_LEFT.value,
+            EventType.RAIN.value,
+            EventType.SPAWN.value,
+            EventType.SPAWN_RESET.value
+        }
+
+        # 过滤目标类型的事件
+        game_events = [
+            event for event in self.events
+            if event.type in target_event_types
+        ]
+
+        # 返回最近的指定数量事件
+        return game_events[-limit:] if game_events else []
+
     def get_recent_chat_events(
         self, time_window_minutes: int = 30, max_count: int = 30
     ) -> List[BaseEvent]:
