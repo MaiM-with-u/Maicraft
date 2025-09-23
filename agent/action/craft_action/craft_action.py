@@ -277,7 +277,7 @@ class RecipeFinder:
             # 检查是否有材料充足的配方
             feasible_recipes = [r for r in recipe_analysis if r.get("status") == "材料充足"]
             if feasible_recipes:
-                return "存在材料充足的配方，但合成计划生成失败"
+                return "存在该物品的的配方，但合成数量过多或材料不足，无法合成"
             
             # 生成所有缺少材料的汇总报告
             all_missing = {}

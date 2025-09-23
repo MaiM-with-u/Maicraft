@@ -29,12 +29,6 @@ class ForcedMoveEvent(BaseEvent[ForcedMoveEventData]):
             return f"你被强制移动（例如传送指令）到位置 (x={pos.x}, y={pos.y}, z={pos.z})"
         return "你被强制移动"
 
-    def to_context_string(self) -> str:
-        if self.data and "position" in self.data:
-            pos = self.data.position
-            return f"[forcedMove] 你被强制移动（例如传送指令）到位置 (x={pos.x}, y={pos.y}, z={pos.z})"
-        return "[forcedMove] 你被强制移动"
-
     def to_dict(self) -> dict:
         result = super().to_dict()
         if self.data and "position" in self.data:

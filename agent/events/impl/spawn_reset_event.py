@@ -31,9 +31,6 @@ class SpawnResetEvent(BaseEvent[SpawnResetEventData]):
     def get_description(self) -> str:
         return f"你的重生点已重置为{self.data.newSpawnPoint}"
 
-    def to_context_string(self) -> str:
-        return f"[spawnReset] 你的重生点已重置为{self.data.newSpawnPoint}"
-
     def to_dict(self) -> dict:
         result = super().to_dict()
         result["newSpawnPoint"] = self.data.newSpawnPoint

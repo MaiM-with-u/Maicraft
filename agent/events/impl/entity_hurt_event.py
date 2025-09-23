@@ -41,17 +41,6 @@ class EntityHurtEvent(BaseEvent[EntityHurtEventData]):
         else:
             return "实体受到了伤害"
 
-    def to_context_string(self) -> str:
-        if self.data.entity:
-            target = self.data.entity.username or self.data.entity.name or "实体"
-            source_desc = ""
-            if hasattr(self.data, 'source') and self.data.source:
-                source = self.data.source.username or self.data.source.name or "实体"
-                source_desc = f"（来自{source}）"
-
-            return f"[entityHurt] {target} 受到了伤害{source_desc}"
-        else:
-            return "[entityHurt] 实体受到了伤害"
 
     def to_dict(self) -> dict:
         result = super().to_dict()

@@ -25,8 +25,5 @@ class DeathEvent(BaseEvent[DeathEventData]):
     def get_description(self) -> str:
         return "你死亡了"
 
-    def to_context_string(self) -> str:
-        return "[death] 你死亡了"
-
     def to_dict(self) -> dict:
         return super().to_dict()

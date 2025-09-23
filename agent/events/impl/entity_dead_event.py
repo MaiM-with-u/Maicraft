@@ -34,12 +34,6 @@ class EntityDeadEvent(BaseEvent[EntityDeadEventData]):
             return f"{target} 死亡了"
         return "某实体 死亡了"
 
-    def to_context_string(self) -> str:
-        if self.data.entity:
-            target = self.data.entity.username or self.data.entity.name or "某实体"
-            return f"[entityDead] {target} 死亡了"
-        return "[entityDead] 某实体 死亡了"
-
     def to_dict(self) -> dict:
         result = super().to_dict()
         if self.data.entity:

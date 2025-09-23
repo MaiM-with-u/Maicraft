@@ -27,9 +27,6 @@ class SpawnEvent(BaseEvent[SpawnEventData]):
     def get_description(self) -> str:
         return f"{self.data.player.username}重生了"
 
-    def to_context_string(self) -> str:
-        return f"[spawn] {self.data.player.username} 重生了"
-
     def to_dict(self) -> dict:
         result = super().to_dict()
         result["player_name"] = self.data.player.username

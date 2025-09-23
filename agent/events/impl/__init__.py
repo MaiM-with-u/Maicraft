@@ -15,7 +15,7 @@ from .entity_hurt_event import EntityHurtEvent
 from .entity_dead_event import EntityDeadEvent
 from .player_collect_event import PlayerCollectEvent
 from .item_drop_event import ItemDropEvent
-from .breath_event import BreathEvent
+# from .breath_event import BreathEvent
 
 __all__ = [
     "ChatEvent",
@@ -31,5 +31,5 @@ __all__ = [
     "EntityDeadEvent",
     "PlayerCollectEvent",
     "ItemDropEvent",
-    "BreathEvent",
+    # "BreathEvent",
 ]

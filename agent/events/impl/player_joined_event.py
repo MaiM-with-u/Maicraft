@@ -31,10 +31,6 @@ class PlayerJoinedEvent(BaseEvent[PlayerJoinedEventData]):
         username = self.data.player.username
         return f"{username} 进入了游戏"
 
-    def to_context_string(self) -> str:
-        username = self.data.player.username
-        return f"[playerJoined] {username} 进入了游戏"
-
     def to_dict(self) -> dict:
         result = super().to_dict()
         result["player_name"] = self.data.player.username

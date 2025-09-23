@@ -43,21 +43,9 @@ class ItemDropEvent(BaseEvent[ItemDropEventData]):
         position = self.get_drop_position()
 
         if position:
-            return f"物品被丢弃: {items_str} 在位置 {position}"
+            return f"物品 {items_str} 掉落在位置 {position}"
         else:
-            return f"物品被丢弃: {items_str}"
-
-    def to_context_string(self) -> str:
-        """转换为上下文字符串，用于AI理解"""
-        dropped_items = self.data.dropped
-
-        items_str = self._build_items_description(dropped_items)
-        position = self.get_drop_position()
-
-        if position:
-            return f"[itemDrop] 物品被丢弃: {items_str} 位置: {position}"
-        else:
-            return f"[itemDrop] 物品被丢弃: {items_str}"
+            return f"物品 {items_str} 掉落"
 
     def _build_items_description(self, dropped_items: List[DroppedItem]) -> str:
         """构建物品描述字符串的辅助方法"""

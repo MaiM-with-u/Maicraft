@@ -67,20 +67,3 @@ class GameEventStore:
         return (
             recent_chats[-max_count:] if len(recent_chats) > max_count else recent_chats
         )
-
-    def get_ai_context(self, limit: int = 20) -> List[str]:
-        """为AI提供事件上下文信息的字符串列表"""
-        recent_events = self.get_recent_events(limit)
-        return [event.to_context_string() for event in recent_events]
-
-    def get_event_count(self) -> int:
-        """获取当前存储的事件总数"""
-        return len(self.events)
-
-    def get_event_stats(self) -> dict:
-        """获取事件统计信息"""
-        stats = {}
-        for event in self.events:
-            event_type = event.type
-            stats[event_type] = stats.get(event_type, 0) + 1
-        return stats

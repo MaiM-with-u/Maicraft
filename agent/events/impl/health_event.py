@@ -44,17 +44,6 @@ class HealthEvent(BaseEvent[HealthEventData]):
 
         return f"你的{status_text}"
 
-    def to_context_string(self) -> str:
-        health_info = (
-            f"生命值: {self.data.health}" if self.data.health is not None else ""
-        )
-        food_info = f"饱食度: {self.data.food}" if self.data.food is not None else ""
-        info_parts = [info for info in [health_info, food_info] if info]
-        status_text = (
-            f"状态更新 - {', '.join(info_parts)}" if info_parts else "状态更新"
-        )
-        return f"[health] {status_text}"
-
     def to_dict(self) -> dict:
         result = super().to_dict()
         result.update(

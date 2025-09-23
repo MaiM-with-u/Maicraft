@@ -30,8 +30,6 @@ class ChatEvent(BaseEvent[ChatEventData]):
     def get_description(self) -> str:
         return f"{self.data.username}说: {self.data.message}"
 
-    def to_context_string(self) -> str:
-        return f"[chat] {self.data.username}: {self.data.message}"
 
     def to_dict(self) -> dict:
         return super().to_dict()

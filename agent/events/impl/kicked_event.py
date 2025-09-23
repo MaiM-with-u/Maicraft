@@ -28,10 +28,6 @@ class KickedEvent(BaseEvent[KickedEventData]):
         reason = f" 原因: {self.data.reason}" if self.data.reason else ""
         return f"你被踢出游戏{reason}"
 
-    def to_context_string(self) -> str:
-        reason = f" (原因: {self.data.reason})" if self.data.reason else ""
-        return f"[kicked] 你被踢出游戏{reason}"
-
     def to_dict(self) -> dict:
         result = super().to_dict()
         if self.data.reason:

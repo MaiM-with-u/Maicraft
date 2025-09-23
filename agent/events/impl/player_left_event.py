@@ -32,10 +32,6 @@ class PlayerLeftEvent(BaseEvent[PlayerLeftEventData]):
         username = self.data.player.username
         return f"{username}退出了游戏"
 
-    def to_context_string(self) -> str:
-        username = self.data.player.username
-        return f"[playerLeft] {username} 退出了游戏"
-
     def to_dict(self) -> dict:
         result = super().to_dict()
         result["player_name"] = self.data.player.username

@@ -44,25 +44,6 @@ class RainEvent(BaseEvent[RainEventData]):
         else:
             return f"天气变化: {weather}"
 
-    def to_context_string(self) -> str:
-        """转换为上下文字符串，用于AI理解"""
-        weather = self.data.weather
-        is_raining = self.data.isRaining
-        thunder_state = self.data.thunderState
-
-        if weather == "clear":
-            return "[weather] 天气转晴"
-        elif weather == "rain":
-            return "[weather] 开始下雨" if is_raining else "[weather] 雨停了"
-        elif weather == "thunder":
-            if thunder_state > 0.5:
-                return f"[weather] 雷雨交加 (雷电强度: {thunder_state:.1f})"
-            elif is_raining:
-                return f"[weather] 打雷下雨 (雷电强度: {thunder_state:.1f})"
-            else:
-                return f"[weather] 雷声轰鸣 (雷电强度: {thunder_state:.1f})"
-        else:
-            return f"[weather] 天气变化: {weather} (下雨: {is_raining}, 雷电: {thunder_state:.1f})"
 
     def get_weather_description(self) -> str:
         """获取详细的天气描述"""
