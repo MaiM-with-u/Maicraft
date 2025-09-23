@@ -309,14 +309,52 @@ class FurnaceSimGui:
                 slot = action_json.get("slot")
                 item = action_json.get("item")
                 count = action_json.get("count")
-                
+
                 if not all([slot, item, count]):
                     return {
                         "success": False,
                         "result": "",
                         "error": f"取出动作参数不完整: slot={slot}, item={item}, count={count}"
                     }
-                
+
+                # 处理 "all" 特殊值 - 获取该槽位的所有物品
+                if count == "all":
+                    if slot == "input":
+                        current_items = self.input_slot
+                    elif slot == "fuel":
+                        current_items = self.fuel_slot
+                    elif slot == "output":
+                        current_items = self.output_slot
+                    else:
+                        return {
+                            "success": False,
+                            "result": "",
+                            "error": f"无效的槽位: {slot}"
+                        }
+
+                    # 获取指定物品的数量，如果物品是 "any" 则获取该槽位所有物品
+                    if item == "any":
+                        count = sum(current_items.values())
+                    else:
+                        count = current_items.get(item, 0)
+
+                    if count <= 0:
+                        return {
+                            "success": False,
+                            "result": "",
+                            "error": f"槽位 {slot} 中没有可取出的物品"
+                        }
+
+                # 确保 count 是整数
+                try:
+                    count = int(count)
+                except (ValueError, TypeError):
+                    return {
+                        "success": False,
+                        "result": "",
+                        "error": f"无效的数量: {count}"
+                    }
+
                 args["items"] = [{"name": item, "count": count, "position": slot}]
                 args["action"] = "take"
                 
@@ -324,14 +362,24 @@ class FurnaceSimGui:
                 slot = action_json.get("slot")
                 item = action_json.get("item")
                 count = action_json.get("count")
-                
+
                 if not all([slot, item, count]):
                     return {
                         "success": False,
                         "result": "",
                         "error": f"放入动作参数不完整: slot={slot}, item={item}, count={count}"
                     }
-                
+
+                # 确保 count 是整数
+                try:
+                    count = int(count)
+                except (ValueError, TypeError):
+                    return {
+                        "success": False,
+                        "result": "",
+                        "error": f"无效的数量: {count}"
+                    }
+
                 args["items"] = [{"name": item, "count": count, "position": slot}]
                 args["action"] = "put"
                 

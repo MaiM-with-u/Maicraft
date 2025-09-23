@@ -156,6 +156,8 @@ class RecipeFinder:
         获取合成失败时的具体材料缺失信息，分析所有可能的合成配方
         """
         try:
+            # 确保 quantity 是整数类型
+            quantity = int(quantity)
             # 构建库存计数器
             bag = Counter()
             for it in inventory or []:
@@ -224,7 +226,7 @@ class RecipeFinder:
                 if per_batch_out <= 0:
                     per_batch_out = 1
                 import math
-                batches_needed = int(math.ceil(quantity / per_batch_out))
+                batches_needed = int(math.ceil(int(quantity) / per_batch_out))
                 
                 # 检查每种材料
                 missing_materials = []
