@@ -23,7 +23,7 @@ logger = get_logger("HurtResponseHandler")
 
 # 配置参数
 HURT_RESPONSE_CONFIG = {
-    "enable_damage_interrupt": True,  # 是否启用伤害中断（最高优先级）
+    "enable_damage_interrupt": False,  # 是否启用伤害中断（最高优先级）。由于entityHurt事件存在问题，所以暂时先不启用
     "low_health_threshold": 6,  # 生命濒危阈值（低于此值时请求帮助）
     "critical_health_threshold": 3,  # 生命危急阈值（低于此值时强制中断并寻求治疗）
 }
@@ -39,7 +39,8 @@ class HurtResponseHandler:
     def setup_listeners(self):
         """设置事件监听器"""
         # 注册实体受伤事件监听器
-        global_event_emitter.on("entityHurt", self.handle_entity_hurt_event)
+        if HURT_RESPONSE_CONFIG["enable_damage_interrupt"]:
+            global_event_emitter.on("entityHurt", self.handle_entity_hurt_event)
 
     async def handle_entity_hurt_event(self, event):
         """处理实体受伤事件 - 根据伤害来源采取相应响应"""

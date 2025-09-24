@@ -11,7 +11,7 @@ from ...common.basic_class import Entity
 
 class EntityHurtEventData(TypedDict):
     entity: Optional[Entity]
-    source: Optional[Entity]
+    source: Optional[Entity] # 伤害来源，但是mineflayer那边该事件的监听存在些问题，不知为何只要接收伤害来源参数，就会导致频繁掉线，所以暂时先不使用该参数
 
 
 class EntityHurtEvent(BaseEvent[EntityHurtEventData]):
