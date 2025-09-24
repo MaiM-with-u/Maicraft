@@ -168,19 +168,33 @@ class EnvironmentInfo:
         
         # 更新位置信息
         pos_data = data.get("position")
+        logger.debug(f"[Environment] 位置数据检查: pos_data={pos_data}, type={type(pos_data)}")
+
         if pos_data and isinstance(pos_data, dict):
-            self.position = Position(
-                x=pos_data.get("x", 0.0),
-                y=pos_data.get("y", 0.0),
-                z=pos_data.get("z", 0.0)
-            )
-            global_movement.set_position(self.position)
+            logger.debug(f"[Environment] 位置数据验证: x={pos_data.get('x')}, y={pos_data.get('y')}, z={pos_data.get('z')}")
+            if all(k in pos_data for k in ['x', 'y', 'z']):
+                self.position = Position(
+                    x=pos_data.get("x", 0.0),
+                    y=pos_data.get("y", 0.0),
+                    z=pos_data.get("z", 0.0)
+                )
+                global_movement.set_position(self.position)
+                logger.debug(f"[Environment] 位置更新成功: {self.position}")
+            else:
+                logger.warning(f"[Environment] 位置数据不完整，缺少字段: {list(pos_data.keys())}")
+                self.position = None
+                self.block_position = None
+                return
         else:
             # 如果没有位置数据，设置为默认位置或保持为None
             self.position = None
-            logger.warning("未找到有效的位置数据，位置信息未更新")
-            
-        self.block_position = BlockPosition(self.position)
+            self.block_position = None  # 同时设置 block_position 为 None
+            logger.warning(f"[Environment] 未找到有效的位置数据，data.get('position')={data.get('position')}")
+            return  # 提前返回，避免后续处理
+
+        # 只有当 position 有效时才创建 block_position
+        if self.position is not None:
+            self.block_position = BlockPosition(self.position)
         
         # 更新速度信息
         velocity_data = data.get("velocity")

@@ -223,7 +223,14 @@ class EnvironmentUpdater:
             if isinstance(results[1], dict) and results[1].get("ok"):
                 try:
                     player_status = results[1].get("data", {})
-                    
+                    self.logger.debug(f"[EnvironmentUpdater] 原始玩家状态数据: {player_status}")
+
+                    # 检查位置数据是否存在
+                    if "position" in player_status:
+                        self.logger.debug(f"[EnvironmentUpdater] 发现位置数据: {player_status['position']}")
+                    else:
+                        self.logger.warning("[EnvironmentUpdater] 玩家状态数据中未找到 position 字段")
+
                     # 新格式的玩家状态包含了更多信息，直接更新
                     combined_data["data"].update(player_status)
                     
