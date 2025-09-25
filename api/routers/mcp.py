@@ -43,16 +43,17 @@ async def get_tools_metadata():
                 "data":None
             }
 
-        # 获取工具元数据
+        # 获取工具元数据 - 直接返回原始数据结构
         tools = await global_mcp_client.get_tools_metadata()
 
-        # 转换为API响应格式
+        # 将Tool对象转换为字典格式，保持原始结构
         tools_data = []
         for tool in tools:
+            # 直接使用Tool对象的原始属性
             tool_info = {
                 "name": tool.name,
-                "description": tool.description if hasattr(tool, 'description') else "",
-                "inputSchema": tool.inputSchema if hasattr(tool, 'inputSchema') else {}
+                "description": getattr(tool, 'description', None),
+                "inputSchema": getattr(tool, 'inputSchema', None)
             }
             tools_data.append(tool_info)
 
@@ -103,7 +104,7 @@ async def call_tool(request: ToolCallRequest):
             request.arguments or {}
         )
 
-        # 处理结果
+        # 处理结果 - 直接返回原始CallToolResult结构
         if result.is_error:
             # 工具调用失败
             return {
@@ -114,7 +115,7 @@ async def call_tool(request: ToolCallRequest):
                     "tool_name": request.tool_name,
                     "arguments": request.arguments,
                     "result": {
-                        "content": [content.__dict__ if hasattr(content, '__dict__') else content for content in result.content] if result.content else [],
+                        "content": result.content,
                         "structured_content": result.structured_content,
                         "is_error": result.is_error,
                         "data": result.data
@@ -131,7 +132,7 @@ async def call_tool(request: ToolCallRequest):
                     "tool_name": request.tool_name,
                     "arguments": request.arguments,
                     "result": {
-                        "content": [content.__dict__ if hasattr(content, '__dict__') else content for content in result.content] if result.content else [],
+                        "content": result.content,
                         "structured_content": result.structured_content,
                         "is_error": result.is_error,
                         "data": result.data

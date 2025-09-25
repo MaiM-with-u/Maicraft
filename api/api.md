@@ -555,27 +555,19 @@ WebSocket: /ws/token-usage
 | 方法 | 端点 | 说明 | 返回数据结构 |
 |------|------|------|-------------|
 | GET | `/api/mcp/tools` | 获取可用工具 | `{tools: Tool[], total: number}` |
-| POST | `/api/mcp/tools/call` | 调用工具 | `{tool_name: string, arguments: object, result: ToolResult}` |
+| POST | `/api/mcp/tools/call` | 调用工具 | `{tool_name: string, arguments: object, result: CallToolResult}` |
 
-**Tool结构:**
+**说明:** API直接返回MCP客户端的原始数据结构，不做额外处理。
+
+**Tool结构 (MCP原始格式):**
 ```json
 {
-  "name": "move",
-  "description": "移动到指定位置",
+  "name": "tool_name",
+  "description": "工具描述",
   "inputSchema": {
     "type": "object",
-    "properties": {
-      "position": {
-        "type": "object",
-        "properties": {
-          "x": {"type": "number"},
-          "y": {"type": "number"},
-          "z": {"type": "number"}
-        },
-        "required": ["x", "y", "z"]
-      }
-    },
-    "required": ["position"]
+    "properties": {...},
+    "required": [...]
   }
 }
 ```
@@ -583,24 +575,36 @@ WebSocket: /ws/token-usage
 **工具调用请求:**
 ```json
 {
-  "tool_name": "move",
+  "tool_name": "tool_name",
   "arguments": {
-    "position": {"x": 123.5, "y": 64.0, "z": -456.8}
+    "param1": "value1",
+    "param2": "value2"
   }
 }
 ```
 
-**ToolResult结构:**
+**CallToolResult结构 (MCP原始格式):**
 ```json
 {
-  "content": [{"type": "text", "text": "成功移动到位置"}],
+  "content": [
+    {
+      "type": "text",
+      "text": "执行结果文本"
+    }
+  ],
+  "structured_content": null,
   "is_error": false,
   "data": {
-    "success": true,
-    "target_position": {"x": 123.5, "y": 64.0, "z": -456.8}
+    "custom_data": "value"
   }
 }
 ```
+
+**注意:**
+- `content` 字段包含TextContent对象列表，每个对象都有 `type` 和 `text` 属性
+- `structured_content` 字段可能为null或包含结构化数据
+- `is_error` 表示工具调用是否出错
+- `data` 字段包含工具返回的自定义数据
 
 ---
 
