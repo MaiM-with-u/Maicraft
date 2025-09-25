@@ -32,14 +32,19 @@ class GameStateService:
                     equipment[slot_name] = {
                         "name": item_data.get("name", ""),
                         "count": item_data.get("count", 1),
-                        "damage": 0
+                        "damage": 0,
+                        "max_durability": 0
                     }
                     # 获取耐久度信息
-                    if item_data.get("components"):
-                        for component in item_data["components"]:
-                            if component.get("type") == "damage":
-                                equipment[slot_name]["damage"] = component.get("data", 0)
-                                break
+                    max_durability = item_data.get("maxDurability", 0)
+                    if max_durability > 0:
+                        equipment[slot_name]["max_durability"] = max_durability
+                        # 计算已使用耐久度
+                        if item_data.get("components"):
+                            for component in item_data["components"]:
+                                if component.get("type") == "damage":
+                                    equipment[slot_name]["damage"] = component.get("data", 0)
+                                    break
 
         # 格式化物品栏信息
         inventory = {
@@ -51,15 +56,28 @@ class GameStateService:
 
         for item in env.inventory:
             if isinstance(item, dict) and item.get("count", 0) > 0:
-                inventory["items"].append({
+                item_data = {
                     "slot": item.get("slot", 0),
                     "name": item.get("name", ""),
                     "display_name": item.get("displayName", item.get("name", "")),
                     "count": item.get("count", 1),
                     "max_stack": 64,  # 默认最大堆叠数
                     "damage": 0,
-                    "max_damage": 0
-                })
+                    "max_durability": 0
+                }
+
+                # 处理耐久度信息
+                max_durability = item.get("maxDurability", 0)
+                if max_durability > 0:
+                    item_data["max_durability"] = max_durability
+                    # 计算已使用耐久度
+                    if item.get("components"):
+                        for component in item["components"]:
+                            if component.get("type") == "damage":
+                                item_data["damage"] = component.get("data", 0)
+                                break
+
+                inventory["items"].append(item_data)
 
         position_data = {}
         if env.position:

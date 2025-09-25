@@ -141,7 +141,7 @@ WebSocket: /ws/logs
   "max_food": 20,
   "position": {"x": 123.5, "y": 64.0, "z": -456.8, "yaw": 45.2, "pitch": -12.3},
   "gamemode": "survival",
-  "equipment": {"main_hand": {"name": "diamond_pickaxe", "count": 1, "damage": 5}}
+  "equipment": {"main_hand": {"name": "diamond_pickaxe", "count": 1, "damage": 5, "max_durability": 1561}}
 }
 ```
 
@@ -608,7 +608,7 @@ WebSocket: /ws/token-usage
 
 **Position:** `{"x": number, "y": number, "z": number}`
 **Position2D:** `{"x": number, "z": number}`
-**InventoryItem:** `{"slot": number, "name": string, "display_name": string, "count": number, "damage": number}`
+**InventoryItem:** `{"slot": number, "name": string, "display_name": string, "count": number, "damage": number, "max_durability": number}`
 
 ## WebSocket 错误处理
 
