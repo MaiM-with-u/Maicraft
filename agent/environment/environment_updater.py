@@ -7,7 +7,7 @@ import asyncio
 import time
 import traceback
 from types import CoroutineType
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Set
 from datetime import datetime
 from utils.logger import get_logger
 from agent.environment.environment import global_environment
@@ -27,7 +27,7 @@ class EnvironmentUpdater:
     def __init__(self,update_interval: int = 0.1):
         """
         初始化环境更新器
-        
+
         Args:
             agent: MaicraftAgent实例，用于调用查询工具
             update_interval: 更新间隔（秒），默认3秒
@@ -35,25 +35,29 @@ class EnvironmentUpdater:
         """
         self.update_interval = update_interval
         self.logger = get_logger("EnvironmentUpdater")
-        
+
         # 更新状态
         self.is_running = False
         self.is_paused = False
-        
+
         # 异步任务控制
         self._update_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
         self._pause_event = asyncio.Event()
-        
+
         # 统计信息
         self.update_count = 0
         self.last_update_time: Optional[datetime] = None
         self.last_update_duration = 0.0
         self.average_update_duration = 0.0
         self.total_update_duration = 0.0
-        
+
         # 事件处理相关
         self.last_processed_tick: int = 0  # 记录最后处理的事件 gameTick
+
+        # 威胁处理状态跟踪 - 避免反复中断攻击决策
+        self.in_threat_alert_mode = False  # 是否处于威胁警戒状态
+        self.threat_count = 0  # 当前威胁数量
         
     
     def start(self) -> bool:
@@ -133,13 +137,250 @@ class EnvironmentUpdater:
             self.logger.error(traceback.format_exc())
 
     async def update_nearbyentities(self):
+        self.logger.debug("[环境更新] 开始更新附近实体信息")
+
         # 处理周围环境 - 实体
         results = await self._call_tool("query_surroundings", {"type": "entities","range":16,"useAbsoluteCoords":True})
         nearby_entities = results.get("data", {}).get("entities", {}).get("list", [])
-        # logger.info(f"[EnvironmentUpdater] 周围实体数据: {nearby_entities}")
-        # logger.info(f"[EnvironmentUpdater] 周围实体数据类型: {type(nearby_entities)}")
+
+        self.logger.debug(f"[环境更新] 获取到附近实体数量: {len(nearby_entities) if nearby_entities else 0}")
+
+        # 统计不同类型的实体
+        hostile_count = sum(1 for entity in nearby_entities if isinstance(entity, dict) and entity.get("type") == "hostile")
+        self.logger.debug(f"[环境更新] 其中敌对生物数量: {hostile_count}")
+
         global_environment.update_nearby_entities(nearby_entities)
-    
+        self.logger.debug("[环境更新] 已更新全局环境实体信息")
+
+        # 直接检测并攻击威胁生物
+        self.logger.debug("[环境更新] 开始检查威胁生物并执行攻击")
+        await self._check_and_attack_threats(nearby_entities)
+
+    async def _check_and_attack_threats(self, nearby_entities):
+        """直接检测并攻击威胁生物"""
+        try:
+            from config import global_config
+            from agent.thinking_log import global_thinking_log
+            from agent.environment.movement import global_movement
+            from mcp_server.client import global_mcp_client
+            from agent.utils.utils import parse_tool_result
+            from agent.mai_agent import global_mai_agent
+
+            self.logger.debug("[威胁检测] 开始检查")
+
+            # 检查是否启用威胁生物检测
+            if not global_config.threat_detection.enable_threat_detection:
+                self.logger.debug("[威胁检测] 威胁生物检测已禁用")
+                return
+
+            detection_range = global_config.threat_detection.threat_detection_range
+            self.logger.debug(f"[威胁检测] 检测范围: {detection_range}")
+
+            # 过滤出需要攻击的生物
+            hostile_mobs = []
+            current_threat_count = 0
+            if global_environment.position:
+                for entity_dict in nearby_entities:
+                    if isinstance(entity_dict, dict) and self._is_hostile_entity(entity_dict):
+                        # 转换为Entity对象
+                        entity = self._create_entity_from_dict(entity_dict)
+                        if entity and entity.position:
+                            distance = global_environment.position.distanceTo(entity.position)
+                            if distance <= detection_range:
+                                hostile_mobs.append((entity, distance))
+                                current_threat_count += 1
+
+            self.logger.debug(f"[威胁检测] 检测到 {len(hostile_mobs)} 个需要攻击的生物在范围内")
+            self.logger.debug(f"[威胁检测] 警戒状态: {self.in_threat_alert_mode}, 当前威胁数量: {self.threat_count}")
+
+            # 威胁警戒状态管理
+            should_trigger_interrupt = False
+
+            if hostile_mobs:
+                # 有需要攻击的生物存在
+                if not self.in_threat_alert_mode:
+                    # 不在警戒状态，检测到新威胁 → 进入警戒状态并触发中断
+                    self.logger.info(f"[威胁检测] 🔴 检测到新威胁！进入威胁警戒状态")
+                    self.in_threat_alert_mode = True
+                    self.threat_count = current_threat_count
+                    should_trigger_interrupt = True
+                else:
+                    # 已在警戒状态，更新威胁数量
+                    self.logger.debug(f"[威胁检测] 🟡 已在警戒状态，继续监控威胁")
+                    self.threat_count = current_threat_count
+            else:
+                # 没有需要攻击的生物
+                if self.in_threat_alert_mode:
+                    # 在警戒状态但没有威胁了 → 退出警戒状态
+                    self.logger.info(f"[威胁检测] 🟢 威胁已清除，退出威胁警戒状态")
+                    self.in_threat_alert_mode = False
+                    self.threat_count = 0
+                    # 切换回主模式
+                    from agent.mai_mode import mai_mode
+                    mai_mode.mode = "main_mode"
+                    self.logger.info("[威胁检测] 🟢 已切换回主模式，恢复LLM决策")
+                else:
+                    # 不在警戒状态且没有威胁，正常状态
+                    self.logger.debug(f"[威胁检测] 🟢 周围安全，无威胁")
+
+            # 执行攻击逻辑（在警戒状态下持续攻击）
+            if hostile_mobs and self.in_threat_alert_mode:
+                self.logger.debug(f"[威胁检测] 🟡 警戒状态下攻击 {len(hostile_mobs)} 个敌对生物")
+
+                # 按距离排序，优先攻击最近的
+                hostile_mobs.sort(key=lambda x: x[1])
+
+                for mob, distance in hostile_mobs:
+                    mob_name = getattr(mob, 'name', '威胁生物')
+
+                    self.logger.debug(f"[威胁检测] 攻击: {mob_name} 距离:{distance:.1f}")
+
+                    try:
+                        # 调用kill_mob工具
+                        args = {"mob": mob_name}
+                        call_result = await global_mcp_client.call_tool_directly("kill_mob", args)
+
+                        # 解析工具调用结果
+                        is_success, result_content = parse_tool_result(call_result)
+
+                        if is_success:
+                            self.logger.debug(f"[威胁检测] ✅ 成功攻击 {mob_name}")
+                        else:
+                            self.logger.debug(f"[威胁检测] ⚠️ 攻击 {mob_name} 失败: {result_content}")
+
+                    except Exception as e:
+                        self.logger.error(f"[威胁检测] 攻击 {mob_name} 时发生错误: {e}")
+
+            # 中断逻辑只在进入警戒状态时触发一次
+            if should_trigger_interrupt:
+                # 按距离排序，优先显示最近的
+                hostile_mobs.sort(key=lambda x: x[1])
+
+                # 触发中断（与移动和AI决策）
+                mob_names = [f"{mob.name}" for mob, _ in hostile_mobs[:3]]
+                if len(hostile_mobs) > 3:
+                    mob_names.append(f"等{len(hostile_mobs)}个")
+
+                mob_list = ", ".join(mob_names)
+                reason = f"⚔️ 检测到威胁生物！{mob_list} 已进入攻击范围，优先处理威胁！"
+
+                self.logger.info(f"[威胁检测] 🔴 触发中断并激活警戒状态: {reason}")
+
+                # 记录到思考日志
+                global_thinking_log.add_thinking_log(
+                    f"⚔️ 敌对生物威胁！{mob_list} 进入范围，激活威胁警戒模式！",
+                    type="hostile_mob_alert_activated",
+                )
+
+                # 触发移动中断
+                global_movement.trigger_interrupt(reason)
+
+                # 触发AI决策中断并切换到威胁警戒模式
+                if global_mai_agent:
+                    global_mai_agent.trigger_interrupt(reason)
+                    # 切换到威胁警戒模式 - 停止LLM决策，完全由程序控制
+                    from agent.mai_mode import mai_mode
+                    mai_mode.mode = "threat_alert_mode"
+                    self.logger.info("[威胁检测] 🔴 已切换到威胁警戒模式，停止LLM决策")
+
+        except Exception as e:
+            self.logger.error(f"[威胁检测] 检测和攻击过程中出错: {e}")
+            import traceback
+            self.logger.error(f"[威胁检测] 异常详情: {traceback.format_exc()}")
+
+    def reset_threat_alert_mode(self):
+        """重置威胁警戒状态 - 用于外部干预或状态清理"""
+        if self.in_threat_alert_mode or self.threat_count > 0:
+            self.logger.info("[威胁检测] 外部重置威胁警戒状态")
+            self.in_threat_alert_mode = False
+            self.threat_count = 0
+            # 切换回主模式
+            from agent.mai_mode import mai_mode
+            mai_mode.mode = "main_mode"
+            self.logger.info("[威胁检测] 已切换回主模式，恢复LLM决策")
+
+    def get_threat_handling_status(self) -> dict:
+        """获取威胁处理状态"""
+        return {
+            "in_threat_alert_mode": self.in_threat_alert_mode,
+            "threat_count": self.threat_count
+        }
+
+    def _is_hostile_entity(self, entity_dict: dict) -> bool:
+        """判断实体是否是需要攻击的类型"""
+        entity_type = entity_dict.get("type", "")
+        entity_name = entity_dict.get("name", "").lower()
+
+        # 需要攻击的实体类型
+        hostile_types = {
+            "hostile",  # 敌对生物
+            "mob"       # 某些中性生物，如slime
+        }
+
+        # 需要攻击的特定生物名称（即使类型不是hostile）
+        hostile_names = {
+            "slime",
+            "magma_cube",
+            "ghast",
+            "blaze",
+            "wither_skeleton",
+            "stray",
+            "husk",
+            "drowned",
+            "phantom",
+            "guardian",
+            "elder_guardian",
+            "shulker",
+            "vex",
+            "vindicator",
+            "evoker",
+            "pillager",
+            "ravager"
+        }
+
+        # 检查类型或名称
+        return entity_type in hostile_types or entity_name in hostile_names
+
+    def _create_entity_from_dict(self, entity_data: dict):
+        """从字典创建Entity对象"""
+        try:
+            from agent.common.basic_class import Position, Entity
+
+            # 解析位置 [x, y, z]
+            pos_data = entity_data.get("position")
+            if not pos_data:
+                return None
+
+            position = Position(
+                x=float(pos_data[0]) if pos_data[0] is not None else 0.0,
+                y=float(pos_data[1]) if pos_data[1] is not None else 0.0,
+                z=float(pos_data[2]) if pos_data[2] is not None else 0.0
+            )
+
+            # 解析实体信息
+            entity_type = entity_data.get("type", "other")
+            entity_name = entity_data.get("name", "未知实体")
+
+            # 创建基础Entity对象
+            entity = Entity(
+                type=entity_type,
+                name=entity_name,
+                position=position,
+                distance=(float(entity_data.get("distance")) if entity_data.get("distance") is not None else None),
+                health=(int(entity_data.get("health")) if entity_data.get("health") is not None else None),
+                max_health=(int(entity_data.get("maxHealth")) if entity_data.get("maxHealth") is not None else None)
+            )
+
+            # 设置实体ID（如果有的话）
+            if "id" in entity_data:
+                entity.id = entity_data["id"]
+
+            return entity
+
+        except Exception as e:
+            self.logger.error(f"创建Entity对象时出错: {e}")
+            return None
+
     async def update_events(self):
         """更新事件数据到环境信息中"""
         event_data = await self._call_tool("query_recent_events", {"sinceTick": self.last_processed_tick})

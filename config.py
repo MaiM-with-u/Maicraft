@@ -73,6 +73,17 @@ class VLMConfig(BaseModel):
 
 
 
+class ThreatDetectionConfig(BaseModel):
+    """威胁检测配置模型"""
+    threat_detection_range: float = Field(default=16.0, ge=1.0, le=64.0, description="威胁生物检测范围（方块距离）")
+    enable_threat_detection: bool = Field(default=True, description="是否启用威胁生物检测")
+
+
+class EventHandlersConfig(BaseModel):
+    """事件处理器配置模型"""
+    pass  # 暂时为空，将来可以添加真正的事件处理器配置
+
+
 class MaicraftConfig(BaseModel):
     """Maicraft插件配置模型"""
 
@@ -84,6 +95,8 @@ class MaicraftConfig(BaseModel):
     vlm: VLMConfig = Field(default_factory=VLMConfig, description="VLM配置")
     bot: BotConfig = Field(default_factory=BotConfig, description="Bot配置")
     game: GameConfig = Field(default_factory=GameConfig, description="Game配置")
+    event_handlers: EventHandlersConfig = Field(default_factory=EventHandlersConfig, description="事件处理器配置")
+    threat_detection: ThreatDetectionConfig = Field(default_factory=ThreatDetectionConfig, description="威胁检测配置")
 
     @classmethod
     def from_dict(cls, config_data: Dict[str, Any]) -> "MaicraftConfig":

@@ -38,6 +38,9 @@ from mcp_server.client import Tool
 from agent.environment.movement import global_movement
 from agent.events import global_event_emitter, ListenerHandle
 
+# 全局MaiAgent实例
+global_mai_agent: Optional['MaiAgent'] = None
+
 COLOR_MAP = {
     "move": "\033[32m",        # 绿色
     "break_block": "\033[38;5;196m",  # 红色
@@ -62,6 +65,9 @@ class ThinkingJsonResult:
 
 class MaiAgent:
     def __init__(self):
+        global global_mai_agent
+        global_mai_agent = self  # 设置全局实例
+
         self.logger = get_logger("MaiAgent")
 
         # 初始化LLM客户端
@@ -88,22 +94,37 @@ class MaiAgent:
         self.complete_goal = False
         
         self.on_going_task_id = ""
-        
+
         self.task_done_list: list[tuple[bool, str, str]] = []
-        
+
         self.exec_task: Optional[asyncio.Task] = None
         # 不再需要_viewer_task，因为现在使用线程
-        
+
         # 3D 渲染器实例（需要时启动）
         self.renderer_3d = None
-        
-        # 动作中断状态（现在使用global_movement的中断事件）
+
+        # AI决策中断状态
+        self.interrupt_flag = False
+        self.interrupt_reason = ""
+
+        # 当前动作任务跟踪（用于可能的单个动作中断）
         self.current_action_task: Optional[asyncio.Task] = None
 
         # 跟踪管理的监听器句柄
         self._listener_handles: List[ListenerHandle] = []
-    
-            
+
+    def trigger_interrupt(self, reason: str):
+        """触发AI决策中断"""
+        self.interrupt_reason = reason
+        self.interrupt_flag = True
+        self.logger.warning(f"AI决策中断触发: {reason}")
+
+    def clear_interrupt(self):
+        """清除AI决策中断标志"""
+        self.interrupt_reason = ""
+        self.interrupt_flag = False
+
+
     async def initialize(self):
         """异步初始化"""
         try:
@@ -170,6 +191,13 @@ class MaiAgent:
         
         i = 0
         while not self.complete_goal:
+            # 检查中断标记
+            if self.interrupt_flag:
+                interrupt_reason = self.interrupt_reason
+                self.clear_interrupt()
+                self.logger.warning(f"AI决策循环被中断: {interrupt_reason}")
+                break
+
             await self.next_thinking()
             i += 1
             if i % 5 == 0:
@@ -199,6 +227,13 @@ class MaiAgent:
         返回: (执行结果, 执行状态)
         """
         try:
+            # 检查当前模式 - 威胁警戒模式下完全停止LLM决策
+            if mai_mode.mode == "threat_alert_mode":
+                self.logger.info("🔴 当前处于威胁警戒模式，跳过LLM决策，完全由程序控制")
+                # 在威胁警戒模式下，短暂休眠后继续检查
+                await asyncio.sleep(1.0)
+                return
+
             # 获取当前环境信息
             # await global_environment_updater.perform_update()
 

@@ -61,3 +61,8 @@ retention = "3 days"
 enable_hierarchical_logging = true
 # 内存中保留的最近日志条数 (用于快速查询)
 max_recent_logs = 1000
+
+[threat_detection]
+# 威胁生物检测配置
+threat_detection_range = 16.0  # 威胁生物检测范围（方块距离）
+enable_threat_detection = true  # 是否启用威胁生物检测

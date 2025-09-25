@@ -95,12 +95,29 @@ class Position:
         else:
             raise IndexError("位置索引必须在 0-2 范围内")
     
+    def distanceTo(self, other) -> float:
+        """计算与另一个位置的距离
+
+        Args:
+            other: Position 或 BlockPosition 对象
+
+        Returns:
+            float: 欧几里得距离
+        """
+        if hasattr(other, 'x') and hasattr(other, 'y') and hasattr(other, 'z'):
+            dx = self.x - other.x
+            dy = self.y - other.y
+            dz = self.z - other.z
+            return math.sqrt(dx*dx + dy*dy + dz*dz)
+        else:
+            raise TypeError("other 必须是包含 x, y, z 属性的位置对象")
+
     def to_dict(self) -> dict:
         return {
             "x": self.x,
             "y": self.y,
             "z": self.z
-        } 
+        }
 
     def __str__(self) -> str:
         return f"({self.x:.0f}, {self.y:.0f}, {self.z:.0f})"
@@ -151,7 +168,7 @@ class BlockPosition:
     def __str__(self) -> str:
         return f"({self.x}, {self.y}, {self.z})"
     
-    def distance(self, other) -> float:
+    def distanceTo(self, other) -> float:
         """计算与另一个位置的距离
         
         Args:
