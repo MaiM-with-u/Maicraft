@@ -191,6 +191,10 @@ class EnvironmentUpdater:
                                 current_threat_count += 1
 
             self.logger.debug(f"[威胁检测] 检测到 {len(hostile_mobs)} 个需要攻击的生物在范围内")
+            if hostile_mobs:
+                # 记录威胁生物的详细信息
+                for entity, distance in hostile_mobs:
+                    self.logger.info(f"[威胁检测] 🔍 威胁生物: {entity.name} 距离: {distance:.2f} 位置: ({entity.position.x:.1f}, {entity.position.y:.1f}, {entity.position.z:.1f})")
             self.logger.debug(f"[威胁检测] 警戒状态: {self.in_threat_alert_mode}, 当前威胁数量: {self.threat_count}")
 
             # 威胁警戒状态管理
@@ -222,6 +226,23 @@ class EnvironmentUpdater:
                 else:
                     # 不在警戒状态且没有威胁，正常状态
                     self.logger.debug(f"[威胁检测] 🟢 周围安全，无威胁")
+
+            # 添加威胁状态超时重置机制（防止卡死）
+            if self.in_threat_alert_mode:
+                # 记录威胁开始时间（如果还没记录）
+                if not hasattr(self, 'threat_start_time'):
+                    self.threat_start_time = time.time()
+                
+                # 如果威胁状态持续超过5分钟，强制重置
+                if time.time() - self.threat_start_time > 300:  # 5分钟
+                    self.logger.warning(f"[威胁检测] ⏰ 威胁状态持续超过5分钟，强制重置")
+                    self.reset_threat_alert_mode()
+                    if hasattr(self, 'threat_start_time'):
+                        delattr(self, 'threat_start_time')
+            else:
+                # 清除威胁开始时间
+                if hasattr(self, 'threat_start_time'):
+                    delattr(self, 'threat_start_time')
 
             # 执行攻击逻辑（在警戒状态下持续攻击）
             if hostile_mobs and self.in_threat_alert_mode:
