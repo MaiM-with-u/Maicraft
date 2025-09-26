@@ -456,7 +456,13 @@ class NearbyBlockManager:
             if not position:
                 return ""
             
-            blocks = self.block_cache.get_blocks_in_range(position.x, position.y, position.z, distance)
+            # 将同步的方块查询分解为异步处理，避免阻塞
+            import asyncio
+            blocks = await asyncio.get_event_loop().run_in_executor(
+                None, 
+                self.block_cache.get_blocks_in_range, 
+                position.x, position.y, position.z, distance
+            )
             
             # 过滤只保留可见方块
             visible_blocks = []

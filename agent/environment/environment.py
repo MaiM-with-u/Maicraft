@@ -26,6 +26,7 @@ import traceback
 from agent.common.basic_class import PlayerEntity, ItemEntity, AnimalEntity
 from agent.environment.movement import global_movement
 from agent.events import global_event_store, ChatEvent
+import asyncio
 
 logger = get_logger("EnvironmentInfo")
 
@@ -573,6 +574,24 @@ class EnvironmentInfo:
         
         return "\n".join(lines)
     
+    async def _get_nearby_blocks_with_timeout(self) -> str:
+        """带超时保护的方块查询方法"""
+        try:
+            if not self.block_position:
+                return "玩家位置未知，无法查询附近方块"
+            
+            # 为方块查询添加超时机制（8秒超时）
+            result = await asyncio.wait_for(
+                nearby_block_manager.get_visible_blocks_str(self.block_position, distance=16),
+                timeout=8.0
+            )
+            return result
+        except asyncio.TimeoutError:
+            logger.warning("⏰ 方块查询超时（8秒），使用简化信息")
+            return f"方块查询超时，当前位置: ({self.block_position.x}, {self.block_position.y}, {self.block_position.z})"
+        except Exception as e:
+            logger.error(f"❌ 方块查询异常: {e}")
+            return f"方块查询失败: {str(e)}"
 
     
     async def get_all_data(self) -> dict:
@@ -610,7 +629,7 @@ class EnvironmentInfo:
             "inventory_info": self.get_inventory_info(),
             "full_thinking_list": global_thinking_log.get_thinking_log_full(),
             "thinking_list": global_thinking_log.get_thinking_log(),
-            "nearby_block_info": await nearby_block_manager.get_visible_blocks_str(self.block_position,distance=16),
+            "nearby_block_info": await self._get_nearby_blocks_with_timeout(),
             "position": self.get_position_str(),
             "chat_str": global_chat_history.get_chat_history_str(),
             "to_do_list": mai_to_do_list.__str__(),

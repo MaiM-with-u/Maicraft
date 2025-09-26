@@ -196,7 +196,9 @@ class MaiAgent:
                 interrupt_reason = self.interrupt_reason
                 self.clear_interrupt()
                 self.logger.warning(f"AI决策循环被中断: {interrupt_reason}")
-                break
+                # 中断时等待一段时间，然后继续循环检查，不要退出整个循环
+                await asyncio.sleep(1.0)
+                continue
 
             await self.next_thinking()
             i += 1
@@ -237,18 +239,32 @@ class MaiAgent:
             # 获取当前环境信息
             # await global_environment_updater.perform_update()
 
-            #更新截图
+            # 更新截图
             await self.update_overview()
 
-            input_data = await global_environment.get_all_data()
-            
+            # 获取环境数据（带超时保护，主要针对方块查询）
+            try:
+                input_data = await asyncio.wait_for(global_environment.get_all_data(), timeout=15.0)
+            except asyncio.TimeoutError:
+                self.logger.warning("⏰ 获取环境数据超时（15秒），使用简化数据")
+                # 提供基本数据，跳过复杂的方块查询
+                input_data = {
+                    "nearby_block_info": "环境数据获取超时，跳过方块信息",
+                    "position": global_environment.get_position_str(),
+                    "inventory_info": global_environment.get_inventory_info(),
+                    "goal": global_config.game.goal,
+                    "mode": mai_mode.mode,
+                }
+            except Exception as e:
+                self.logger.error(f"❌ 获取环境数据异常: {e}")
+                input_data = {"error": f"环境数据获取失败: {str(e)}"}
 
             prompt = prompt_manager.generate_prompt("main_thinking", **input_data)
-            self.logger.info(f" 思考提示词: {prompt}")
+            self.logger.info(f"💭 思考提示词: {prompt}")
             
-            self.logger.info(" 开始调用LLM...")
+            self.logger.info("🤖 开始调用LLM...")
             thinking = await self.llm_client.simple_chat(prompt)
-            self.logger.info(f" LLM调用完成，原始输出: {thinking}")
+            self.logger.info(f"✅ LLM调用完成，原始输出: {thinking}")
             
             self.logger.info(" 开始解析思考结果...")
             
@@ -573,7 +589,12 @@ class MaiAgent:
                     global_environment.overview_base64 = img_b64
                     
                     self.logger.info(f"更新概览图像: {img_b64[:100]}")
-                    await global_environment.get_overview_str()
+                    # 为VLM调用添加超时机制（15秒超时）
+                    try:
+                        await asyncio.wait_for(global_environment.get_overview_str(), timeout=15.0)
+                    except asyncio.TimeoutError:
+                        self.logger.warning("VLM概览分析超时（15秒），跳过本次视觉分析")
+                        global_environment.overview_str = "视觉分析超时，暂时无法获取环境描述"
         except Exception as e:
             self.logger.error(f"update_overview 异常: {e}")
 
