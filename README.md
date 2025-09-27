@@ -52,8 +52,8 @@ pip install -r requirements.txt
 ```
 
 3. **配置设置**
-# 复制配置模板
-将`config-template.toml`复制并更名为`config.toml`
+
+复制配置模板，将`config-template.toml`复制并更名为`config.toml`
 
 在 `config.toml` 文件中配置以下参数：
 
@@ -76,7 +76,7 @@ report_each_step = true
 level = "INFO"
 ```
 
-4. **配置服务器**
+1. **配置服务器**
 将`mcp_server/mcp_servers_template.json`复制并更名为`mcp_server/mcp_servers.json`
 
 编辑maicraft-mcp的配置文件，设置你的Minecraft服务器信息
@@ -118,6 +118,10 @@ start.cmd
 # 或者直接运行
 python main.py
 ```
+
+## Web UI
+
+[maicraft-web-ui](https://github.com/ChangingSelf/maicraft-web-ui)提供了一个简单的 Web UI，用于调试本项目
 
 
 ## 🤝 贡献指南
