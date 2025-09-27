@@ -517,9 +517,9 @@ WebSocket: /ws/token-usage
       "total_tokens": 8215337,
       "total_calls": 2300,
       "total_cost": 9.910613,
-      "first_call_time": 1757772240.156,
-      "last_call_time": 1758332630.438,
-      "last_updated": 1758332630.438
+      "first_call_time": 1757772240156,
+      "last_call_time": 1758332630438,
+      "last_updated": 1758332630438
     },
     "summary": {
       "total_cost": 15.432,
@@ -542,9 +542,9 @@ WebSocket: /ws/token-usage
   "total_tokens": 0,
   "total_calls": 0,
   "total_cost": 0.0,
-  "first_call_time": 1704067200.000,
-  "last_call_time": 1704067200.000,
-  "last_updated": 1704067200.000
+  "first_call_time": 1704067200000,
+  "last_call_time": 1704067200000,
+  "last_updated": 1704067200000
 }
 ```
 

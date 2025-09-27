@@ -221,6 +221,17 @@ class TokenUsageManager:
                     "last_updated": None
                 }
                 default_data.update(data)
+
+                # 向后兼容：将旧格式的浮点时间戳转换为整数毫秒时间戳
+                for field in ["first_call_time", "last_call_time", "last_updated"]:
+                    if default_data[field] is not None and isinstance(default_data[field], float):
+                        # 如果是浮点数且小于1e10，说明是秒时间戳，需要转换为毫秒
+                        if default_data[field] < 1e10:
+                            default_data[field] = int(default_data[field] * 1000)
+                        else:
+                            # 如果已经大于1e10，说明已经是毫秒时间戳
+                            default_data[field] = int(default_data[field])
+
                 return default_data
         except (json.JSONDecodeError, IOError) as e:
             self._get_logger().warning(f"读取使用量文件失败: {e}，使用默认值")
@@ -253,28 +264,28 @@ class TokenUsageManager:
     
     def record_usage(self, model_name: str, prompt_tokens: int, completion_tokens: int, total_tokens: int):
         """记录一次token使用量
-        
+
         Args:
             model_name: 模型名称
             prompt_tokens: 输入token数量
             completion_tokens: 输出token数量
             total_tokens: 总token数量
         """
-        current_time = time.time()
+        current_time = int(time.time() * 1000)  # 转换为整数毫秒时间戳
         current_usage = self._load_current_usage(model_name)
-        
+
         # 计算本次调用的费用
         cost_info = self._calculate_cost(model_name, prompt_tokens, completion_tokens)
-        
+
         # 累加token使用量
         current_usage["total_prompt_tokens"] += prompt_tokens
         current_usage["total_completion_tokens"] += completion_tokens
         current_usage["total_tokens"] += total_tokens
         current_usage["total_calls"] += 1
-        
+
         # 累加费用
         current_usage["total_cost"] += cost_info["cost"]
-        
+
         # 更新时间戳
         if current_usage["first_call_time"] is None:
             current_usage["first_call_time"] = current_time
@@ -324,6 +335,17 @@ class TokenUsageManager:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     model_name = data.get("model_name", file_path.stem.replace("_usage", ""))
+
+                    # 向后兼容：将旧格式的浮点时间戳转换为整数毫秒时间戳
+                    for field in ["first_call_time", "last_call_time", "last_updated"]:
+                        if data.get(field) is not None and isinstance(data[field], float):
+                            # 如果是浮点数且小于1e10，说明是秒时间戳，需要转换为毫秒
+                            if data[field] < 1e10:
+                                data[field] = int(data[field] * 1000)
+                            else:
+                                # 如果已经大于1e10，说明已经是毫秒时间戳
+                                data[field] = int(data[field])
+
                     all_usage[model_name] = data
             except (json.JSONDecodeError, IOError) as e:
                 self._get_logger().warning(f"读取使用量文件失败 {file_path}: {e}")
