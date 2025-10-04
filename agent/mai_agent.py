@@ -168,6 +168,10 @@ class MaiAgent:
             # 创建并启动环境更新器
             global_environment_updater.start()
 
+            # 在所有组件初始化完成后注册威胁处理器
+            from agent.modes.handlers.combat_handler import register_threat_handler
+            register_threat_handler()
+
             self.initialized = True
             self.logger.info(" 初始化完成")
 
@@ -186,7 +190,7 @@ class MaiAgent:
         运行执行循环
         """
         self.on_going_task_id = ""
-        mai_mode.mode = "main_mode"
+        await mai_mode.set_mode("main_mode", "初始化执行循环", "MaiAgent")
         
         
         i = 0
@@ -229,10 +233,18 @@ class MaiAgent:
         返回: (执行结果, 执行状态)
         """
         try:
-            # 检查当前模式 - 威胁警戒模式下完全停止LLM决策
-            if mai_mode.mode == "threat_alert_mode":
-                self.logger.info("🔴 当前处于威胁警戒模式，跳过LLM决策，完全由程序控制")
-                # 在威胁警戒模式下，短暂休眠后继续检查
+            # 检查是否允许LLM决策
+            if not mai_mode.can_use_llm_decision():
+                mode_info = mai_mode.get_mode_info()
+                self.logger.info(f"🔴 当前处于{mode_info['name']}，跳过LLM决策，完全由程序控制")
+
+                # 在非LLM决策模式下，检查是否需要自动转换
+                auto_switched = await mai_mode.check_auto_transitions()
+                if auto_switched:
+                    self.logger.info("模式已自动转换，继续下一轮决策")
+                    return
+
+                # 在非LLM决策模式下，短暂休眠后继续检查
                 await asyncio.sleep(1.0)
                 return
 
@@ -398,11 +410,11 @@ class MaiAgent:
             global_container_cache.add_container(block_position, "furnace")
             
             result_str = f"打开熔炉: {x},{y},{z}\n"
-            mai_mode.mode = "furnace_gui"
+            await mai_mode.set_mode("furnace_gui", f"使用熔炉 {x},{y},{z}", "MaiAgent")
             self.gui = FurnaceSimGui(block_position, self.llm_client)
             use_result = await self.gui.furnace_gui()
             result_str += use_result
-            mai_mode.mode = "main_mode"
+            await mai_mode.set_mode("main_mode", "熔炉使用完成", "MaiAgent")
             result.result_str = result_str
             return result
         elif action_type == "craft":
@@ -436,10 +448,10 @@ class MaiAgent:
             global_container_cache.add_container(block_position, "chest")
             
             result_str += f"打开箱子: {x},{y},{z}\n"
-            mai_mode.mode = "chest_gui"
+            await mai_mode.set_mode("chest_gui", f"使用箱子 {x},{y},{z}", "MaiAgent")
             self.gui = ChestSimGui(block_position, self.llm_client)
             use_result = await self.gui.chest_gui()
-            mai_mode.mode = "main_mode"
+            await mai_mode.set_mode("main_mode", "箱子使用完成", "MaiAgent")
             result.result_str += use_result
             return result
         elif action_type == "toss_item":
