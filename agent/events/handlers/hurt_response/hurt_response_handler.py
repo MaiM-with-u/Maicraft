@@ -621,11 +621,6 @@ class HurtResponseHandler:
             current_health=current_health
         )
 
-    async def _send_negotiation_chat(self, player_name: str, current_health: int):
-        """发送交涉聊天消息（已废弃，由AI处理替代）"""
-        # 这个方法现在已被 _process_ai_negotiation 替代
-        # 保留以防向后兼容性需求
-        pass
 
     async def _prepare_combat_response(self, mob_name: str, current_health: int):
         """准备战斗响应"""
