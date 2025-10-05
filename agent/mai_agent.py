@@ -30,7 +30,7 @@ from agent.sim_gui.task_edit import TaskEditSimGui
 from agent.container_cache.container_cache import global_container_cache
 from mcp_server.client import global_mcp_client
 from agent.thinking_log import global_thinking_log
-from agent.mai_mode import mai_mode
+from agent.mai_mode import mode_manager
 from agent.environment.locations import global_location_points
 from agent.common.basic_class import BlockPosition
 from view_render.renderer_3d import get_global_renderer_3d
@@ -169,10 +169,10 @@ class MaiAgent:
             global_environment_updater.start()
 
             # 在所有组件初始化完成后自动注册模式处理器
-            await mai_mode.auto_register_modes()
+            await mode_manager.auto_register_modes()
 
             # 初始化完成后设置为默认主模式
-            await mai_mode.set_mode("main_mode", "初始化执行循环", "MaiAgent")
+            await mode_manager.set_mode("main_mode", "初始化执行循环", "MaiAgent")
 
             self.initialized = True
             self.logger.info(" 初始化完成")
@@ -234,12 +234,12 @@ class MaiAgent:
         """
         try:
             # 检查是否允许LLM决策
-            if not mai_mode.can_use_llm_decision():
-                mode_info = mai_mode.get_mode_info()
+            if not mode_manager.can_use_llm_decision():
+                mode_info = mode_manager.get_mode_info()
                 self.logger.info(f"🔴 当前处于{mode_info['name']}，跳过LLM决策，完全由程序控制")
 
                 # 在非LLM决策模式下，检查是否需要自动转换
-                auto_switched = await mai_mode.check_auto_transitions()
+                auto_switched = await mode_manager.check_auto_transitions()
                 if auto_switched:
                     self.logger.info("模式已自动转换，继续下一轮决策")
                     return
@@ -265,7 +265,7 @@ class MaiAgent:
                     "position": global_environment.get_position_str(),
                     "inventory_info": global_environment.get_inventory_info(),
                     "goal": global_config.game.goal,
-                    "mode": mai_mode.mode,
+                    "mode": mode_manager.mode,
                 }
             except Exception as e:
                 self.logger.error(f"❌ 获取环境数据异常: {e}")
@@ -414,7 +414,7 @@ class MaiAgent:
             # 更新furnace_gui模式的位置并激活
             from agent.modes.impl.furnace_gui_mode import furnace_gui_mode
             furnace_gui_mode.update_position(block_position)
-            await mai_mode.set_mode("furnace_gui", f"使用熔炉 {x},{y},{z}", "MaiAgent")
+            await mode_manager.set_mode("furnace_gui", f"使用熔炉 {x},{y},{z}", "MaiAgent")
 
             # 执行GUI操作
             self.gui = FurnaceSimGui(block_position, self.llm_client)
@@ -422,7 +422,7 @@ class MaiAgent:
             result_str += use_result
 
             # 返回主模式
-            await mai_mode.set_mode("main_mode", "熔炉使用完成", "MaiAgent")
+            await mode_manager.set_mode("main_mode", "熔炉使用完成", "MaiAgent")
             result.result_str = result_str
             return result
         elif action_type == "craft":
@@ -460,14 +460,14 @@ class MaiAgent:
             # 更新chest_gui模式的位置并激活
             from agent.modes.impl.chest_gui_mode import chest_gui_mode
             chest_gui_mode.update_position(block_position)
-            await mai_mode.set_mode("chest_gui", f"使用箱子 {x},{y},{z}", "MaiAgent")
+            await mode_manager.set_mode("chest_gui", f"使用箱子 {x},{y},{z}", "MaiAgent")
 
             # 执行GUI操作
             self.gui = ChestSimGui(block_position, self.llm_client)
             use_result = await self.gui.chest_gui()
 
             # 返回主模式
-            await mai_mode.set_mode("main_mode", "箱子使用完成", "MaiAgent")
+            await mode_manager.set_mode("main_mode", "箱子使用完成", "MaiAgent")
             result.result_str += use_result
             return result
         elif action_type == "toss_item":
@@ -575,7 +575,7 @@ class MaiAgent:
             result.result_str = "目标已经完成，目标条件已经达成\n"
             return result
         else:
-            self.logger.warning(f" {mai_mode.mode} 不支持的action_type: {action_type}")
+            self.logger.warning(f" {mode_manager.mode} 不支持的action_type: {action_type}")
             
             
         return result

@@ -332,6 +332,3 @@ class ModeManager:
 # 全局模式管理器实例
 mode_manager = ModeManager()
 
-# 为了向后兼容，提供 mai_mode 别名
-mai_mode = mode_manager
-

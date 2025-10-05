@@ -141,21 +141,21 @@ class CombatMode(ResponseMode, EnvironmentListener):
             if self.threat_count > 0 and old_threat_count == 0:
                 logger.info(f"[威胁检测] ⚠️ 检测到 {self.threat_count} 个威胁")
                 # 检测到新威胁时，立即切换到战斗模式
-                from agent.mai_mode import mai_mode
-                current_mode = mai_mode.mode
+                from agent.mai_mode import mode_manager
+                current_mode = mode_manager.mode
                 target_mode = ModeType.COMBAT.value
                 logger.debug(f"[威胁检测] 当前模式: {current_mode}, 目标模式: {target_mode}, 相等: {current_mode == target_mode}")
                 if current_mode != target_mode:
                     logger.info(f"[威胁检测] 切换到战斗模式")
-                    await mai_mode.set_mode(target_mode, "检测到威胁生物", "environment_listener")
+                    await mode_manager.set_mode(target_mode, "检测到威胁生物", "environment_listener")
                 else:
                     logger.debug("[威胁检测] 已在战斗模式，无需切换")
             elif self.threat_count == 0 and old_threat_count > 0:
                 logger.info("[威胁检测] 🟢 威胁消除")
                 # 威胁消除时，立即退出战斗模式
-                from agent.mai_mode import mai_mode
-                if mai_mode.mode == ModeType.COMBAT.value:
-                    await mai_mode.set_mode(ModeType.MAIN.value, "威胁消除", "environment_listener")
+                from agent.mai_mode import mode_manager
+                if mode_manager.mode == ModeType.COMBAT.value:
+                    await mode_manager.set_mode(ModeType.MAIN.value, "威胁消除", "environment_listener")
 
             # 记录威胁信息到思考日志
             if self.threat_count > 0:

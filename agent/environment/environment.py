@@ -13,7 +13,7 @@ from openai_client.llm_request import LLMClient
 from agent.environment.locations import global_location_points
 from config import global_config
 from agent.thinking_log import global_thinking_log
-from agent.mai_mode import mai_mode
+from agent.mai_mode import mode_manager
 from agent.block_cache.nearby_block import nearby_block_manager
 from agent.to_do_list import mai_goal, mai_to_do_list
 from agent.utils.utils import format_task_done_list
@@ -635,7 +635,7 @@ class EnvironmentInfo:
             "to_do_list": mai_to_do_list.__str__(),
             "task_done_list": format_task_done_list(),
             "goal": mai_goal.goal,
-            "mode": mai_mode.mode,
+            "mode": mode_manager.mode,
             "eat_action": eat_action,
             "kill_mob_action": kill_mob_action,
             "nearby_entities_info": self.get_nearby_entities_info(),

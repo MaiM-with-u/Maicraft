@@ -153,7 +153,7 @@ class EnvironmentUpdater:
     async def _notify_environment_updated(self, nearby_entities):
         """通知模式系统环境已更新"""
         try:
-            from agent.mai_mode import mai_mode
+            from agent.mai_mode import mode_manager
 
             # 准备环境数据，包含实体信息
             environment_data = {
@@ -163,7 +163,7 @@ class EnvironmentUpdater:
             }
 
             # 通过模式系统通知所有环境监听器（包括威胁处理器）
-            await mai_mode.notify_environment_updated(environment_data)
+            await mode_manager.notify_environment_updated(environment_data)
 
         except Exception as e:
             self.logger.error(f"通知环境更新时出错: {e}")
@@ -173,20 +173,20 @@ class EnvironmentUpdater:
     async def reset_combat_mode(self):
         """重置战斗模式状态 - 用于外部干预或状态清理"""
         try:
-            from agent.mai_mode import mai_mode
+            from agent.mai_mode import mode_manager
 
             # 通过模式系统强制恢复主模式
-            await mai_mode.force_restore_main_mode("外部重置威胁状态")
+            await mode_manager.force_restore_main_mode("外部重置威胁状态")
         except Exception as e:
             self.logger.error(f"重置威胁警戒状态时出错: {e}")
 
     def get_threat_handling_status(self) -> dict:
         """获取战斗模式状态"""
         try:
-            from agent.mai_mode import mai_mode
+            from agent.mai_mode import mode_manager
 
             # 通过模式系统获取威胁处理器的状态
-            threat_handler = mai_mode.get_handler("combat_mode")
+            threat_handler = mode_manager.get_mode("combat_mode")
             if threat_handler:
                 return threat_handler.get_status()
             else:

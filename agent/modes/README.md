@@ -87,21 +87,21 @@ modes/
 ### 基本操作
 
 ```python
-from agent.mai_mode import mai_mode, MaiModeType
+from agent.mai_mode import mode_manager
 
 # 获取当前模式
-current_mode = mai_mode.mode
+current_mode = mode_manager.mode
 print(f"当前模式: {current_mode}")
 
 # 切换到战斗模式
-await mai_mode.set_mode("combat_mode", "检测到威胁", "system")
+await mode_manager.set_mode("combat_mode", "检测到威胁", "system")
 
 # 检查是否允许LLM决策
-if mai_mode.can_use_llm_decision():
+if mode_manager.can_use_llm_decision():
     print("当前模式允许LLM决策")
 
 # 获取模式状态
-status = mai_mode.get_status()
+status = mode_manager.get_mode_info()
 ```
 
 ### 与战斗模式交互
