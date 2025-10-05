@@ -27,19 +27,6 @@ class MainMode(DecisionMode):
         """返回模式类型"""
         return ModeType.MAIN.value
 
-    def register_to_system(self):
-        """注册模式到模式系统"""
-        try:
-            from agent.mai_mode import mode_manager
-
-            # 注册模式实例
-            mode_manager.register_mode(self)
-
-            logger.debug("主模式已注册到模式系统")
-
-        except Exception as e:
-            logger.error(f"模式注册失败: {e}")
-
     async def activate(self, reason: str, triggered_by: str) -> None:
         """激活主模式"""
         logger.info(f"🟢 激活主模式: {reason}")

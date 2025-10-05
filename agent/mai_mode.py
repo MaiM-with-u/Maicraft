@@ -57,6 +57,66 @@ class ModeManager:
         self._modes[mode_type] = mode
         self.logger.info(f"注册模式: {mode_type} - {mode.name}")
 
+    async def auto_register_modes(self) -> None:
+        """
+        自动注册所有模式类
+
+        通过检查类继承关系自动发现并注册所有BaseMode的子类，
+        无需手动维护注册列表。
+        """
+        import importlib
+        import inspect
+        import os
+        from agent.modes.base import BaseMode
+
+        self.logger.info("开始自动注册模式...")
+
+        # 扫描modes/impl目录下的所有模块
+        modes_dir = "agent.modes.impl"
+        mode_count = 0
+
+        try:
+            # 获取所有Python文件
+            impl_dir = os.path.join(os.path.dirname(__file__), "modes", "impl")
+
+            for filename in os.listdir(impl_dir):
+                if not filename.endswith(".py") or filename.startswith("__"):
+                    continue
+
+                module_name = filename[:-3]  # 移除.py扩展名
+                module_path = f"{modes_dir}.{module_name}"
+
+                try:
+                    # 动态导入模块
+                    module = importlib.import_module(module_path)
+
+                    # 扫描模块中的所有类
+                    for name, obj in inspect.getmembers(module, inspect.isclass):
+                        # 检查是否是BaseMode的子类，但不是BaseMode本身
+                        if (issubclass(obj, BaseMode) and obj != BaseMode and
+                            obj.__module__ == module_path):
+
+                            try:
+                                # 直接调用BaseMode的标准注册方法
+                                mode_instance = obj()
+                                mode_instance.register_to_system()
+                                mode_count += 1
+                                self.logger.info(f"✓ 自动注册模式: {name} ({mode_instance.mode_type})")
+
+                            except Exception as e:
+                                self.logger.error(f"✗ 注册模式失败 {name}: {e}")
+                                continue
+
+                except Exception as e:
+                    self.logger.error(f"加载模式模块失败 {module_name}: {e}")
+                    continue
+
+            self.logger.info(f"模式自动注册完成，共注册 {mode_count} 个模式")
+
+        except Exception as e:
+            self.logger.error(f"自动注册模式过程中发生错误: {e}")
+            raise
+
     def get_mode(self, mode_type: str) -> Optional[BaseMode]:
         """获取模式实例"""
         return self._modes.get(mode_type)

@@ -168,15 +168,8 @@ class MaiAgent:
             # 创建并启动环境更新器
             global_environment_updater.start()
 
-            # 在所有组件初始化完成后注册模式处理器
-            from agent.modes.impl.main_mode import register_main_mode
-            from agent.modes.impl.combat_mode import register_combat_mode
-            from agent.modes.impl.furnace_gui_mode import register_furnace_gui_mode
-            from agent.modes.impl.chest_gui_mode import register_chest_gui_mode
-            register_main_mode()
-            register_combat_mode()
-            register_furnace_gui_mode()
-            register_chest_gui_mode()
+            # 在所有组件初始化完成后自动注册模式处理器
+            await mai_mode.auto_register_modes()
 
             # 初始化完成后设置为默认主模式
             await mai_mode.set_mode("main_mode", "初始化执行循环", "MaiAgent")

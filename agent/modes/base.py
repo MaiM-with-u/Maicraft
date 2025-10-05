@@ -117,6 +117,20 @@ class BaseMode(ABC):
         import time
         return time.time() - self._start_time > self.max_duration
 
+    def register_to_system(self) -> None:
+        """注册模式到模式系统 - 标准注册方法"""
+        # 延迟导入logger以避免循环依赖
+        from utils.logger import get_logger
+        logger = get_logger("BaseMode")
+
+        try:
+            from agent.mai_mode import mode_manager
+            mode_manager.register_mode(self)
+            logger.debug(f"{self.__class__.__name__} 已注册到模式系统")
+        except Exception as e:
+            logger.error(f"模式注册失败 {self.__class__.__name__}: {e}")
+            raise
+
     def _set_active(self, active: bool):
         """设置活跃状态（内部使用）"""
         import time

@@ -75,19 +75,16 @@ class CombatMode(ResponseMode, EnvironmentListener):
 
     def register_to_system(self):
         """注册模式到模式系统"""
+        # 调用基类注册方法
+        super().register_to_system()
+
+        # CombatMode特殊处理：注册为环境监听器
         try:
             from agent.mai_mode import mode_manager
-
-            # 注册模式实例
-            mode_manager.register_mode(self)
-
-            # 注册为环境监听器
             mode_manager.register_environment_listener(self)
-
-            logger.debug("战斗模式已注册到模式系统")
-
+            logger.debug("战斗模式已注册为环境监听器")
         except Exception as e:
-            logger.error(f"模式注册失败: {e}")
+            logger.error(f"战斗模式环境监听器注册失败: {e}")
 
     async def on_environment_updated(self, environment_data: Dict[str, Any]) -> None:
         """实现 EnvironmentListener 接口：处理环境更新"""
