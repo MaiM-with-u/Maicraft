@@ -61,29 +61,3 @@ class ChestGUIMode(DecisionMode):
 
 # 全局箱子GUI模式实例
 chest_gui_mode = ChestGUIMode()
-
-
-def get_chest_gui_mode():
-    """获取箱子GUI模式实例"""
-    return chest_gui_mode
-
-
-def register_chest_gui_mode():
-    """注册箱子GUI模式到模式系统"""
-    try:
-        from agent.mai_mode import mode_manager
-
-        # 注册模式实例
-        mode_manager.register_mode(chest_gui_mode)
-
-        logger.debug("箱子GUI模式已注册到模式系统")
-
-    except Exception as e:
-        logger.error(f"箱子GUI模式注册失败: {e}")
-
-
-def create_chest_gui_mode(position):
-    """创建指定位置的箱子GUI模式实例"""
-    mode = ChestGUIMode(position)
-    mode.update_position(position)
-    return mode

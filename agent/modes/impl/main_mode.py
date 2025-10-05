@@ -38,13 +38,3 @@ class MainMode(DecisionMode):
 
 # 全局主模式实例
 main_mode = MainMode()
-
-
-def get_main_mode():
-    """获取主模式实例"""
-    return main_mode
-
-
-def register_main_mode():
-    """注册主模式到模式系统"""
-    main_mode.register_to_system()

@@ -55,29 +55,3 @@ class FurnaceGUIMode(DecisionMode):
 
 # 全局熔炉GUI模式实例
 furnace_gui_mode = FurnaceGUIMode()
-
-
-def get_furnace_gui_mode():
-    """获取熔炉GUI模式实例"""
-    return furnace_gui_mode
-
-
-def register_furnace_gui_mode():
-    """注册熔炉GUI模式到模式系统"""
-    try:
-        from agent.mai_mode import mode_manager
-
-        # 注册模式实例
-        mode_manager.register_mode(furnace_gui_mode)
-
-        logger.debug("熔炉GUI模式已注册到模式系统")
-
-    except Exception as e:
-        logger.error(f"熔炉GUI模式注册失败: {e}")
-
-
-def create_furnace_gui_mode(position):
-    """创建指定位置的熔炉GUI模式实例"""
-    mode = FurnaceGUIMode(position)
-    mode.update_position(position)
-    return mode
