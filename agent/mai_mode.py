@@ -9,7 +9,6 @@ from typing import Dict, Any, List, Optional, Protocol, Callable, Awaitable
 from enum import Enum
 from dataclasses import dataclass
 from datetime import datetime
-import threading
 from utils.logger import get_logger
 
 
@@ -94,36 +93,31 @@ class ModeHandlerRegistry:
 
     def __init__(self):
         self._handlers: Dict[str, ModeHandler] = {}
-        self._lock = threading.RLock()
 
     def register_handler(self, handler: ModeHandler) -> None:
         """注册模式处理器"""
-        with self._lock:
-            mode_type = handler.mode_type
-            if mode_type in self._handlers:
-                logger = get_logger("ModeHandlerRegistry")
-                logger.warning(f"模式处理器 {mode_type} 已被注册，将被替换")
-            self._handlers[mode_type] = handler
+        mode_type = handler.mode_type
+        if mode_type in self._handlers:
             logger = get_logger("ModeHandlerRegistry")
-            logger.info(f"注册模式处理器: {mode_type}")
+            logger.warning(f"模式处理器 {mode_type} 已被注册，将被替换")
+        self._handlers[mode_type] = handler
+        logger = get_logger("ModeHandlerRegistry")
+        logger.info(f"注册模式处理器: {mode_type}")
 
     def unregister_handler(self, mode_type: str) -> None:
         """注销模式处理器"""
-        with self._lock:
-            if mode_type in self._handlers:
-                del self._handlers[mode_type]
-                logger = get_logger("ModeHandlerRegistry")
-                logger.info(f"注销模式处理器: {mode_type}")
+        if mode_type in self._handlers:
+            del self._handlers[mode_type]
+            logger = get_logger("ModeHandlerRegistry")
+            logger.info(f"注销模式处理器: {mode_type}")
 
     def get_handler(self, mode_type: str) -> Optional[ModeHandler]:
         """获取模式处理器"""
-        with self._lock:
-            return self._handlers.get(mode_type)
+        return self._handlers.get(mode_type)
 
     def get_all_handlers(self) -> Dict[str, ModeHandler]:
         """获取所有处理器"""
-        with self._lock:
-            return self._handlers.copy()
+        return self._handlers.copy()
 
     async def call_enter_handler(self, mode_type: str, reason: str, triggered_by: str) -> bool:
         """调用进入模式处理器"""
@@ -261,15 +255,11 @@ class MaiMode:
         self._transition_history: List[ModeTransitionRecord] = []
         self._max_history_size = 50
 
-        # 模式切换锁（线程安全）
-        self._mode_lock = threading.RLock()
-
         # 处理器注册表 - 替代事件机制
         self._handler_registry = ModeHandlerRegistry()
 
         # 环境监听器列表
         self._environment_listeners: List[EnvironmentListener] = []
-        self._environment_lock = threading.RLock()
 
         # 最后一次环境数据
         self._last_environment_data: Optional[Dict[str, Any]] = None
@@ -285,20 +275,17 @@ class MaiMode:
     @property
     def mode(self) -> str:
         """获取当前模式"""
-        with self._mode_lock:
-            return self._current_mode
+        return self._current_mode
 
     @property
     def current_config(self) -> ModeConfig:
         """获取当前模式配置"""
-        with self._mode_lock:
-            return self._current_config
+        return self._current_config
 
     @property
     def transition_history(self) -> List[ModeTransition]:
         """获取模式切换历史"""
-        with self._mode_lock:
-            return self._transition_history.copy()
+        return self._transition_history.copy()
 
     async def set_mode(self, new_mode: str, reason: str = "", triggered_by: str = "system") -> bool:
         """
@@ -312,30 +299,29 @@ class MaiMode:
         Returns:
             bool: 是否切换成功
         """
-        with self._mode_lock:
-            # 验证模式是否存在
-            if new_mode not in self.MODE_CONFIGS:
-                self.logger.warning(f"尝试设置未知模式: {new_mode}")
-                return False
+        # 验证模式是否存在
+        if new_mode not in self.MODE_CONFIGS:
+            self.logger.warning(f"尝试设置未知模式: {new_mode}")
+            return False
 
-            # 检查是否已经是当前模式
-            if new_mode == self._current_mode:
-                return True
-
-            # 检查优先级（高优先级模式不能被低优先级模式覆盖）
-            new_config = self.MODE_CONFIGS[new_mode]
-            if (self._current_config.priority > new_config.priority and
-                new_mode != MaiModeType.MAIN.value):
-                self.logger.warning(f"无法切换模式: {new_mode} 优先级低于当前模式 {self._current_mode}")
-                return False
-
-            old_mode = self._current_mode
-
-            # 执行模式切换
-            await self._switch_mode(new_mode, reason, triggered_by)
-
-            self.logger.info(f"模式切换成功: {old_mode} -> {new_mode} ({reason})")
+        # 检查是否已经是当前模式
+        if new_mode == self._current_mode:
             return True
+
+        # 检查优先级（高优先级模式不能被低优先级模式覆盖）
+        new_config = self.MODE_CONFIGS[new_mode]
+        if (self._current_config.priority > new_config.priority and
+            new_mode != MaiModeType.MAIN.value):
+            self.logger.warning(f"无法切换模式: {new_mode} 优先级低于当前模式 {self._current_mode}")
+            return False
+
+        old_mode = self._current_mode
+
+        # 执行模式切换
+        await self._switch_mode(new_mode, reason, triggered_by)
+
+        self.logger.info(f"模式切换成功: {old_mode} -> {new_mode} ({reason})")
+        return True
 
     async def _switch_mode(self, new_mode: str, reason: str, triggered_by: str) -> None:
         """执行模式切换的内部逻辑"""
@@ -409,15 +395,14 @@ class MaiMode:
 
     async def force_restore_main_mode(self, reason: str = "强制恢复") -> bool:
         """强制恢复到主模式（忽略优先级）"""
-        with self._mode_lock:
-            if self._current_mode == MaiModeType.MAIN.value:
-                return True
-
-            old_mode = self._current_mode
-            await self._switch_mode(MaiModeType.MAIN.value, reason, "system")
-
-            self.logger.info(f"强制恢复到主模式: {old_mode} -> {MaiModeType.MAIN.value}")
+        if self._current_mode == MaiModeType.MAIN.value:
             return True
+
+        old_mode = self._current_mode
+        await self._switch_mode(MaiModeType.MAIN.value, reason, "system")
+
+        self.logger.info(f"强制恢复到主模式: {old_mode} -> {MaiModeType.MAIN.value}")
+        return True
 
     def is_mode_expired(self) -> bool:
         """检查当前模式是否已过期"""
@@ -463,9 +448,8 @@ class MaiMode:
 
     def clear_history(self) -> None:
         """清空模式切换历史"""
-        with self._mode_lock:
-            self._transition_history.clear()
-            self.logger.info("模式切换历史已清空")
+        self._transition_history.clear()
+        self.logger.info("模式切换历史已清空")
 
     def register_handler(self, handler: ModeHandler) -> None:
         """注册模式处理器"""
@@ -485,27 +469,23 @@ class MaiMode:
 
     def register_environment_listener(self, listener: EnvironmentListener) -> None:
         """注册环境监听器"""
-        with self._environment_lock:
-            if listener not in self._environment_listeners:
-                self._environment_listeners.append(listener)
-                self.logger.debug(f"注册环境监听器: {type(listener).__name__}")
+        if listener not in self._environment_listeners:
+            self._environment_listeners.append(listener)
+            self.logger.debug(f"注册环境监听器: {type(listener).__name__}")
 
     def unregister_environment_listener(self, listener: EnvironmentListener) -> None:
         """注销环境监听器"""
-        with self._environment_lock:
-            if listener in self._environment_listeners:
-                self._environment_listeners.remove(listener)
-                self.logger.debug(f"注销环境监听器: {type(listener).__name__}")
+        if listener in self._environment_listeners:
+            self._environment_listeners.remove(listener)
+            self.logger.debug(f"注销环境监听器: {type(listener).__name__}")
 
     async def notify_environment_updated(self, environment_data: Dict[str, Any]) -> None:
         """通知所有环境监听器环境数据已更新"""
         self._last_environment_data = environment_data
 
-        listeners_to_notify = []
-        with self._environment_lock:
-            listeners_to_notify = self._environment_listeners.copy()
+        listeners_to_notify = self._environment_listeners.copy()
 
-        # 在锁外异步通知监听器，避免阻塞
+        # 异步通知监听器，避免阻塞
         for listener in listeners_to_notify:
             try:
                 self.logger.debug(f"[模式系统] 通知监听器: {type(listener).__name__}")
@@ -520,9 +500,8 @@ class MaiMode:
 
     def clear_environment_listeners(self) -> None:
         """清空所有环境监听器"""
-        with self._environment_lock:
-            self._environment_listeners.clear()
-            self.logger.debug("已清空所有环境监听器")
+        self._environment_listeners.clear()
+        self.logger.debug("已清空所有环境监听器")
 
     async def check_auto_transitions(self) -> bool:
         """检查当前模式的自动转换 - 可在主循环中定期调用
@@ -546,11 +525,10 @@ class MaiMode:
 
     def add_mode_config(self, mode_type: str, config: ModeConfig) -> None:
         """动态添加模式配置（用于扩展）"""
-        with self._mode_lock:
-            if mode_type in self.MODE_CONFIGS:
-                self.logger.warning(f"模式配置已存在，将被覆盖: {mode_type}")
-            self.MODE_CONFIGS[mode_type] = config
-            self.logger.info(f"添加新模式配置: {mode_type}")
+        if mode_type in self.MODE_CONFIGS:
+            self.logger.warning(f"模式配置已存在，将被覆盖: {mode_type}")
+        self.MODE_CONFIGS[mode_type] = config
+        self.logger.info(f"添加新模式配置: {mode_type}")
 
 # 全局实例
 mai_mode = MaiMode()
