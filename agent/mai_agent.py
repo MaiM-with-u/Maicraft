@@ -168,9 +168,18 @@ class MaiAgent:
             # 创建并启动环境更新器
             global_environment_updater.start()
 
-            # 在所有组件初始化完成后注册威胁处理器
-            from agent.modes.handlers.combat_handler import register_threat_handler
-            register_threat_handler()
+            # 在所有组件初始化完成后注册模式处理器
+            from agent.modes.impl.main_mode import register_main_mode
+            from agent.modes.impl.combat_mode import register_combat_mode
+            from agent.modes.impl.furnace_gui_mode import register_furnace_gui_mode
+            from agent.modes.impl.chest_gui_mode import register_chest_gui_mode
+            register_main_mode()
+            register_combat_mode()
+            register_furnace_gui_mode()
+            register_chest_gui_mode()
+
+            # 初始化完成后设置为默认主模式
+            await mai_mode.set_mode("main_mode", "初始化执行循环", "MaiAgent")
 
             self.initialized = True
             self.logger.info(" 初始化完成")
@@ -190,8 +199,6 @@ class MaiAgent:
         运行执行循环
         """
         self.on_going_task_id = ""
-        await mai_mode.set_mode("main_mode", "初始化执行循环", "MaiAgent")
-        
         
         i = 0
         while not self.complete_goal:
@@ -410,10 +417,18 @@ class MaiAgent:
             global_container_cache.add_container(block_position, "furnace")
             
             result_str = f"打开熔炉: {x},{y},{z}\n"
+
+            # 更新furnace_gui模式的位置并激活
+            from agent.modes.impl.furnace_gui_mode import furnace_gui_mode
+            furnace_gui_mode.update_position(block_position)
             await mai_mode.set_mode("furnace_gui", f"使用熔炉 {x},{y},{z}", "MaiAgent")
+
+            # 执行GUI操作
             self.gui = FurnaceSimGui(block_position, self.llm_client)
             use_result = await self.gui.furnace_gui()
             result_str += use_result
+
+            # 返回主模式
             await mai_mode.set_mode("main_mode", "熔炉使用完成", "MaiAgent")
             result.result_str = result_str
             return result
@@ -448,9 +463,17 @@ class MaiAgent:
             global_container_cache.add_container(block_position, "chest")
             
             result_str += f"打开箱子: {x},{y},{z}\n"
+
+            # 更新chest_gui模式的位置并激活
+            from agent.modes.impl.chest_gui_mode import chest_gui_mode
+            chest_gui_mode.update_position(block_position)
             await mai_mode.set_mode("chest_gui", f"使用箱子 {x},{y},{z}", "MaiAgent")
+
+            # 执行GUI操作
             self.gui = ChestSimGui(block_position, self.llm_client)
             use_result = await self.gui.chest_gui()
+
+            # 返回主模式
             await mai_mode.set_mode("main_mode", "箱子使用完成", "MaiAgent")
             result.result_str += use_result
             return result

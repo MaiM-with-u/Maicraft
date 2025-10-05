@@ -1,11 +1,11 @@
 """
-模式处理器包
+模式策略包
 
 提供Minecraft AI的各种行为模式管理
 """
 
-from .handlers.combat_handler import global_combat_handler
+from .impl.combat_mode import combat_mode
 
 __all__ = [
-    'global_combat_handler',
+    'combat_mode',
 ]
