@@ -146,8 +146,19 @@ class CombatMode(ResponseMode, EnvironmentListener):
                 target_mode = ModeType.COMBAT.value
                 logger.debug(f"[威胁检测] 当前模式: {current_mode}, 目标模式: {target_mode}, 相等: {current_mode == target_mode}")
                 if current_mode != target_mode:
-                    logger.info(f"[威胁检测] 切换到战斗模式")
+                    logger.info("[威胁检测] 切换到战斗模式")
                     await mode_manager.set_mode(target_mode, "检测到威胁生物", "environment_listener")
+
+                    # 记录威胁信息到思考日志 - 只在状态切换时记录一次
+                    threat_names = [f"{entity.get('name', 'unknown')}" for entity in hostile_entities[:3]]
+                    if len(hostile_entities) > 3:
+                        threat_names.append(f"等{len(hostile_entities)}个")
+                    threat_list = ", ".join(threat_names)
+                    from agent.thinking_log import global_thinking_log
+                    global_thinking_log.add_thinking_log(
+                        f"⚠️ 检测到威胁生物：{threat_list}",
+                        type="threat_detected",
+                    )
                 else:
                     logger.debug("[威胁检测] 已在战斗模式，无需切换")
             elif self.threat_count == 0 and old_threat_count > 0:
@@ -157,17 +168,12 @@ class CombatMode(ResponseMode, EnvironmentListener):
                 if mode_manager.mode == ModeType.COMBAT.value:
                     await mode_manager.set_mode(ModeType.MAIN.value, "威胁消除", "environment_listener")
 
-            # 记录威胁信息到思考日志
-            if self.threat_count > 0:
-                threat_names = [f"{entity.get('name', 'unknown')}" for entity in hostile_entities[:3]]
-                if len(hostile_entities) > 3:
-                    threat_names.append(f"等{len(hostile_entities)}个")
-                threat_list = ", ".join(threat_names)
-                from agent.thinking_log import global_thinking_log
-                global_thinking_log.add_thinking_log(
-                    f"⚠️ 检测到威胁生物：{threat_list}",
-                    type="threat_detected",
-                )
+                    # 记录威胁消除到思考日志 - 只在状态切换时记录一次
+                    from agent.thinking_log import global_thinking_log
+                    global_thinking_log.add_thinking_log(
+                        "🟢 威胁消除",
+                        type="threat_cleared",
+                    )
 
         except Exception as e:
             logger.error(f"威胁检测处理失败: {e}")
