@@ -1,3 +1,4 @@
+from agent.events.event_types import EventType
 from agent.thinking_log import global_thinking_log
 from config import global_config
 
@@ -33,13 +34,20 @@ class ChatHistory:
     def add_chat_history(self, chat_event: ChatEvent):
         self.chat_history.append(chat_event)
         logger.info(f"添加聊天记录: {chat_event.data.message}")
-        if chat_event.data.username != global_config.bot.player_name:
-            self.new_message = True
-            if "麦麦" in chat_event.data.message or global_config.bot.player_name in chat_event.data.message or global_config.bot.player_name.lower() in chat_event.data.message:
-                # 延迟导入避免循环依赖
-                global_thinking_log.add_thinking_log(f"玩家 {chat_event.data.username} 提到了你，进行回复",type = "notice")
-                self.called_message = True
+        if chat_event.EVENT_TYPE == EventType.CHAT.value:
+            if chat_event.data.username != global_config.bot.player_name:
+                self.new_message = True
+                if "麦麦" in chat_event.data.message or global_config.bot.player_name in chat_event.data.message or global_config.bot.player_name.lower() in chat_event.data.message:
+                    # 延迟导入避免循环依赖
+                    global_thinking_log.add_thinking_log(f"玩家 {chat_event.data.username} 提到了你，进行回复",type = "notice")
+                    self.called_message = True
+                else:
+                    global_thinking_log.add_thinking_log(f"玩家 {chat_event.data.username} 发送了消息：{chat_event.data.message}",type = "notice")
+        else:
+            if chat_event.data.username != global_config.bot.player_name:
+                global_thinking_log.add_thinking_log(f"玩家 {chat_event.data.username} 使用游戏语音对你说：{chat_event.data.message}",type = "notice")
             else:
-                global_thinking_log.add_thinking_log(f"玩家 {chat_event.data.username} 发送了消息：{chat_event.data.message}",type = "notice")
-                        
+                global_thinking_log.add_thinking_log(f"你使用游戏语音对玩家说：{chat_event.data.message}",type = "notice")
+    
+    
 global_chat_history = ChatHistory()

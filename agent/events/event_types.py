@@ -10,6 +10,7 @@ class EventType(Enum):
     """事件类型枚举"""
 
     CHAT = "chat"
+    VOICE_CHAT = "voiceChat"
     PLAYER_JOINED = "playerJoined"
     PLAYER_LEFT = "playerLeft"
     DEATH = "death"

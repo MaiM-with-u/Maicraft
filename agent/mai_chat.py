@@ -1,3 +1,4 @@
+import time
 from fastmcp.client.client import CallToolResult
 
 
@@ -86,6 +87,16 @@ class MaiChat:
         is_success, result_content = parse_tool_result(call_result)
 
         global_thinking_log.add_thinking_log(f"发送回复: {reply_obj.get('message')}",type = "notice")
+        
+        
+    async def get_prompt_for_amaidesu(self,dialogue_prompt,reply_target_block):
+        input_data = await global_environment.get_all_data()
+        time_block = f"当前时间：{time.strftime('%H:%M:%S', time.localtime(time.time()))}"
+        input_data["dialogue_prompt"] = dialogue_prompt
+        input_data["time_block"] = time_block
+        input_data["reply_target_block"] = reply_target_block
+        prompt = prompt_manager.generate_prompt("amaidesu_chat", **input_data)
+        return prompt
         
 mai_chat = MaiChat()
 

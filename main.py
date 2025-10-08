@@ -1,4 +1,7 @@
 import asyncio
+import os
+import signal
+import threading
 
 from config import global_config
 from mcp_server.client import global_mcp_client
@@ -16,6 +19,121 @@ logger = get_logger("Main")
 
 
 
+
+_live_mai_process = None
+_live_mai_thread = None
+
+
+def start_live_mai_thread() -> None:
+    """在独立线程中启动 LiveMai，保持进程内共享状态"""
+    global _live_mai_thread
+    if _live_mai_thread is not None and _live_mai_thread.is_alive():
+        return
+
+    try:
+        logger.info("正在启动 LiveMai 线程...")
+        
+        # 创建新线程运行 LiveMai
+        _live_mai_thread = threading.Thread(
+            target=_run_live_mai_in_thread,
+            name="LiveMaiThread",
+            daemon=True  # 设置为守护线程，主程序退出时自动结束
+        )
+        _live_mai_thread.start()
+        
+        logger.info(f"LiveMai 线程已启动，线程ID={_live_mai_thread.ident}")
+    except Exception as e:
+        logger.error(f"启动 LiveMai 线程失败: {e}")
+
+
+def _run_live_mai_in_thread() -> None:
+    """在线程中运行 LiveMai"""
+    try:
+        import asyncio
+        from amaidesu_light.amaidesu import main as amaidesu_main
+        
+        # 创建新的事件循环
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        print("=" * 50)
+        print("LiveMai 控制台模式已启动")
+        print("输入 'quit' 或 'exit' 退出程序")
+        print("=" * 50)
+        
+        # 运行 LiveMai
+        loop.run_until_complete(amaidesu_main())
+        
+    except Exception as e:
+        print("\n" + "=" * 60)
+        print("LiveMai 启动失败!")
+        print("=" * 60)
+        print(f"错误类型: {type(e).__name__}")
+        print(f"错误信息: {e}")
+        print("\n详细错误信息:")
+        import traceback
+        traceback.print_exc()
+        print("=" * 60)
+        print("\n按任意键退出...")
+        input()
+    finally:
+        try:
+            loop.close()
+        except Exception:
+            pass
+
+
+def stop_live_mai_thread() -> None:
+    """停止 LiveMai 线程"""
+    global _live_mai_thread
+    if _live_mai_thread is not None and _live_mai_thread.is_alive():
+        logger.info("正在停止 LiveMai 线程...")
+        # 线程会自动结束，因为是守护线程
+        _live_mai_thread = None
+
+
+def stop_live_mai_subprocess() -> None:
+    """尝试优雅关闭独立窗口中的 LiveMai 进程。"""
+    global _live_mai_process
+    if _live_mai_process is None:
+        return
+    try:
+        proc = _live_mai_process
+        _live_mai_process = None
+
+        if proc.poll() is not None:
+            return  # 已退出
+
+        if os.name == "nt":
+            # 向独立进程组发送中断信号（仅对控制台进程有效）
+            try:
+                os.kill(proc.pid, signal.CTRL_BREAK_EVENT)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        else:
+            try:
+                proc.send_signal(signal.SIGINT)
+            except Exception:
+                pass
+
+        try:
+            proc.wait(timeout=3)
+        except Exception:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+    except Exception as e:
+        logger.error(f"关闭 LiveMai 失败: {e}")
+    finally:
+        # 清理临时包装脚本文件
+        try:
+            project_root = os.path.dirname(os.path.abspath(__file__))
+            wrapper_script = os.path.join(project_root, "amaidesu_wrapper.py")
+            if os.path.exists(wrapper_script):
+                os.remove(wrapper_script)
+        except Exception:
+            pass
 
 async def run_main_agent() -> None:
     """运行主要的MaicraftAgent逻辑"""
@@ -112,7 +230,8 @@ async def run_websocket_server() -> None:
     try:
         # 获取API服务器实例
         logger.info("正在初始化API服务器...")
-        api_server = get_api_server()
+        # 创建服务器实例（初始化内部依赖）
+        get_api_server()
         logger.info("API服务器实例创建成功")
 
         # 从API配置获取服务器设置
@@ -177,6 +296,9 @@ async def main() -> None:
 
     logger.info("正在启动 Maicraft-Mai 和 WebSocket API 服务器...")
 
+    # 启动独立线程中的 LiveMai（amaidesu.py）
+    start_live_mai_thread()
+
     try:
         # 并发运行两个服务
         await asyncio.gather(
@@ -186,9 +308,13 @@ async def main() -> None:
         )
     except (KeyboardInterrupt, SystemExit, asyncio.CancelledError):
         logger.info("接收到退出信号，正在关闭服务...")
+        stop_live_mai_thread()
     except Exception as e:
         logger.error(f"启动过程中发生错误: {e}")
         raise
+    finally:
+        # 兜底关闭线程
+        stop_live_mai_thread()
 
 
 if __name__ == "__main__":

@@ -33,3 +33,20 @@ class ChatEvent(BaseEvent[ChatEventData]):
 
     def to_dict(self) -> dict:
         return super().to_dict()
+
+class VoiceChatEvent(BaseEvent[ChatEventData]):
+    """语音聊天事件"""
+
+    EVENT_TYPE = EventType.VOICE_CHAT.value
+
+    def __init__(
+        self, type: str, gameTick: int, timestamp: float, data: ChatEventData = None
+    ):
+        """初始化语音聊天事件"""
+        super().__init__(type, gameTick, timestamp, data)
+        
+    def get_description(self) -> str:
+        return f"{self.data.username}用游戏语音说: {self.data.message}"
+
+    def to_dict(self) -> dict:
+        return super().to_dict()
