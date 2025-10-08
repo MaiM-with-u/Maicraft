@@ -303,7 +303,7 @@ class RecipeFinder:
             # 生成紧凑的配方分析字符串
             recipe_parts = []
             display_recipes = recipe_analysis[:3]  # 只显示前3个配方
-            
+
             for i, recipe in enumerate(display_recipes, 1):
                 if recipe.get("status") == "材料充足":
                     recipe_parts.append(f"配方{i}充足")
@@ -312,32 +312,48 @@ class RecipeFinder:
                     sorted_missing = []
                     have_items = []
                     no_items = []
-                    
+
                     for missing_item in recipe["missing"]:
                         # 解析物品名称
                         if " x" in missing_item:
                             item_name = missing_item.rsplit(" x", 1)[0]
                         else:
                             item_name = missing_item
-                        
+
                         # 检查该物品是否在库存中有（即使数量不足）
                         normalized_name = self._normalize_item_name(item_name)
                         if bag.get(normalized_name, 0) > 0:
                             have_items.append(missing_item)
                         else:
                             no_items.append(missing_item)
-                    
+
                     # 合并：已有的在前，完全缺失的在后
                     sorted_missing = have_items + no_items
-                    
-                    # 简化显示，最多显示2种主要材料
-                    if sorted_missing:
-                        missing_items = sorted_missing[:2]
-                        if len(sorted_missing) > 2:
-                            missing_items.append("等")
-                        recipe_parts.append(f"配方{i}：缺少{','.join(missing_items)}")
+
+                    # 生成完整的材料需求信息
+                    if recipe.get("total_needed"):
+                        total_needed_parts = []
+                        for item_name, count in recipe["total_needed"].items():
+                            total_needed_parts.append(f"{item_name} x{count}")
+                        total_needed_str = "共需要" + ",".join(total_needed_parts)
                     else:
-                        recipe_parts.append(f"配方{i}：缺少材料")
+                        total_needed_str = ""
+
+                    # 显示缺少的材料和完整配方
+                    if sorted_missing:
+                        missing_items = sorted_missing[:3]  # 最多显示3种缺少的材料
+                        if len(sorted_missing) > 3:
+                            missing_items.append("等")
+
+                        if total_needed_str:
+                            recipe_parts.append(f"配方{i}：缺少{','.join(missing_items)},{total_needed_str}")
+                        else:
+                            recipe_parts.append(f"配方{i}：缺少{','.join(missing_items)}")
+                    else:
+                        if total_needed_str:
+                            recipe_parts.append(f"配方{i}：缺少材料,{total_needed_str}")
+                        else:
+                            recipe_parts.append(f"配方{i}：缺少材料")
             
             # 组合成紧凑的字符串
             result = "合成失败：" + ",".join(recipe_parts)

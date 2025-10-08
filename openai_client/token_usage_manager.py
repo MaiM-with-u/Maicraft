@@ -113,11 +113,6 @@ class TokenUsageManager:
         if model_name in self.model_prices:
             return self.model_prices[model_name]
         
-        # 尝试模糊匹配（移除版本号等后缀）
-        for price_model in self.model_prices.keys():
-            if model_name.startswith(price_model.split('-')[0]) or price_model in model_name:
-                return self.model_prices[price_model]
-        
         return None
     
     def _calculate_cost(self, model_name: str, prompt_tokens: int, completion_tokens: int) -> Dict[str, Any]:

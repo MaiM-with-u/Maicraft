@@ -1,8 +1,10 @@
 import asyncio
+import random
 import time
 from agent.block_cache.block_cache import global_block_cache
 from agent.block_cache.nearby_block import nearby_block_manager
 from agent.environment.environment import global_environment
+from agent.common.basic_class import BlockPosition
 from agent.action.move_action import move_to_position
 from agent.utils.utils import (
     parse_tool_result,
@@ -38,7 +40,7 @@ async def mine_nearby_blocks(name: str, count: int,digOnly:bool) -> tuple[bool,s
         
     return is_success,result_str
     
-async def mine_block_by_position(x,y,z,digOnly: bool) -> tuple[bool,str]:
+async def mine_block_by_position(x,y,z,digOnly: bool = False) -> tuple[bool,str]:
     """
     挖掘某个位置的方块
     x,y,z是方块的坐标
@@ -151,45 +153,105 @@ async def mine_in_direction(direction: str, timeout: float, digOnly: bool) -> tu
         
         # 检查并收集周围可见的矿石方块
         ore_collect_start = time.time()
-        ore_result = await _check_and_mine_nearby_ores(current_pos)
+        success,ore_result = await _check_and_mine_nearby_ores(current_pos)
         result_str += ore_result
         ores_collect_time = time.time() - ore_collect_start
         mine_timeout += ores_collect_time * 0.6
-        
-        # 挖掘两格高的隧道
-        all_success = True
-        for height_offset in [0, 1]:
-            await asyncio.sleep(0.12)
-            mine_y = target_y + height_offset
-            
-            # 检查这个高度的方块
-            upper_block_cache = global_block_cache.get_block(target_x, mine_y, target_z)
-            if not upper_block_cache or upper_block_cache.block_type in ["air", "cave_air"]:
-                logger.info(f"位置{target_x},{mine_y},{target_z}不存在方块，跳过")
+
+        # 区分水平挖掘（x,z方向）和垂直挖掘（y方向）
+        if direction in ["+y", "-y"]:
+            # 垂直挖掘：只挖掘脚下方块，逐层下降/上升
+            all_success = True
+
+            # 计算目标位置（脚下的方块）
+            if direction == "+y":
+                # 向上挖掘，目标是头顶上方的方块
+                target_y = int(start_pos.y + 2 + current_distance)
+            else:
+                # 向下挖掘，目标是脚下的方块
+                target_y = int(start_pos.y - 1 - current_distance)
+
+            target_x = int(start_pos.x)
+            target_z = int(start_pos.z)
+
+            logger.info(f"垂直挖掘{direction}方向，目标位置{target_x},{target_y},{target_z}")
+
+            # 移动到目标位置旁边
+            await move_to_position(target_x, target_y, target_z)
+
+            # 检查目标位置的方块
+            block_cache = global_block_cache.get_block(target_x, target_y, target_z)
+            if not block_cache:
+                logger.info(f"位置{target_x},{target_y},{target_z}不存在方块，跳过")
+                current_distance += 1
                 continue
-            
-            if upper_block_cache.block_type in ["water", "lava", "bedrock"]:
-                result_str += f"遇到{upper_block_cache.block_type}，停止挖掘"
-                all_success = False
+
+            if block_cache.block_type in ["air", "cave_air"]:
+                logger.info(f"位置{target_x},{target_y},{target_z}是空方块，前进")
+                current_distance += 1
+                continue
+
+            if block_cache.block_type in ["water", "lava", "bedrock"]:
+                result_str += f"遇到{block_cache.block_type}，停止垂直挖掘"
                 break
-            
-            type = upper_block_cache.block_type
-            
+
             # 挖掘方块
-            args = {"x": target_x, "y": mine_y, "z": target_z, "enable_xray": True,"goalType":"goalNear","distance":1.5}
-            logger.info(f"挖掘位置{target_x},{mine_y},{target_z}")
+            block_type = block_cache.block_type
+            args = {"x": target_x, "y": target_y, "z": target_z, "enable_xray": True, "goalType": "goalNear", "distance": 1.5}
+            logger.info(f"垂直挖掘位置{target_x},{target_y},{target_z}的{block_type}")
             call_result = await global_mcp_client.call_tool_directly("mine_block", args)
             is_success, result_content = parse_tool_result(call_result)
-            
+
             if is_success:
-                if type not in ["air", "cave_air"]:
-                    blocks_mined += 1
-                    result_str += f"成功挖掘{target_x},{mine_y},{target_z}的{type}\n"
+                blocks_mined += 1
+                result_str += f"成功垂直挖掘{target_x},{target_y},{target_z}的{block_type}\n"
             else:
                 result_str += translate_result(result_content)
-                logger.info(f"挖掘位置{target_x},{mine_y},{target_z}失败: {result_content}")
+                logger.info(f"垂直挖掘位置{target_x},{target_y},{target_z}失败: {result_content}")
                 all_success = False
                 break
+
+            # 成功挖掘后增加距离
+            if all_success:
+                current_distance += 1
+            else:
+                break
+
+        else:
+            # 水平挖掘（x,z方向）：挖掘两格高的隧道
+            all_success = True
+            for height_offset in [0, 1]:
+                await asyncio.sleep(0.12)
+                mine_y = target_y + height_offset
+
+                # 检查这个高度的方块
+                upper_block_cache = global_block_cache.get_block(target_x, mine_y, target_z)
+                if not upper_block_cache or upper_block_cache.block_type in ["air", "cave_air"]:
+                    logger.info(f"位置{target_x},{mine_y},{target_z}不存在方块，跳过")
+                    continue
+
+                if upper_block_cache.block_type in ["water", "lava", "bedrock"]:
+                    result_str += f"遇到{upper_block_cache.block_type}，停止挖掘"
+                    all_success = False
+                    break
+
+                type = upper_block_cache.block_type
+
+                # 挖掘方块
+                args = {"x": target_x, "y": mine_y, "z": target_z, "enable_xray": True,"goalType":"goalNear","distance":1.5}
+                logger.info(f"挖掘位置{target_x},{mine_y},{target_z}")
+                call_result = await global_mcp_client.call_tool_directly("mine_block", args)
+                is_success, result_content = parse_tool_result(call_result)
+
+                if is_success:
+                    if type not in ["air", "cave_air"]:
+                        blocks_mined += 1
+                        result_str += f"成功挖掘{target_x},{mine_y},{target_z}的{type}\n"
+                else:
+                    result_str += translate_result(result_content)
+                    logger.info(f"挖掘位置{target_x},{mine_y},{target_z}失败: {result_content}")
+                    all_success = False
+                    break
         
         # 只有当两格都挖掘成功后才增加挖掘距离
         if all_success:
@@ -208,8 +270,6 @@ async def mine_in_direction(direction: str, timeout: float, digOnly: bool) -> tu
 
 async def _check_and_mine_nearby_ores(current_pos):
     """检查周围可见的矿石方块并进行批量挖掘"""
-    from agent.common.basic_class import BlockPosition
-    
     result_str = ""
     
     # 确保current_pos是BlockPosition对象
@@ -226,11 +286,11 @@ async def _check_and_mine_nearby_ores(current_pos):
             return f"创建位置对象失败: {str(e)}"
     
     # 获取当前位置周围的可见方块
-    mine_failed = False
-    while not mine_failed:
+    mine_stop = False
+    while not mine_stop:
         await asyncio.sleep(0.15)
         pos = BlockPosition(x=current_pos.x, y=current_pos.y, z=current_pos.z)
-        visible_blocks = await nearby_block_manager.get_visible_blocks_list(pos, distance=16)
+        visible_blocks = await nearby_block_manager.get_visible_blocks_list(pos, distance=8)
         
         # 找出所有矿石方块
         ore_blocks = {}
@@ -238,6 +298,11 @@ async def _check_and_mine_nearby_ores(current_pos):
         # logger.info(f"发现周围矿石：{visible_blocks}")
         for block in visible_blocks:
             if "ore" in block["type"].lower():
+                if "coal" in block["type"].lower() and random.random() < 0.3:
+                    continue
+                if "copper" in block["type"].lower() and random.random() < 0.6:
+                    continue
+                
                 ore_type = block["type"]
                 if ore_type not in ore_blocks:
                     ore_blocks[ore_type] = []
@@ -251,21 +316,25 @@ async def _check_and_mine_nearby_ores(current_pos):
             logger.info(f"发现周围矿石：{', '.join(ore_blocks.keys())}，开始批量挖掘...\n")
             # result_str += f"发现周围矿石：{', '.join(ore_blocks.keys())}，开始批量挖掘...\n"
             for ore_type, positions in ore_blocks.items():
+                logger.info(f"挖掘{ore_type}，共{len(positions)}个")
                 result_str += f"挖掘{ore_type}，共{len(positions)}个\n"
-                ore_success, ore_result = await mine_nearby_blocks(ore_type, len(positions), digOnly=False)
-                logger.info(f"挖掘{ore_type}，共{len(positions)}个，结果：{ore_result}")
-                result_str += f"{ore_result}\n"
-                if ore_success:
-                    logger.info(f"{ore_type}挖掘完成")
-                    # result_str += f"{ore_type}挖掘完成\n"
-                else:
-                    logger.info(f"{ore_type}挖掘失败")
-                    # result_str += f"{ore_type}挖掘失败\n"
-                    mine_failed = True
-                    break
+                mine_count = 0
+                for position in positions:
+                    logger.info(f"挖掘{ore_type}，位置{position[0]},{position[1]},{position[2]}")
+                    ore_success,ore_result = await mine_block_by_position(position[0], position[1], position[2], digOnly=False)
+                    logger.info(f"挖掘{ore_type}，位置{position[0]},{position[1]},{position[2]}，结果：{ore_success}")
+                    if ore_success:
+                        mine_count += 1
+                    else:
+                        mine_stop = True
+                        break
+                result_str += f"挖掘{ore_type}，共{mine_count}个，结果：{ore_success}\n"
+                # if mine_count != len(positions):
+                #     mine_failed = True
+                #     break
                     
                     
-    return result_str
+    return True,result_str
 
 async def mine_block(type:str,x:int,y:int,z:int,name:str,count:int,digOnly:bool,direction:str="",timeout:float=0) -> tuple[bool,str]:
     if type == "nearby":

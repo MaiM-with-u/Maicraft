@@ -281,8 +281,12 @@ class EnvironmentUpdater:
     async def update_events(self):
         """更新事件数据到环境信息中"""
         event_data = await self._call_tool("query_recent_events", {"sinceTick": self.last_processed_tick})
+        # event_data = await self._call_tool("query_recent_events", {})
+        # print(f"[EnvironmentUpdater] 更新事件: {event_data}")
         recent_events = event_data.get("data", {})
         new_events = recent_events.get("events", [])
+        
+        # print(f"[EnvironmentUpdater] 更新事件: {new_events}")
         
         # 更新 last_processed_tick 为最新的事件 tick
         if new_events:
@@ -311,6 +315,7 @@ class EnvironmentUpdater:
 
                     # 保留：向后兼容的硬编码处理
                     if event.type == EventType.CHAT.value:
+                        print(f"[EnvironmentUpdater] 处理事件: {event}")
                         global_chat_history.add_chat_history(event)
 
 

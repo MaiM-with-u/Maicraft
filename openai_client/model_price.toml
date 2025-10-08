@@ -2,6 +2,10 @@
 price_in = 2
 price_out = 8
 
+[deepseek-v3.2-exp]
+price_in = 2
+price_out = 3
+
 [qwen3-30b-a3b-instruct-2507]
 price_in = 0.75
 price_out = 3
