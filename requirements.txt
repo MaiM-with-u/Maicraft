@@ -20,7 +20,7 @@ obsws-python
 pygame  # Optional: For more reliable audio playback in TTS plugin
 PyOpenGL  # For 3D rendering
 PyOpenGL-accelerate  # Optional: For better OpenGL performance
-pywin32  # For Windows-specific OpenGL context creation
+pywin32 ; sys_platform == 'win32'  # For Windows-specific OpenGL context creation
 tomli
 maim-message
 customtkinter
